@@ -14,7 +14,6 @@
     "express-nunjucks": "^3.1.1",
     "fullcalendar": "^6.1.9",
     "http-errors": "~1.6.3",
-    "jade": "~1.11.0",
     "morgan": "~1.9.1",
     "node-fetch": "^2.7.0",
     "nunjucks": "^3.2.4"
