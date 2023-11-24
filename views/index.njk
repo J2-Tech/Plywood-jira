@@ -1,9 +1,13 @@
+
 {% import "worklogModal.njk" as worklogModal %}
+<!DOCTYPE html>
 <html>
     <head>  
         <title>Jira Time</title>
         <link href='/stylesheets/style.css' rel='stylesheet' />
-        
+        <meta http-equiv='Content-Security-Policy' content="font-src data:" />
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta charset='utf-8' />
         <link
         rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"
@@ -16,12 +20,17 @@
             var calendarElement = document.getElementById('calendar');
             calendar = new FullCalendar.Calendar(calendarElement, {
                 initialView: 'timeGridWeek',
+                nowIndicator: true,
+                now: new Date(),
                 customButtons: {
                     refreshBtn: {
                         text: '🔄',
                         click: function() { calendar.refetchEvents(); }
                     }
                 },
+                height: 'calc(100vh - 50px)',
+                eventColor: '#2a75fe',
+                allDaySlot: false,
                 headerToolbar: {
                     left: 'prev,today,next',
                     center: 'title',
