@@ -1,0 +1,84 @@
+body {
+  padding: 50px;
+  font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
+}
+
+a {
+  color: #00B7FF;
+}
+
+
+.modal {
+  display: none;
+  position: fixed;
+  background: white;
+  z-index: 100;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  resize: both;
+  overflow: auto;
+  min-width: 30%;
+  min-height: 60%;
+}
+.modal-content h2 {
+  width: 100%;
+  display: inline-block;
+  text-align: center;
+}
+.modal-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.modal-content .comment {
+  min-width: 70%;
+  min-height: 60px;
+}
+.modal-content label {
+  width: 100%;
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.modal .destructive {
+  border: 2px solid darkred;
+  background: red;
+  color: white;
+  border-radius: 5px;
+}
+
+.modal .primary {
+  border: 2px solid darkblue;
+  background: blue;
+  color: white;
+  border-radius: 5px;
+}
+
+.modal input {
+  margin-bottom: 15px;
+  width:70%
+}
+
+.modal .buttons {
+  margin-top: 30px;
+}
+
+.modal .buttons button {
+  margin: 0 5px;
+  padding: 10px;
+  text-align: center;
+  vertical-align: text-top;
+}
+
+/********** Choices.js **********/
+.modal .choices {
+  min-width:300px;
+  width: 70%;
+  display:inline-block
+}
+
+.modal .choices__inner {
+  width: calc(100% - 17px);
+}

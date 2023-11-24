@@ -1,0 +1,22 @@
+{
+  "name": "jiratimestandalone",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node ./bin/www"
+  },
+  "dependencies": {
+    "cookie-parser": "~1.4.4",
+    "dayjs": "^1.11.10",
+    "debug": "~2.6.9",
+    "dotenv": "^16.3.1",
+    "express": "~4.16.1",
+    "express-nunjucks": "^3.1.1",
+    "fullcalendar": "^6.1.9",
+    "http-errors": "~1.6.3",
+    "jade": "~1.11.0",
+    "morgan": "~1.9.1",
+    "node-fetch": "^2.7.0",
+    "nunjucks": "^3.2.4"
+  }
+}

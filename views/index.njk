@@ -1,0 +1,87 @@
+{% import "worklogModal.njk" as worklogModal %}
+<html>
+    <head>  
+        <title>Jira Time</title>
+        <link href='/stylesheets/style.css' rel='stylesheet' />
+        
+        <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"
+        />
+        <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+        <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.9/index.global.min.js'></script>
+        <script>
+        var calendar;
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarElement = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(calendarElement, {
+                initialView: 'timeGridWeek',
+                customButtons: {
+                    refreshBtn: {
+                        text: '🔄',
+                        click: function() { calendar.refetchEvents(); }
+                    }
+                },
+                headerToolbar: {
+                    left: 'prev,today,next',
+                    center: 'title',
+                    right: 'refreshBtn,timeGridWeek,timeGridDay' // user can switch between the two
+                },
+                selectable:true,
+                selectMirror:true,
+                events: '/events',
+                eventResize: function(info) {
+                    // use fetch to call /worklog with a PUT request, passing the new start time and calculated duration
+                    fetch('/worklog/' + info.event.extendedProps.worklogId, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            issueId: info.event.extendedProps.issueId,
+                            start: info.event.start,
+                            duration: (info.event.end - info.event.start)/1000
+                        })
+                    }).then(function(response) {
+                        // TODO : update the event with response from server
+
+                    }).catch((error) => {
+                        info.revert();
+                    });
+                },
+                eventDrop: function(info) {
+                    fetch('/worklog/' + info.event.extendedProps.worklogId, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            issueId: info.event.extendedProps.issueId,
+                            start: info.event.start,
+                            duration: (info.event.end - info.event.start)/1000
+                        })
+                    }).then(function(response) {
+                        // TODO : update the event with response from server
+
+                    }).catch((error) => {
+                        info.revert();
+                    });
+                },
+                eventClick: function(info) {
+                    showUpdateModal(info.event);
+                },
+                unselectCancel: '.modal',
+                select: function(info) {
+                    showCreateModal(info.start, info.end);
+                }
+            });
+            calendar.render();
+        });
+        </script>
+    </head>
+
+    <body>
+        {{ worklogModal.modalForm('/worklog/') }}
+        <div id='calendar'></div>
+    </body>
+</html>
