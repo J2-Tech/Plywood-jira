@@ -11,7 +11,7 @@ exports.getUsersWorkLogsAsEvent = function(start, end) {
 
     return jiraAPIController.searchIssues('worklogAuthor = currentUser() AND worklogDate >= ' + formattedStart + ' AND worklogDate <= '+ formattedEnd).then(result => {
         // create an array of issue IDs and keys from result.issues
-        const issues = result.issues.map(issue => { return {issueId: issue.id, issueKey: issue.key} });
+        const issues = result.issues.map(issue => { return {issueId: issue.id, issueKey: issue.key, summary: issue.fields.summary} });
         const userWorkLogs = [];
         // for each issue ID, get worklogs, filter by started date and match worklog author to process.env.JIRA_USERNAME
         // create an array of promises , each promise should return the worklogs for its issue ID, and use promise.all to resolve them
@@ -46,6 +46,7 @@ exports.getUsersWorkLogsAsEvent = function(start, end) {
                         allDay: false,
                         issueId: log.issue.issueId,
                         issueKey: log.issue.issueKey,
+                        issueSummary: log.issue.summary,
                         worklogId: log.id,
                         editable: true,
                         Testurl: 'https://' + process.env.JIRA_URL + '/browse/' + log.issue.issueKey //FIXME

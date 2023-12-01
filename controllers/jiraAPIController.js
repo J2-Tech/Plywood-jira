@@ -13,7 +13,7 @@ const defaultHeaders = {
 
 
 exports.searchIssues = function(jql) {
-    return fetch('https://' + process.env.JIRA_URL + '/rest/api/3/search?jql=' + jql, {
+    return fetch('https://' + process.env.JIRA_URL + '/rest/api/3/search?maxResults='+process.env.JIRA_MAX_SEARCH_RESULTS+'&jql=' + jql, {
         method: 'GET',
         headers: defaultHeaders
     }).then(res => res.json());

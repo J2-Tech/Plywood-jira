@@ -9,7 +9,7 @@
         <input type="hidden" name="duration-update" value="">
         <label for="issue-update">Issue:</label>
         <input type="hidden" id="issue-update" name="issue-update">
-        <input type="text" id="issue-label" style="text-align: center;" name="issue-label" disabled="true" placeholder="No issue">
+        <div id="issue-label" style="text-align: center;" name="issue-label"  placeholder="No issue"></div>
         <label for="comment-update">Comment:</label>
         <textarea class="comment" id="comment-update" name="comment-update"></textarea>
         <div class="buttons">
@@ -45,41 +45,33 @@
     // Show the modal when needed
     function showUpdateModal(eventObj) {
       hideCreateModal();
-      // Fetch options when the modal is shown
-      return fetchOptions().then(() => {
-        const workLogId = eventObj.extendedProps.worklogId;
-        const issueId = eventObj.extendedProps.issueId;
-        const workLogIdInput = document.querySelector('input[name="workLogId-update"]');
-        workLogIdInput.value = workLogId;
+      const workLogId = eventObj.extendedProps.worklogId;
+      const issueId = eventObj.extendedProps.issueId;
+      const workLogIdInput = document.querySelector('input[name="workLogId-update"]');
+      workLogIdInput.value = workLogId;
 
-        const startInput = document.querySelector('input[name="start-update"]');
-        startInput.value = eventObj.start.toISOString();
+      const startInput = document.querySelector('input[name="start-update"]');
+      startInput.value = eventObj.start.toISOString();
 
-        const durationInput = document.querySelector('input[name="duration-update"]');
-        durationInput.value = (eventObj.end - eventObj.start)/1000;
+      const durationInput = document.querySelector('input[name="duration-update"]');
+      durationInput.value = (eventObj.end - eventObj.start)/1000;
 
-        const modal = document.querySelector('.modal-update');
-        modal.style.display = 'block';
+      const modal = document.querySelector('.modal-update');
+      modal.style.display = 'block';
 
-        return fetchWorkLog(workLogId, issueId);
-      });
+      return fetchWorkLog(workLogId, issueId);
     }
 
     function showCreateModal(start, end) {
       hideUpdateModal();
-      // Fetch options when the modal is shown
-      return fetchOptions().then(() => {
+      const startInput = document.querySelector('input[name="start-create"]');
+      startInput.value = start.toISOString();
 
-        const startInput = document.querySelector('input[name="start-create"]');
-        startInput.value = start.toISOString();
+      const durationInput = document.querySelector('input[name="duration-create"]');
+      durationInput.value = (end - start)/1000;
 
-        const durationInput = document.querySelector('input[name="duration-create"]');
-        durationInput.value = (end - start)/1000;
-
-        const modal = document.querySelector('.modal-create');
-        modal.style.display = 'block';
-
-      });
+      const modal = document.querySelector('.modal-create');
+      modal.style.display = 'block';
       
     }
 
@@ -187,7 +179,9 @@
 
     // Fetch options for the 'Issue' dropdown
     function fetchOptions() {
-      return fetch('/issues/user')
+      var startDate = encodeURIComponent(new Date(calendar.view.activeStart).toISOString());
+      var endDate = encodeURIComponent(new Date(calendar.view.activeEnd).toISOString());
+      return fetch('/issues/user?start='+ startDate + '&end=' + endDate)
         .then(response => response.json())
         .then(data => {
           var options = [];
@@ -226,7 +220,7 @@
           issueInput.value = data.issueId;
           fetchIssue(data.issueId).then((issue) => {
             const issueLabel = document.getElementById('issue-label');
-            issueLabel.value = issue.key;
+            issueLabel.innerHTML = issue.key + ' ' + issue.fields.summary;
           });
 
           const commentInput = document.getElementById('comment-update');
@@ -257,7 +251,7 @@
     document.addEventListener('DOMContentLoaded', function() {
       choicesCreate = new Choices('#issue-create', {
         searchEnabled: true,
-        itemSelectText: 'Choose this issue',
+        itemSelectText: '',
         shouldSort: false
       });
 
@@ -303,12 +297,18 @@
 
     function refreshEverything() {
       calendar.refetchEvents();
+      
+      refreshIssuesDropdown();
+    }
 
+    function refreshIssuesDropdown() {
+      if (choicesCreate) {
       choicesCreate.clearChoices();
       choicesCreate.setChoices(async () => {
         const options = await fetchOptions();
         return options;
       });
+      }
     }
 
   </script>
