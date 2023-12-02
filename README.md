@@ -18,10 +18,15 @@ work *logs*... timesheets... wood sheets... plywood... you get it :)
 
 ### Librairies used 
 (some of them anyways)
+
 [Fullcalendar](https://fullcalendar.io/)
+
 [Popper](https://popper.js.org/)
+
 [Choices.JS](https://github.com/Choices-js/Choices)
+
 [Momentjs](https://momentjs.com/)
+
 [Express](https://expressjs.com/)
 
 
