@@ -5,7 +5,7 @@ body {
 }
 
 a {
-  color: #00B7FF;
+  color: #2a75fe;
 }
 
 .tooltip {
@@ -136,6 +136,13 @@ output#zoom-output {
 
 input#include-weekends {
   margin: 5px 0 6px;
+}
+
+
+.about-section {
+  position: absolute;
+  bottom: 5px;
+  opacity: 35%;
 }
 
 
