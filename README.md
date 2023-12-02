@@ -1,10 +1,10 @@
-#Plywood
+# Plywood
 A quick and dirty NodeJS app to manage Jira worklogs using API access
 
 work *logs*... timesheets... wood sheets... plywood... you get it :)
 
 
-###How to use : 
+### How to use : 
 
 1. install Nodejs 
 2. modify the 'example.env' file to add your jira information, then save it as '.env'
