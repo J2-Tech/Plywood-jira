@@ -1,18 +1,53 @@
 const fetch = require('node-fetch');
-const https = require('https')
+const https = require('https');
 
 
-const bearerToken = 'Basic ' + Buffer.from(process.env.JIRA_USERNAME + ':' + process.env.JIRA_API_TOKEN).toString('base64');
+function getDefaultHeaders(req) {
+    let defaultHeaders;
 
-const defaultHeaders = {
-    'Authorization': bearerToken,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-};
+    switch (process.env.JIRA_AUTH_TYPE) {
+        case "OAUTH":
+            defaultHeaders = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': 'Bearer ' + req.user.accessToken
+            };
+        break;
+        
+        case "BASIC":
+        default:
+            const bearerToken = 'Basic ' + Buffer.from(process.env.JIRA_BASIC_AUTH_USERNAME + ':' + process.env.JIRA_BASIC_AUTH_API_TOKEN).toString('base64');
+
+            defaultHeaders = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': bearerToken
+            };
+            break;
+    }
+
+    return defaultHeaders;
+}
+
+function getCallURL(req) {
+    let defaultURL;
+    switch (process.env.JIRA_AUTH_TYPE) {
+        case "OAUTH":
+            defaultURL = 'https://api.atlassian.com/ex/jira/' + req.session.cloudId;
+        break;
+        
+        case "BASIC":
+        default:
+            defaultURL = 'https://' + process.env.JIRA_URL;
+            break;
+    }
+    return defaultURL;
+}
+
 
 let httpsAgent;
 
-if (process.env.DISABLE_HTTPS) {
+if (process.env.JIRA_API_DISABLE_HTTPS_VALIDATION || process.env.JIRA_API_DISABLE_HTTPS_VALIDATION===undefined) {
     httpsAgent = new https.Agent({
         rejectUnauthorized: false,
     });
@@ -21,77 +56,92 @@ if (process.env.DISABLE_HTTPS) {
 }
 
 
-
-
-exports.searchIssues = function(jql) {
-    return fetch('https://' + process.env.JIRA_URL + '/rest/api/3/search?maxResults='+process.env.JIRA_MAX_SEARCH_RESULTS+'&jql=' + jql, {
+exports.getAvailableSites = function(req) {
+    // fetch  https://api.atlassian.com/oauth/token/accessible-resources
+    return fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
         method: 'GET',
-        headers: defaultHeaders,
-        agent:httpsAgent
+        headers: getDefaultHeaders(req),
+        agent:httpsAgent,
     }).then(res => res.json());
 }
 
-exports.getIssue = function(issueId) {
-    return fetch('https://' + process.env.JIRA_URL + '/rest/api/3/issue/' + issueId, {
+exports.searchIssues = function(req, jql) {
+    const headers = getDefaultHeaders(req);
+    const url = getCallURL(req);
+    return fetch(url + '/rest/api/3/search?maxResults='+process.env.JIRA_MAX_SEARCH_RESULTS+'&jql=' + jql, {
         method: 'GET',
-        headers: defaultHeaders,
-        agent:httpsAgent
+        headers,
+        agent: httpsAgent
     }).then(res => res.json());
 }
 
-
-exports.getIssueWorklogs = function(issueId, startedBefore, startedAfter) {
-    return fetch('https://' + process.env.JIRA_URL + '/rest/api/2/issue/' + issueId + '/worklog?startedBefore=' + startedBefore + '&startedAfter=' + startedAfter + '&expand=renderedFields', {
+exports.getIssue = function(req, issueId) {
+    const url = getCallURL(req);
+    return fetch(url + '/rest/api/3/issue/' + issueId, {
         method: 'GET',
-        headers: defaultHeaders,
-        agent:httpsAgent
-    }).then(res => res.json());
-}
-
-exports.getWorkLog = function(issueId, worklogId) {
-    return fetch('https://' + process.env.JIRA_URL + '/rest/api/2/issue/' + issueId + '/worklog/' + worklogId + '?expand=renderedFields', {
-        method: 'GET',
-        headers: defaultHeaders,
+        headers: getDefaultHeaders(req),
         agent:httpsAgent
     }).then(res => res.json());
 }
 
 
-exports.updateWorkLog = function(issue, worklogId, started, timeSpentSeconds, comment) {
+exports.getIssueWorklogs = function(req, issueId, startedBefore, startedAfter) {
+    const url = getCallURL(req);
+    return fetch(url + '/rest/api/2/issue/' + issueId + '/worklog?startedBefore=' + startedBefore + '&startedAfter=' + startedAfter + '&expand=renderedFields', {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent:httpsAgent
+    }).then(res => res.json());
+}
+
+exports.getWorkLog = function(req, issueId, worklogId) {
+    const url = getCallURL(req);
+    return fetch(url + '/rest/api/2/issue/' + issueId + '/worklog/' + worklogId + '?expand=renderedFields', {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent:httpsAgent
+    }).then(res => res.json());
+}
+
+
+exports.updateWorkLog = function(req, issue, worklogId, started, timeSpentSeconds, comment) {
     const body = {
         "comment": comment,
         "started": started,
         "timeSpentSeconds": timeSpentSeconds
     };
 
-    return fetch('https://' + process.env.JIRA_URL + '/rest/api/2/issue/' + issue + '/worklog/' + worklogId +'?expand=renderedFields', {
+    const url = getCallURL(req);
+    return fetch(url + '/rest/api/2/issue/' + issue + '/worklog/' + worklogId +'?expand=renderedFields', {
         method: 'PUT',
-        headers: defaultHeaders,
+        headers: getDefaultHeaders(req),
         body: JSON.stringify(body),
         agent:httpsAgent
     }).then(res => res.json());
 }
 
-exports.createWorkLog = function(issue, started, timeSpentSeconds, comment) {
+exports.createWorkLog = function(req, issue, started, timeSpentSeconds, comment) {
     const body = {
         "comment": comment,
         "started": started,
         "timeSpentSeconds": timeSpentSeconds
     };
 
-    return fetch('https://' + process.env.JIRA_URL + '/rest/api/2/issue/' + issue + '/worklog', {
+    const url = getCallURL(req);
+    return fetch(url + '/rest/api/2/issue/' + issue + '/worklog', {
         method: 'POST',
-        headers: defaultHeaders,
+        headers: getDefaultHeaders(req),
         body: JSON.stringify(body),
         agent:httpsAgent
     }).then(res => res.json());
 }
 
-exports.deleteWorkLog = function(issue, worklogId) {
-    return fetch('https://' + process.env.JIRA_URL + '/rest/api/3/issue/' + issue + '/worklog/' + worklogId, {
+exports.deleteWorkLog = function(req, issue, worklogId) {
+    const url = getCallURL(req);
+    return fetch(url + '/rest/api/3/issue/' + issue + '/worklog/' + worklogId, {
         method: 'DELETE',
         headers: {
-            'Authorization': bearerToken,
+            'Authorization': getDefaultHeaders(req).Authorization,
         },
         agent:httpsAgent
     }).then(res => res.text()).catch(err => {

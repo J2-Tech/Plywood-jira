@@ -5,10 +5,13 @@ var cookieParser = require('cookie-parser');
 //var favicon = require('serve-favicon');
 var logger = require('morgan');
 var nunjucks = require("nunjucks");
-
+const passport = require('passport');
+const AtlassianOAuth2Strategy = require('passport-atlassian-oauth2');
+const session = require('express-session');
 const dotenv = require('dotenv').config();
 
 var indexRouter = require('./routes/index');
+
 
 var app = express();
 
@@ -28,6 +31,36 @@ app.use(cookieParser());
 //app.use(favicon(path.join(__dirname, 'public/images', 'favicon.ico')))
 app.use(express.static(path.join(__dirname, 'public')));
 
+
+if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
+
+  app.use(session({ secret: 'your-secret', resave: false, saveUninitialized: false }));
+
+  passport.use(new AtlassianOAuth2Strategy({
+      clientID: process.env.JIRA_OAUTH_CLIENT_ID,
+      clientSecret: process.env.JIRA_OAUTH_CLIENT_SECRET,
+      callbackURL: process.env.JIRA_OAUTH_CALLBACK_URL,
+      scope: 'offline_ac read:jira-work read:jira-user write:jira-work',
+  },
+  function(accessToken, refreshToken, profile, cb) {
+      profile.accessToken = accessToken;
+      cb(null, profile);
+  }));
+
+  passport.serializeUser(function(user, cb) {
+      cb(null, user);
+  });
+
+  passport.deserializeUser(function(obj, cb) {
+      cb(null, obj);
+  });
+
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  var authRouter = require('./routes/auth');
+  app.use('/auth', authRouter);
+}
 
 app.use('/', indexRouter);
 
