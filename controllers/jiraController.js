@@ -22,9 +22,12 @@ exports.getUsersWorkLogsAsEvent = function(req, start, end) {
                 return worklogs.filter(worklog => {
                     const startTime = new Date(worklog.started);
                     const endTime = new Date(startTime.getTime() + (worklog.timeSpentSeconds * 1000));
-                    return startTime.getTime() > filterStartTime.getTime() 
-                        && endTime.getTime() < filterEndTime.getTime()
-                        && worklog.author.emailAddress == process.env.JIRA_BASIC_AUTH_USERNAME
+                    let condition = startTime.getTime() > filterStartTime.getTime() 
+                    && endTime.getTime() < filterEndTime.getTime();
+                    if (process.env.JIRA_BASIC_AUTH_USERNAME) {
+                        condition = condition && worklog.author.emailAddress == process.env.JIRA_BASIC_AUTH_USERNAME;
+                    }
+                    return condition;
                 })
                 .map(worklog => {
                     worklog.issue = issue;

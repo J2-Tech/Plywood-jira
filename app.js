@@ -10,6 +10,8 @@ const AtlassianOAuth2Strategy = require('passport-atlassian-oauth2');
 const session = require('express-session');
 const dotenv = require('dotenv').config();
 
+const https = require('https');
+
 var indexRouter = require('./routes/index');
 
 
@@ -36,7 +38,7 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
 
   app.use(session({ secret: 'your-secret', resave: false, saveUninitialized: false }));
 
-  passport.use(new AtlassianOAuth2Strategy({
+  const authStrategy = new AtlassianOAuth2Strategy({
       clientID: process.env.JIRA_OAUTH_CLIENT_ID,
       clientSecret: process.env.JIRA_OAUTH_CLIENT_SECRET,
       callbackURL: process.env.JIRA_OAUTH_CALLBACK_URL,
@@ -45,7 +47,12 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
   function(accessToken, refreshToken, profile, cb) {
       profile.accessToken = accessToken;
       cb(null, profile);
+  });
+
+  authStrategy._oauth2.setAgent(new https.Agent({
+    rejectUnauthorized: false,
   }));
+  passport.use(authStrategy);
 
   passport.serializeUser(function(user, cb) {
       cb(null, user);
