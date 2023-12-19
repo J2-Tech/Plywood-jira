@@ -125,7 +125,7 @@
                         contaier: 'body',
                     });
                 },
-                unselectCancel: '.modal',
+                unselectCancel: '.unselectable',
                 select: function(info) {
                     showCreateModal(info.start, info.end);
                 }
@@ -177,7 +177,7 @@
     <body>
         {{ worklogModal.modalForm('/worklog/') }}
         <div id='calendar'></div>
-        <footer>
+        <footer class="unselectable">
             <div id='total-time'><h3>Total time : </h2><div id='total-time-value'></div></div>
             <div id='weekend-container'><input type="checkbox" id="include-weekends" name="include-weekends"><label for="include-weekends">Weekends</label></div>
             <div id='zoom-container'><input type="range" min="5" max="60" step="5" value="15" id="zoom-range" name="zoom-range"><output for="zoom-range" id="zoom-output">15 minutes / slot</output></div>

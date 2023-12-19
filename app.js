@@ -46,6 +46,7 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
   },
   function(accessToken, refreshToken, profile, cb) {
       profile.accessToken = accessToken;
+      profile.refreshToken = refreshToken;
       cb(null, profile);
   });
 

@@ -1,6 +1,6 @@
 {% macro modalForm(endpoint) %}
   <!-- HTML structure for the modal form -->
-  <div class="modal modal-update">
+  <div class="modal unselectable modal-update">
     <div class="modal-content">
       <h2>Update work log</h2>
       <form class="modal-form" id="modal-form-update" method="PUT" action="{{ endpoint }}">
@@ -20,7 +20,7 @@
       </form>
     </div>
   </div>
-  <div class="modal modal-create">
+  <div class="modal unselectable modal-create">
     <div class="modal-content">
       <h2>Create work log</h2>
       <form class="modal-form" id="modal-form-create" method="POST" action="{{ endpoint }}">
@@ -63,6 +63,7 @@
     }
 
     function showCreateModal(start, end) {
+      calendar.setOption('unselectAuto', false);
       hideUpdateModal();
       const startInput = document.querySelector('input[name="start-create"]');
       startInput.value = start.toISOString();
@@ -86,6 +87,7 @@
       const modal = document.querySelector('.modal-create');
       modal.style.display = 'none';
       calendar.unselect();
+      calendar.setOption('unselectAuto', true);
     }
 
     // Handle form submission
@@ -252,7 +254,7 @@
       choicesCreate = new Choices('#issue-create', {
         searchEnabled: true,
         itemSelectText: '',
-        shouldSort: false
+        shouldSort: false,
       });
 
       choicesCreate.setChoices(async () => {
