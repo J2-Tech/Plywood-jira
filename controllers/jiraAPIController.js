@@ -54,17 +54,16 @@ if (process.env.JIRA_API_DISABLE_HTTPS_VALIDATION || process.env.JIRA_API_DISABL
 }
 
 async function withRetry(fetchFn, req, ...args) {
-    try {
-        return await fetchFn(req, ...args);
-    } catch (error) {
-        console.error('Error occurred:', error);
-        if (process.env.JIRA_AUTH_TYPE === "OAUTH") {
-            await refreshToken(req);
-            // Retry the API call with the new token
-            return fetchFn(req, ...args);
-        } else {
-            throw error; // re-throw the error if not using OAUTH
-        }
+    const data = await fetchFn(req, ...args);
+    if (data.code === 401 && process.env.JIRA_AUTH_TYPE === "OAUTH") {
+        console.log('Token expired. Refreshing token...');
+        await refreshToken(req);
+        // Retry the API call with the new token
+        return fetchFn(req, ...args);
+    } else if (data.code === 401) {
+        console.log('Error - unauthorized. Check your credentials.');
+    } else {
+        return data;
     }
 }
 
@@ -82,16 +81,12 @@ async function refreshToken(req) {
     req.session.refreshToken = data.refresh_token;
 }
 
-function getAvailableSitesInternal(req) {
+exports.getAvailableSites= function(req) {
     return fetch('https://api.atlassian.com/oauth/token/accessible-resources', {
         method: 'GET',
         headers: getDefaultHeaders(req),
         agent:httpsAgent,
     }).then(res => res.json());
-}
-
-exports.getAvailableSites = function(req) {
-    return withRetry(getAvailableSitesInternal, req);
 }
 
 function searchIssuesInternal(req, jql) {
