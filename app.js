@@ -36,7 +36,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
 
-  app.use(session({ secret: 'your-secret', resave: false, saveUninitialized: false }));
+  app.use(session({ secret: 'plywoods-amazing-session-secret', resave: false, saveUninitialized: true }));
 
   const authStrategy = new AtlassianOAuth2Strategy({
       clientID: process.env.JIRA_OAUTH_CLIENT_ID,

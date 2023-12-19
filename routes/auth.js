@@ -6,6 +6,12 @@ const jiraAPIController = require('../controllers/jiraAPIController');
 
 router.get('/login', passport.authenticate('atlassian'));
 
+router.get('/refreshToken', (req, res) => {
+    jiraAPIController.refreshToken(req).then(()=>{
+        res.redirect('/');
+    })
+});
+
 router.get('/callback', passport.authenticate('atlassian', { failureRedirect: '/error' }), (req, res) => {
     // Successfull authorization, fetch current site cloud id using url
     jiraAPIController.getAvailableSites(req).then(result => {
