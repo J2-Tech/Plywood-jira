@@ -30,28 +30,31 @@ app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-//app.use(favicon(path.join(__dirname, 'public/images', 'favicon.ico')))
 app.use(express.static(path.join(__dirname, 'public')));
 
 
 if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
-
+  
   app.use(session({ secret: 'plywoods-amazing-session-secret', resave: false, saveUninitialized: true }));
 
   const authStrategy = new AtlassianOAuth2Strategy({
       clientID: process.env.JIRA_OAUTH_CLIENT_ID,
       clientSecret: process.env.JIRA_OAUTH_CLIENT_SECRET,
       callbackURL: process.env.JIRA_OAUTH_CALLBACK_URL,
-      scope: 'offline_ac read:jira-work read:jira-user write:jira-work',
+      scope: 'offline_access read:jira-work read:jira-user write:jira-work',
   },
   function(accessToken, refreshToken, profile, cb) {
       profile.accessToken = accessToken;
       profile.refreshToken = refreshToken;
+      // for each site, check if url matches process.env.JIRA_URL
+      const cloudId = profile.accessibleResources.find(site => site.url.includes(process.env.JIRA_URL)).id;
+      profile.cloudId = cloudId;
       cb(null, profile);
   });
 
   authStrategy._oauth2.setAgent(new https.Agent({
     rejectUnauthorized: false,
+    
   }));
   passport.use(authStrategy);
 

@@ -41,6 +41,14 @@
   </div>
   <!-- JavaScript to show the modal and handle form submission -->
   <script>
+    function handleResponse(response) {
+        if (response.status === 302 && response.headers.get('Location') === '/auth/login') {
+            window.location.href = response.headers.get('Location');
+        } else {
+            return response.json();
+        }
+    }
+
     var choicesCreate;  // choices.js instance
     // Show the modal when needed
     function showUpdateModal(eventObj) {
@@ -108,7 +116,8 @@
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(reqBody)
-      }).then(response => {
+      }).then(handleResponse)
+      .then(response => {
           // Handle the response
           resetControls();
           refreshEverything();
@@ -128,7 +137,8 @@
       if (confirm('Are you sure you want to delete this work log ?')) {
         return fetch('{{ endpoint }}' + formData.get("workLogId-update") + '?issueId=' + formData.get("issue-update"), {
         method: 'DELETE',
-      }).then(response => {
+      }).then(handleResponse)
+      .then(response => {
           // Handle the response
           resetControls();
           refreshEverything();
@@ -167,7 +177,9 @@
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(reqBody)
-      }).then(response => {
+      })
+      .then(handleResponse)
+      .then(response => {
           // Handle the response
           resetControls();
           refreshEverything();
@@ -184,7 +196,7 @@
       var startDate = encodeURIComponent(new Date(calendar.view.activeStart).toISOString());
       var endDate = encodeURIComponent(new Date(calendar.view.activeEnd).toISOString());
       return fetch('/issues/user?start='+ startDate + '&end=' + endDate)
-        .then(response => response.json())
+        .then(handleResponse)
         .then(data => {
           var options = [];
           // Add options from the fetched data
@@ -207,7 +219,7 @@
 
     function fetchIssue(issueId) {
       return fetch(`/issues/${issueId}`)
-        .then(response => response.json())
+        .then(handleResponse)
         .catch(error => {
           // Handle errors
         });
@@ -215,7 +227,7 @@
 
     function fetchWorkLog(workLogId, issueId) {
       fetch(`/worklog/${workLogId}?issueId=${issueId}`)
-        .then(response => response.json())
+        .then(handleResponse)
         .then(data => {
           // Set the form values
           const issueInput = document.getElementById('issue-update');

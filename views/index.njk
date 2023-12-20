@@ -59,8 +59,13 @@
                 events: {
                     url: '/events',
                     method: 'GET',
-                    failure: function() {
-                        alert('there was an error while fetching events!');
+                    failure: function(error) {
+                        if(error && error.response && error.response.headers && response.headers.location && response.headers.location == "/auth/login") {
+                            window.location.href = "/auth/login";
+                        } else {
+                            alert('there was an error while fetching events!');
+                        }
+                        
                     },
                     success: function(events) {
                         updateTotalTime(events);

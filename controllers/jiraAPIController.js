@@ -32,7 +32,7 @@ function getCallURL(req) {
     let defaultURL;
     switch (process.env.JIRA_AUTH_TYPE) {
         case "OAUTH":
-            defaultURL = 'https://api.atlassian.com/ex/jira/' + req.session.cloudId;
+            defaultURL = 'https://api.atlassian.com/ex/jira/' + req.user.cloudId;
         break;
         
         case "BASIC":
@@ -68,17 +68,27 @@ async function withRetry(fetchFn, req, ...args) {
 }
 
 async function refreshToken(req) {
-    const refreshToken = req.session.refreshToken;
-    const response = await fetch('https://auth.atlassian.com/oauth/token', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: `grant_type=refresh_token&refresh_token=${refreshToken}&client_id=${process.env.JIRA_OAUTH_CLIENT_ID}&client_secret=${process.env.JIRA_OAUTH_CLIENT_SECRET}`
-    });
-    const data = await response.json();
-    req.session.accessToken = data.access_token = req.user.accessToken;
-    req.session.refreshToken = data.refresh_token;
+    const refreshToken = req.user.refreshToken;
+    try {
+        const response = await fetch('https://auth.atlassian.com/oauth/token', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: `grant_type=refresh_token&refresh_token=${refreshToken}&client_id=${process.env.JIRA_OAUTH_CLIENT_ID}&client_secret=${process.env.JIRA_OAUTH_CLIENT_SECRET}`
+        });
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        const data = await response.json();
+        req.user.refreshToken = data.refresh_token
+        req.user.accessToken = data.access_token;
+
+    } catch (error) {
+        console.error('Error refreshing token:', error);
+        res.redirect('/login');
+    }
 }
 
 exports.getAvailableSites= function(req) {
