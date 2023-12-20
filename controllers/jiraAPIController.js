@@ -77,11 +77,13 @@ async function refreshToken(req) {
             },
             body: `grant_type=refresh_token&refresh_token=${refreshToken}&client_id=${process.env.JIRA_OAUTH_CLIENT_ID}&client_secret=${process.env.JIRA_OAUTH_CLIENT_SECRET}`
         });
+
+        const data = await response.json();
+
         if (data.error) {
             throw new Error(data.error);
         }
 
-        const data = await response.json();
         req.user.refreshToken = data.refresh_token
         req.user.accessToken = data.access_token;
 

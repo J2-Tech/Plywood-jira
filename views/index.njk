@@ -60,7 +60,9 @@
                     url: '/events',
                     method: 'GET',
                     failure: function(error) {
-                        if(error && error.response && error.response.headers && response.headers.location && response.headers.location == "/auth/login") {
+                        if(error && error.response && error.response.headers && error.response.headers.location && error.response.headers.location == "/auth/login") {
+                            window.location.href = "/auth/login";
+                        } else if(error && error.message && error.message=="NetworkError when attempting to fetch resource.") {
                             window.location.href = "/auth/login";
                         } else {
                             alert('there was an error while fetching events!');
@@ -94,9 +96,11 @@
                             duration: (info.event.end - info.event.start)/1000
                         })
                     }).then(function(response) {
-                        // TODO : update the event with response from server
 
                     }).catch((error) => {
+                        if(error && error.message && error.message=="NetworkError when attempting to fetch resource.") {
+                            window.location.href = "/auth/login";
+                        }
                         info.revert();
                     });
                 },
@@ -112,9 +116,12 @@
                             duration: (info.event.end - info.event.start)/1000
                         })
                     }).then(function(response) {
-                        // TODO : update the event with response from server
+                        
 
                     }).catch((error) => {
+                        if(error && error.message && error.message=="NetworkError when attempting to fetch resource.") {
+                            window.location.href = "/auth/login";
+                        }
                         info.revert();
                     });
                 },
