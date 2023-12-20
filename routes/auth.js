@@ -7,6 +7,7 @@ const jiraAPIController = require('../controllers/jiraAPIController');
 router.get('/login', passport.authenticate('atlassian'));
 
 router.get('/refreshToken', (req, res) => {
+    console.log('refreshToken');
     jiraAPIController.refreshToken(req).then(()=>{
         res.redirect('/');
     })

@@ -195,6 +195,7 @@
       var startDate = encodeURIComponent(new Date(calendar.view.activeStart).toISOString());
       var endDate = encodeURIComponent(new Date(calendar.view.activeEnd).toISOString());
       return fetch('/issues/user?start='+ startDate + '&end=' + endDate)
+      .then((res) => res.json())
         .then(data => {
           var options = [];
           // Add options from the fetched data
@@ -216,6 +217,7 @@
 
     function fetchIssue(issueId) {
       return fetch(`/issues/${issueId}`)
+      .then((res) => res.json())
         .catch(error => {
           handleError(error);
         });
@@ -223,11 +225,13 @@
 
     function fetchWorkLog(workLogId, issueId) {
       fetch(`/worklog/${workLogId}?issueId=${issueId}`)
+        .then((res) => res.json())
         .then(data => {
           // Set the form values
           const issueInput = document.getElementById('issue-update');
           issueInput.value = data.issueId;
-          fetchIssue(data.issueId).then((issue) => {
+          fetchIssue(data.issueId)
+          .then((issue) => {
             const issueLabel = document.getElementById('issue-label');
             issueLabel.innerHTML = issue.key + ' ' + issue.fields.summary;
           });
