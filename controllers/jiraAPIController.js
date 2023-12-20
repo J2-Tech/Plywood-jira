@@ -70,17 +70,19 @@ async function withRetry(fetchFn, req, ...args) {
 async function refreshToken(req) {
     if (req.user) {
         const refreshToken = req.user.refreshToken;
-        console.log(req.user.refreshToken);
         try {
+            console.log('Refreshing token');
             const response = await fetch('https://auth.atlassian.com/oauth/token', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
                 },
+                agent:httpsAgent,
                 body: `grant_type=refresh_token&refresh_token=${refreshToken}&client_id=${process.env.JIRA_OAUTH_CLIENT_ID}&client_secret=${process.env.JIRA_OAUTH_CLIENT_SECRET}`
             });
     
             const data = await response.json();
+            
     
             if (data.error) {
                 throw new Error(data.error);
