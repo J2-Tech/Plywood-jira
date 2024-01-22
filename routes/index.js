@@ -34,7 +34,7 @@ router.get('/issues/user', function(req, res, next) {
 
     var endDate = new Date(req.query.end).toISOString().split('T')[0];
     
-    jiraAPIController.searchIssues(req, '(assignee = currentUser() OR (worklogAuthor = currentUser() AND worklogDate >= ' + startDate + ' AND worklogDate <= '+ endDate + ') OR reporter = currentUser() ) AND (status CHANGED TO ("'+ process.env.JIRA_DONE_STATUS +'") DURING ("'+startDate+'","'+endDate+'") OR status WAS NOT "'+ process.env.JIRA_DONE_STATUS +'" DURING ("'+startDate+'","'+endDate+'") )').then(result => {
+    jiraAPIController.searchIssues(req, 'worklogAuthor = currentUser() AND worklogDate >= ' + startDate + ' AND worklogDate <= '+endDate+' OR ((assignee = currentUser() OR reporter = currentUser()) AND ((statusCategory != '+ process.env.JIRA_DONE_STATUS +') OR (statusCategory = '+ process.env.JIRA_DONE_STATUS +' AND status CHANGED DURING (' + startDate + ', '+endDate+'))))').then(result => {
       if (!result.issues) {
         console.log(result);
       }
