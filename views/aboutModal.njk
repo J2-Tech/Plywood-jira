@@ -1,0 +1,39 @@
+{% macro modal() %}
+<div class="modal unselectable modal-about" style="display:none;"> 
+    <div class="modal-content">
+        <h2>About Plywood</h2>
+        <form class="modal-form" id="modal-form-update" method="PUT" action="{{ endpoint }}">
+            <div class="about-ctn">
+                <div class="icons-8">
+                    <p><a target="_blank" href="https://icons8.com/icon/4ONNYCMz9R42/plywood">Plywood</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a></p>
+                    <p><a target="_blank" href="https://icons8.com/icon/KnQ23R20ge4i/dots-loading">Dots Loading</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a></p>
+                </div>
+                <p>Software licensed under the <a target="_blank" href="https://opensource.org/license/MIT/">MIT License</a></p>
+                <p>Version: 0.2.1</p>
+            </div>
+            <div class="buttons">
+                <button id="close-btn-about" title="Close" type="button">✖️</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+
+    function showAboutModal() {
+      const modal = document.querySelector('.modal-about');
+      modal.style.display = 'block';
+    }
+
+    // Hide the modal
+    function hideAboutModal() {
+      const modal = document.querySelector('.modal-about');
+      modal.style.display = 'none';
+    }
+
+    // Add event listeners to the buttons
+    const closeBtnAbout = document.getElementById('close-btn-about');
+    closeBtnAbout.addEventListener('click', hideAboutModal);
+
+</script>
+{% endmacro %}

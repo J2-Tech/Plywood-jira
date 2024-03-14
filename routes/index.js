@@ -30,19 +30,13 @@ router.get('/events', function(req, res, next) {
 
 router.get('/issues/user', function(req, res, next) {
   try {
-    var startDate = new Date(req.query.start).toISOString().split('T')[0];
-
-    var endDate = new Date(req.query.end).toISOString().split('T')[0];
-    
-    jiraAPIController.searchIssues(req, 'worklogAuthor = currentUser() AND worklogDate >= ' + startDate + ' AND worklogDate <= '+endDate+' OR ((assignee = currentUser() OR reporter = currentUser()) AND ((statusCategory != '+ process.env.JIRA_DONE_STATUS +') OR (statusCategory = '+ process.env.JIRA_DONE_STATUS +' AND status CHANGED DURING (' + startDate + ', '+endDate+'))))').then(result => {
-      if (!result.issues) {
-        console.log(result);
-      }
-      res.json(result.issues);
+    jiraController.suggestIssues(req, req.query.start, req.query.end, req.query.query).then(result => {
+      res.json(result);
     });
   } catch (error) {
     console.log(error);
   }
+  
 });
 
 router.get('/issues/:issueId', function(req, res, next) { 

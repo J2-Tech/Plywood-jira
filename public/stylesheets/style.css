@@ -59,6 +59,19 @@ a {
   margin-bottom: 15px;
 }
 
+.modal-content .search-options {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+}
+.modal-content .search-options input {
+  flex-grow: 0;
+}
+.modal-content .search-options label {
+  word-break: keep-all;
+  white-space: nowrap;
+}
+
 .modal .destructive {
   border: 2px solid darkred;
   background: red;
@@ -139,12 +152,16 @@ input#include-weekends {
 }
 
 
-.about-section {
+#about-section {
   position: absolute;
   bottom: 5px;
   opacity: 35%;
 }
 
+#loading-container {
+  width: 50px;
+  overflow: clip;
+}
 
 
 /********** Choices.js **********/

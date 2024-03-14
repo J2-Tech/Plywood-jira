@@ -8,6 +8,14 @@ var nunjucks = require("nunjucks");
 const passport = require('passport');
 const AtlassianOAuth2Strategy = require('passport-atlassian-oauth2');
 const session = require('express-session');
+
+var fs = require('fs');
+
+if (!fs.existsSync('.env')) {
+  console.log("No .env file found. Please create one using the .env.example file as a template.");
+  process.exit(1);
+}
+
 const dotenv = require('dotenv').config();
 
 const https = require('https');

@@ -1,0 +1,57 @@
+{% macro modals(endpoint) %}
+{% import "createModal.njk" as createModal %}
+{% import "updateModal.njk" as updateModal %}
+{% import "aboutModal.njk" as aboutModal %}
+  {{ aboutModal.modal() }}
+  {{ createModal.modal(endpoint) }}
+  {{ updateModal.modal(endpoint) }}
+  <script>
+    function handleError(error) {
+      if(error && error.message && error.message=="NetworkError when attempting to fetch resource.") {
+        return fetch('/auth/refreshToken').catch((error)=>{
+          window.location.href = "/auth/login";
+        });
+      }
+    }
+
+    function resetControls() {
+      showLoading();
+      const updateWorkLogIdInput = document.querySelector('input[name="workLogId-update"]');
+      updateWorkLogIdInput.value = '';
+
+      const updateStartInput = document.querySelector('input[name="start-update"]');
+      updateStartInput.value = '';
+
+      const updateDurationInput = document.querySelector('input[name="duration-update"]');
+      updateDurationInput.value = '';
+
+      const updateCommentInput = document.getElementById('comment-update');
+      updateCommentInput.value = '';
+
+      const createWorkLogIdInput = document.querySelector('input[name="workLogId-create"]');
+      createWorkLogIdInput.value = '';
+
+      const createStartInput = document.querySelector('input[name="start-create"]');
+      createStartInput.value = '';
+
+      const createDurationInput = document.querySelector('input[name="duration-create"]');
+      createDurationInput.value = '';
+
+      const createCommentInput = document.getElementById('comment-create');
+      createCommentInput.value = '';
+
+      calendar.unselect();
+      hideUpdateModal();
+      hideCreateModal();
+
+      choicesCreate.clearInput();
+      hideLoading();
+    }
+
+    function refreshEverything() {
+      calendar.refetchEvents();
+      
+    }
+
+  </script>
+{% endmacro %}

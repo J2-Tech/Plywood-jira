@@ -124,6 +124,23 @@ exports.searchIssues = function(req, jql) {
     return withRetry(searchIssuesInternal, req, jql);
 }
 
+exports.suggestIssues = function(req, query) {
+    return withRetry(suggestIssuesInternal, req, query);
+}
+
+function suggestIssuesInternal(req, query) {
+    const url = getCallURL(req);
+    if (process.env.JIRA_PROJECT_JQL) {
+        query += '&currentJQL=' + process.env.JIRA_PROJECT_JQL
+    }
+    return fetch(url + '/rest/api/3/issue/picker?query=' + query , {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent:httpsAgent
+    }).then(res => res.json());
+
+}
+
 function getIssueInternal(req, issueId) {
     const url = getCallURL(req);
     return fetch(url + '/rest/api/3/issue/' + issueId, {

@@ -1,5 +1,5 @@
 
-{% import "worklogModal.njk" as worklogModal %}
+{% import "modals.njk" as modals %}
 <!DOCTYPE html>
 <html>
     <head>  
@@ -56,6 +56,13 @@
                     endTime: '17:00', // an end time 
                 },
                 scrollTime: '08:00',
+                loading: function(bool) {
+                    if (bool) {
+                        showLoading();
+                    } else {
+                        hideLoading();
+                    }
+                },
                 events: {
                     url: '/events',
                     method: 'GET',
@@ -67,9 +74,10 @@
                         } else {
                             alert('there was an error while fetching events!');
                         }
-                        
+                        hideLoading();
                     },
                     success: function(events) {
+                        hideLoading();
                         updateTotalTime(events);
                     }
                 },
@@ -80,11 +88,11 @@
                         return true
                     })
                     updateTotalTime(visibleEvents);
-                    refreshIssuesDropdown();
                     
                 },
                 eventResize: function(info) {
                     // use fetch to call /worklog with a PUT request, passing the new start time and calculated duration
+                    showLoading();
                     fetch('/worklog/' + info.event.extendedProps.worklogId, {
                         method: 'PUT',
                         headers: {
@@ -96,15 +104,17 @@
                             duration: (info.event.end - info.event.start)/1000
                         })
                     }).then(function(response) {
-
+                        hideLoading();
                     }).catch((error) => {
                         if(error && error.message && error.message=="NetworkError when attempting to fetch resource.") {
                             window.location.href = "/auth/login";
                         }
                         info.revert();
+                        hideLoading();
                     });
                 },
                 eventDrop: function(info) {
+                    showLoading();
                     fetch('/worklog/' + info.event.extendedProps.worklogId, {
                         method: 'PUT',
                         headers: {
@@ -116,13 +126,14 @@
                             duration: (info.event.end - info.event.start)/1000
                         })
                     }).then(function(response) {
-                        
+                        hideLoading();
 
                     }).catch((error) => {
                         if(error && error.message && error.message=="NetworkError when attempting to fetch resource.") {
                             window.location.href = "/auth/login";
                         }
                         info.revert();
+                        hideLoading();
                     });
                 },
                 eventClick: function(info) {
@@ -151,25 +162,36 @@
                 if (timeVal < 10) {
                     timeVal = '0' + timeVal;
                 }
-                /*switch(this.value) {
+
+                var zoomLabel = document.getElementById("zoom-output");
+                switch(this.value) {
                     case '1':
                         calendar.setOption('slotDuration', '00:30:00');
+                        zoomLabel.innerHTML = "30 minutes / slot";
                     break;
                     case '2':
-                        calendar.setOption('slotDuration', '00:20:00');
+                        calendar.setOption('slotDuration', '00:15:00');
+                        zoomLabel.innerHTML = "15 minutes / slot";
                     break;
                     case '3':
-                        calendar.setOption('slotDuration', '00:15:00');
+                        calendar.setOption('slotDuration', '00:10:00');
+                        zoomLabel.innerHTML = "10 minutes / slot";
                     break;
-                }*/
-                calendar.setOption('slotDuration', '00:'+timeVal+':00');
-                document.getElementById("zoom-output").innerHTML = this.value + " minutes / slot";
+                    case '4':
+                        calendar.setOption('slotDuration', '00:05:00');
+                        zoomLabel.innerHTML = "5 minutes / slot";
+                    break;
+                }
+                //calendar.setOption('slotDuration', '00:'+timeVal+':00');
+                
             }
 
             var weekendInput = document.getElementById("include-weekends");
             weekendInput.addEventListener("change", () => {
                  calendar.setOption('weekends', weekendInput.checked);
             });
+
+            hideLoading();
         });
 
         function updateTotalTime(events) {
@@ -183,17 +205,27 @@
             var timeElement = document.getElementById('total-time-value');
             timeElement.innerHTML = moment.duration(totalTime).format("H [hour and] m [min]");
         }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
         </script>
     </head>
 
     <body>
-        {{ worklogModal.modalForm('/worklog/') }}
+        {{ modals.modals('/worklog/') }}
         <div id='calendar'></div>
         <footer class="unselectable">
+            <div id="about-section"><a href="#" onclick="showAboutModal();">About</a></div>
             <div id='total-time'><h3>Total time : </h2><div id='total-time-value'></div></div>
+            <div id='loading-container'><img id="loading" src="/images/icons8-dots-loading.gif" /></div>
             <div id='weekend-container'><input type="checkbox" id="include-weekends" name="include-weekends"><label for="include-weekends">Weekends</label></div>
-            <div id='zoom-container'><input type="range" min="5" max="60" step="5" value="15" id="zoom-range" name="zoom-range"><output for="zoom-range" id="zoom-output">15 minutes / slot</output></div>
-            <div class="about-section"><div class="icons-8"><a target="_blank" href="https://icons8.com/icon/4ONNYCMz9R42/plywood">Plywood</a> icon by <a target="_blank" href="https://icons8.com">Icons8</a></div>Software licensed under the <a target="_blank" href="https://opensource.org/license/MIT/">MIT License</a></div>
+            <div id='zoom-container'><input type="range" min="1" max="4" step="1" value="2" id="zoom-range" name="zoom-range"><output for="zoom-range" id="zoom-output">15 minutes / slot</output></div>
+
         </footer>
     </body>
 </html>
