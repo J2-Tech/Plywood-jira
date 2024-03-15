@@ -197,29 +197,31 @@
     var startDate = encodeURIComponent(new Date(calendar.view.activeStart).toISOString());
     var endDate = encodeURIComponent(new Date(calendar.view.activeEnd).toISOString());
     var searchInJira = document.getElementById('search-in-jira').checked;
-
-  showLoading();
-      return fetch('/issues/user?start='+ startDate + '&end=' + endDate + "&searchInJira=" + searchInJira + "&query=" + query)
-    .then((res) => res.json())
-      .then(data => {
-        var options = [];
-        // Add options from the fetched data
-        data.forEach(issue => {
-            const option = {
-              value: issue.id,
-              label: issue.key + ' - ' +issue.summary,
-              key: issue.key
-            };
-            options.push(option);
-        });
-      hideLoading();
-        return options;
-      })
-      .catch(error => {
-        // Handle errors
+    if (searchInJira) {
+      showLoading();
+        return fetch('/issues/user?start='+ startDate + '&end=' + endDate + "&searchInJira=" + searchInJira + "&query=" + query)
+      .then((res) => res.json())
+        .then(data => {
+          var options = [];
+          // Add options from the fetched data
+          data.forEach(issue => {
+              const option = {
+                value: issue.id,
+                label: issue.key + ' - ' +issue.summary,
+                key: issue.key
+              };
+              options.push(option);
+          });
         hideLoading();
-        handleError(error);
-      });
+          return options;
+        })
+        .catch(error => {
+          // Handle errors
+          hideLoading();
+          handleError(error);
+        });
+    }
+  
   }
 </script>
 {% endmacro %}
