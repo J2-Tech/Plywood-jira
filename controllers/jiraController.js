@@ -29,6 +29,9 @@ exports.getUsersWorkLogsAsEvent = function(req, start, end) {
                     if (process.env.JIRA_BASIC_AUTH_USERNAME) {
                         condition = condition && worklog.author.emailAddress == process.env.JIRA_BASIC_AUTH_USERNAME;
                     }
+                    if (process.env.JIRA_AUTH_TYPE =="OAUTH") {
+                        condition = condition && worklog.author.emailAddress == req.user.email;
+                    }
                     return condition;
                 })
                 .map(worklog => {

@@ -1,4 +1,4 @@
-const fetch = require('node-fetch');
+const fetch = require('@adobe/node-fetch-retry');
 const https = require('https');
 
 function getDefaultHeaders(req) {
