@@ -4,7 +4,7 @@
     <div class="modal-content">
       <h2>Update work log</h2>
       <form class="modal-form" id="modal-form-update" method="PUT" action="{{ endpoint }}">
-        <input type="hidden" name="workLogId-update" value="">
+        <input type="hidden" name="worklogid-update" value="">
         <input type="hidden" name="start-update" value="">
         <input type="hidden" name="duration-update" value="">
         <label for="issue-update">Issue:</label>
@@ -27,9 +27,11 @@
     // Show the modal when needed
     function showUpdateModal(eventObj) {
       hideCreateModal();
+  
       const workLogId = eventObj.extendedProps.worklogId;
       const issueId = eventObj.extendedProps.issueId;
-      const workLogIdInput = document.querySelector('input[name="workLogId-update"]');
+      console.log(workLogId + " " + issueId);
+      const workLogIdInput = document.querySelector('input[name="worklogid-update"]');
       workLogIdInput.value = workLogId;
 
       const startInput = document.querySelector('input[name="start-update"]');
@@ -54,16 +56,14 @@
     function handleUpdateSubmit(event) {
       showLoading();
       event.preventDefault();
-      const form = document.getElementById('modal-form-update');
-      const formData = new FormData(form);
 
       const reqBody = {
-        issueId: formData.get("issue-update"),
-        comment: formData.get("comment-update"),
-        start: formData.get("start-update"),
-        duration: formData.get("duration-update")
+        issueId: document.querySelector("input[name=issue-update]").value,
+        comment: document.getElementById('comment-update').value,
+        start: document.querySelector("input[name=start-update]").value,
+        duration: document.querySelector("input[name=duration-update]").value
       };
-      return fetch('{{ endpoint }}' +formData.get("workLogId-update"), {
+      return fetch('{{ endpoint }}' +document.querySelector("input[name=worklogid-update]").value, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -87,11 +87,9 @@
     function handleUpdateDelete(event) {
       showLoading();
       event.preventDefault();
-      const form = document.getElementById('modal-form-update');
-      const formData = new FormData(form);
 
       if (confirm('Are you sure you want to delete this work log ?')) {
-        return fetch('{{ endpoint }}' + formData.get("workLogId-update") + '?issueId=' + formData.get("issue-update"), {
+        return fetch('{{ endpoint }}' + document.querySelector("input[name=worklogid-update]").value + '?issueId=' + document.querySelector("input[name=issue-update]").value, {
         method: 'DELETE',
       })
       .then(response => {
