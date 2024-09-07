@@ -1,0 +1,19 @@
+{% macro modal() %}
+<div class="modal unselectable modal-timer" id="timerModal" style="display: none">
+  <div class="modal-content">
+    <h2>Timer</h2>
+    <form id="timerForm" class="modal-form">
+      <label for="issue-timer">Issue:</label>
+      <select id="issue-timer" name="issueId" required></select>
+      <label for="comment-timer">Comment:</label>
+      <textarea class="comment" id="comment-timer" name="comment"></textarea>
+      <div class="timer-display" id="timer-display">0m</div>
+      <div class="buttons">
+        <button type="button" id="start-pause-resume-timer-btn" class="success" onclick="toggleStartPauseResumeTimer()">Start</button>
+        <button type="button" id="stop-timer-btn" class="destructive" onclick="stopTimer()" disabled>Stop</button>
+      </div>
+      <div id="confirmation-message" class="confirmation-message"></div> <!-- Confirmation message element -->
+    </form>
+  </div>
+</div>
+{% endmacro %}

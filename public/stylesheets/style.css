@@ -1,7 +1,12 @@
+/* General Styles */
 body {
   font: 14px "Lucida Grande", Helvetica, Arial, sans-serif;
   margin-bottom: 0px;
   padding-bottom: 0px;
+}
+
+body.loading {
+  cursor: progress;
 }
 
 a {
@@ -13,6 +18,13 @@ a {
   padding: 10px;
 }
 
+/* Light Theme */
+body.light-theme {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+/* Issue Label */
 #issue-label {
   width: 70%;
   resize: none;
@@ -23,6 +35,7 @@ a {
   border: 1px solid grey;
 }
 
+/* Modal Styles */
 .modal {
   display: none;
   position: fixed;
@@ -37,22 +50,26 @@ a {
   min-height: 60%;
   box-shadow: 5px 5px 15px;
 }
+
 .modal-content h2 {
   width: 100%;
   display: inline-block;
   text-align: center;
 }
+
 .modal-form {
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
+
 .modal-content .comment {
   min-width: 70%;
   min-height: 60px;
   resize: vertical;
 }
+
 .modal-content label {
   width: 100%;
   text-align: center;
@@ -64,32 +81,17 @@ a {
   width: fit-content;
   align-items: center;
 }
+
 .modal-content .search-options input {
   flex-grow: 0;
 }
+
 .modal-content .search-options label {
   word-break: keep-all;
   white-space: nowrap;
 }
 
-.modal .destructive {
-  border: 2px solid darkred;
-  background: red;
-  color: white;
-  border-radius: 5px;
-}
 
-.modal .primary {
-  border: 2px solid darkblue;
-  background: blue;
-  color: white;
-  border-radius: 5px;
-}
-
-.modal input {
-  margin-bottom: 15px;
-  width:70%
-}
 
 .modal .buttons {
   margin-top: 30px;
@@ -98,15 +100,108 @@ a {
   width: 70%;
 }
 
-.modal .buttons button {
-  margin: 0 5px;
+/* Button Styles */
+button {
+  margin: 0 0;
   padding: 10px;
   text-align: center;
   vertical-align: text-top;
+  border: solid 1px lightgray;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+button.destructive {
+  border: 2px solid darkred;
+  background: red;
+  color: white;
+  border-radius: 5px;
+}
+
+button.primary {
+  border: 2px solid darkblue;
+  background: blue;
+  color: white;
+  border-radius: 5px;
+}
+
+button.success {
+  border: 2px solid rgb(19, 139, 0);
+  background: rgb(10, 201, 0);
+  color: white;
+  border-radius: 5px;
+}
+
+
+button.close-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+footer button {
+  margin: 0 0;
+  padding: 5px;
+  text-align: center;
+  vertical-align: text-top;
+  background: transparent;
+  border: solid 1px lightgray;
+  font-size: 23px;
+}
+
+/* Timer Styles */
+#confirmation-message {
+  margin-top: 20px;
+}
+
+#timer-display {
+  margin-top: 20px;
+}
+
+.modal.modal-timer {
+  top: unset;
+  left: unset;
+  position: fixed;
+  bottom: 52px;
+  right: 115px;
+  transform: unset;
+  box-shadow: none;
+  resize: none;
+  min-height: 450px;
+  min-width: 350px;
+  opacity: 95%;
+}
+
+#timer-duration {
+  line-height: 52px;
+  margin: 0 10px;
+  min-width: 50px;
+  text-align: right;
+}
+
+#open-timer-modal-btn {
+  margin: 3px 0;
+  padding-top: 1px;
+}
+#timer-container {
+  display: flex;
+}
+
+/* Footer Styles */
+footer {
+  display: flex;
+  height: 52px;
+}
+
+footer .footer-container {
+  align-content: center;
 }
 
 #total-time h3 {
-  margin: 10px 5px 0 0;
+  margin: 0px 5px 0 0;
   display: inline-block;
 }
 
@@ -120,11 +215,7 @@ a {
   flex-grow: 1;
 }
 
-footer {
-  display: flex;
-  height: 40px;
-}
-
+/* Zoom and Weekend Container Styles */
 div#zoom-container {
   line-height: 34px;
   display: flex;
@@ -148,27 +239,94 @@ output#zoom-output {
 }
 
 input#include-weekends {
-  margin: 5px 0 6px;
+  margin: 8px 0 6px;
 }
 
-
+/* About Section */
 #about-section {
-  position: absolute;
-  bottom: 5px;
+  position: relative;
+  text-align: center;
   opacity: 35%;
+  align-content: end;
+  padding-bottom: 5px;
+  margin: 0 10px;
 }
 
+/* Loading Container */
 #loading-container {
   width: 50px;
   overflow: clip;
+  margin: 0 10px;
 }
 
+/* Event Title */
+.plywood-event-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+  vertical-align: middle; /* Align the text vertically in the middle */
+  width: calc(100% - 24px);
+}
 
-/********** Choices.js **********/
+.issue-type-icon {
+  display: inline-block;
+  vertical-align: text-top; /* Align the icon vertically in the middle */
+  margin-right: 2px; /* Add some space between the icon and the title */
+  margin-bottom: 2px;
+}
+
+.fc-timegrid-event-harness-inset .fc-timegrid-event, .fc-timegrid-event.fc-event-mirror, .fc-timegrid-more-link {
+  overflow: hidden;
+}
+
+/* Config Styles */
+.issue-type-color {
+  display: flex;
+  width: 100%;
+}
+
+.modal .issue-type-color input[type="color"] {
+  width: 40px;
+}
+
+.modal .issue-type-color input {
+  flex-grow: 1;
+  width: 100%;
+  margin: 2px;
+}
+
+.modal-config .config-section {
+  width: 400px;
+}
+.modal-config .config-section .form-group {
+  width: 100%;
+  display: flex;
+}
+.modal-config .config-section .form-group label {
+  text-align: left;
+}
+
+#issueTypeColors {
+  width: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+
+.modal .issue-type-color button {
+  margin: 2px 2px;
+  display: inline-block;
+  padding: 0 8px;
+  height: 32px;
+}
+
+/* Choices.js Styles */
 .modal .choices {
-  min-width:300px;
+  min-width: 300px;
   width: 70%;
-  display:inline-block
+  display: inline-block;
 }
 
 .modal .choices__inner {

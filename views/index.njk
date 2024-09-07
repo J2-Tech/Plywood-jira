@@ -5,8 +5,10 @@
     <head>  
         <title>Plywood - Jira Worklog Management</title>
         <link href='/stylesheets/style.css' rel='stylesheet' />
+        <link href='/stylesheets/dark.css' rel='stylesheet' />
         <meta http-equiv='Content-Security-Policy' content="font-src data:" />
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <meta name="jira-url" content="{{ jiraUrl }}">
         <meta charset='utf-8' />
         <link
         rel="stylesheet"
@@ -16,216 +18,41 @@
         <link type="image/png" sizes="96x96" rel="icon" href="/images/icons8-plywood-96.png">
 
         <script src="/javascripts/choices.min.js"></script>
-        <script src='/javascripts/fullcalendar.min.js'></script>
-        <script src="/javascripts/popper.min.js"></script>
-        <script src="/javascripts/tooltip.min.js"></script>        
+        <script src=" https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js "></script>
+        <script src="/javascripts/fullcalendar.min.js" ></script>
         <script src="/javascripts/moment.min.js" ></script>
         <script src="/javascripts/moment-duration-format.js"></script>
-        
-        <script>
-        var calendar;
-        document.addEventListener('DOMContentLoaded', function() {
-            var calendarElement = document.getElementById('calendar');
-            calendar = new FullCalendar.Calendar(calendarElement, {
-                initialView: 'timeGridWeek',
-                nowIndicator: true,
-                customButtons: {
-                    refreshBtn: {
-                        text: '🔄',
-                        hint: 'Refresh work logs',
-                        click: function() { calendar.refetchEvents(); }
-                    }
-                },
-                height: 'calc(100vh - 60px)',
-                eventColor: '#2a75fe',
-                allDaySlot: false,
-                weekends:false,
-                headerToolbar: {
-                    left: 'prev,today,next',
-                    center: 'title',
-                    right: 'refreshBtn,dayGridMonth,timeGridWeek,timeGridDay' // user can switch between the two
-                },
-                slotDuration:'00:15:00' ,
-                slotLabelInterval: '01:00:00',
-                selectable:true,
-                selectMirror:true,
-                businessHours: {
-                    daysOfWeek: [ 1, 2, 3, 4, 5 ],
 
-                    startTime: '08:00', // a start time
-                    endTime: '17:00', // an end time 
-                },
-                scrollTime: '08:00',
-                loading: function(bool) {
-                    if (bool) {
-                        showLoading();
-                    } else {
-                        hideLoading();
-                    }
-                },
-                events: {
-                    url: '/events',
-                    method: 'GET',
-                    failure: function(error) {
-                        if(error && error.response && error.response.headers && error.response.headers.location && error.response.headers.location == "/auth/login") {
-                            window.location.href = "/auth/login";
-                        } else if(error && error.message && error.message=="NetworkError when attempting to fetch resource.") {
-                            window.location.href = "/auth/login";
-                        } else {
-                            alert('there was an error while fetching events!');
-                        }
-                        hideLoading();
-                    },
-                    success: function(events) {
-                        hideLoading();
-                        updateTotalTime(events);
-                    }
-                },
-                datesSet: function(info) {
-                    var visibleEvents = calendar.getEvents().filter(event => {
-                        const s = info.start, e = info.end
-                        if (event.start > e || event.end < s) return false
-                        return true
-                    })
-                    updateTotalTime(visibleEvents);
-                    
-                },
-                eventResize: function(info) {
-                    // use fetch to call /worklog with a PUT request, passing the new start time and calculated duration
-                    showLoading();
-                    fetch('/worklog/' + info.event.extendedProps.worklogId, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            issueId: info.event.extendedProps.issueId,
-                            start: info.event.start,
-                            duration: (info.event.end - info.event.start)/1000
-                        })
-                    }).then(function(response) {
-                        hideLoading();
-                    }).catch((error) => {
-                        if(error && error.message && error.message=="NetworkError when attempting to fetch resource.") {
-                            window.location.href = "/auth/login";
-                        }
-                        info.revert();
-                        hideLoading();
-                    });
-                },
-                eventDrop: function(info) {
-                    showLoading();
-                    fetch('/worklog/' + info.event.extendedProps.worklogId, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            issueId: info.event.extendedProps.issueId,
-                            start: info.event.start,
-                            duration: (info.event.end - info.event.start)/1000
-                        })
-                    }).then(function(response) {
-                        hideLoading();
-
-                    }).catch((error) => {
-                        if(error && error.message && error.message=="NetworkError when attempting to fetch resource.") {
-                            window.location.href = "/auth/login";
-                        }
-                        info.revert();
-                        hideLoading();
-                    });
-                },
-                eventClick: function(info) {
-                    showUpdateModal(info.event);
-                },
-                eventDidMount: function(info) {
-                    var title = (info.event.extendedProps.issueKey || '') + ' ' + (info.event.extendedProps.issueSummary || '');
-                    var tooltip = new Tooltip(info.el, {
-                        title: title,
-                        placement: 'top',
-                        trigger: 'hover',
-                        contaier: 'body',
-                    });
-                },
-                unselectCancel: '.unselectable',
-                select: function(info) {
-                    showCreateModal(info.start, info.end);
-                }
-            });
-            calendar.render();
-
-            var slider = document.getElementById("zoom-range");
-            slider.oninput = function() {
-                var timeVal = this.value;
-
-                if (timeVal < 10) {
-                    timeVal = '0' + timeVal;
-                }
-
-                var zoomLabel = document.getElementById("zoom-output");
-                switch(this.value) {
-                    case '1':
-                        calendar.setOption('slotDuration', '00:30:00');
-                        zoomLabel.innerHTML = "30 minutes / slot";
-                    break;
-                    case '2':
-                        calendar.setOption('slotDuration', '00:15:00');
-                        zoomLabel.innerHTML = "15 minutes / slot";
-                    break;
-                    case '3':
-                        calendar.setOption('slotDuration', '00:10:00');
-                        zoomLabel.innerHTML = "10 minutes / slot";
-                    break;
-                    case '4':
-                        calendar.setOption('slotDuration', '00:05:00');
-                        zoomLabel.innerHTML = "5 minutes / slot";
-                    break;
-                }
-                //calendar.setOption('slotDuration', '00:'+timeVal+':00');
-                
-            }
-
-            var weekendInput = document.getElementById("include-weekends");
-            weekendInput.addEventListener("change", () => {
-                 calendar.setOption('weekends', weekendInput.checked);
-            });
-
-            hideLoading();
-        });
-
-        function updateTotalTime(events) {
-            var totalTime = 0;
-            
-            events.forEach((event) => {
-                var duration = new Date(event.end) - new Date(event.start);
-                totalTime = totalTime + duration;
-            });
-            
-            var timeElement = document.getElementById('total-time-value');
-            timeElement.innerHTML = moment.duration(totalTime).format("H [hour and] m [min]");
-        }
-
-        function showLoading() {
-            document.getElementById('loading').style.display = 'block';
-        }
-
-        function hideLoading() {
-            document.getElementById('loading').style.display = 'none';
-        }
-        </script>
     </head>
 
     <body>
-        {{ modals.modals('/worklog/') }}
+        {{ modals.modals() }}
         <div id='calendar'></div>
         <footer class="unselectable">
+
+            <div id='config-container' class="footer-container">
+                <button onclick="toggleConfigModal()">⚙️</button>
+            </div>
             <div id="about-section"><a href="#" onclick="showAboutModal();">About</a></div>
-            <div id='total-time'><h3>Total time : </h2><div id='total-time-value'></div></div>
-            <div id='loading-container'><img id="loading" src="/images/icons8-dots-loading.gif" /></div>
-            <div id='weekend-container'><input type="checkbox" id="include-weekends" name="include-weekends"><label for="include-weekends">Weekends</label></div>
-            <div id='zoom-container'><input type="range" min="1" max="4" step="1" value="2" id="zoom-range" name="zoom-range"><output for="zoom-range" id="zoom-output">15 minutes / slot</output></div>
+            <div id='total-time' class="footer-container"><h3>Total time : </h2><div id='total-time-value'></div></div>
+            <div id='loading-container' class="footer-container"><img id="loading" src="/images/icons8-dots-loading.gif" /></div>
+            <div id='timer-container' class="footer-container">
+                <span id="timer-duration" style="display:none">0m</span>
+                <button
+                    id="open-timer-modal-btn"
+                    title="Timer"
+                    onclick="toggleTimerModal()"
+                >
+                ⏱️
+                </button>
+
+            </div>
+            <div id='weekend-container' class="footer-container"><input type="checkbox" id="include-weekends" name="include-weekends"><label for="include-weekends">Weekends</label></div>
+            <div id='zoom-container' class="footer-container"><input type="range" min="1" max="4" step="1" value="2" id="zoom-range" name="zoom-range"><output for="zoom-range" id="zoom-output">15 minutes / slot</output></div>
 
         </footer>
+        <script src="/javascripts/plywood/main.js" type="module" ></script>
+        <script src="https://unpkg.com/@popperjs/core@2"></script>
+        <script src="https://unpkg.com/tippy.js@6"></script>
     </body>
 </html>

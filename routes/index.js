@@ -12,7 +12,7 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
 
 /* GET home page. */
 router.get(['/', '/index'], function(req, res, next) {
-  res.render('index', { title: 'Jira Time'});
+  res.render('index', { title: 'Jira Time', jiraUrl: process.env.JIRA_URL});
 });
 
 
@@ -89,5 +89,6 @@ router.delete('/worklog/:worklogId', function(req, res, next) {
     console.log(error);
   }
 });
+
 
 module.exports = router;

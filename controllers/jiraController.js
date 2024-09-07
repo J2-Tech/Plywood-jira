@@ -1,70 +1,101 @@
 const jiraAPIController = require('./jiraAPIController');
 const dayjs = require('dayjs');
+const fs = require('fs');
+const path = require('path');
 
 exports.getUsersWorkLogsAsEvent = function(req, start, end) {
-    // search fo jira issues where worklogAuthor = currentUser()
     const filterStartTime = new Date(start);
     const filterEndTime = new Date(end);
 
     const formattedStart = filterStartTime.toLocaleDateString('en-CA');
     const formattedEnd = filterEndTime.toLocaleDateString('en-CA');
 
-    let issuesPromise = jiraAPIController.searchIssues(req, 'worklogAuthor = currentUser() AND worklogDate >= ' + formattedStart + ' AND worklogDate <= '+ formattedEnd);
+    const issuesPromise = jiraAPIController.searchIssues(req, 
+        `worklogAuthor = currentUser() AND worklogDate >= ${formattedStart} AND worklogDate <= ${formattedEnd}`);
     
     return issuesPromise.then(result => {
-        // create an array of issue IDs and keys from result.issues
-        const issues = result.issues.map(issue => { return {issueId: issue.id, issueKey: issue.key, summary: issue.fields.summary} });
-        const userWorkLogs = [];
-        // for each issue ID, get worklogs, filter by started date and match worklog author to process.env.JIRA_BASIC_AUTH_USERNAME
-        // create an array of promises , each promise should return the worklogs for its issue ID, and use promise.all to resolve them
-        const worklogPromises = issues.map(issue => {
-            return jiraAPIController.getIssueWorklogs(req, issue.issueId,filterEndTime.getTime(),filterStartTime.getTime()).then(result => {
-                const worklogs = result.worklogs;
-                // return worklog and add issueID and key to each worklog
-                return worklogs.filter(worklog => {
-                    const startTime = new Date(worklog.started);
-                    const endTime = new Date(startTime.getTime() + (worklog.timeSpentSeconds * 1000));
-                    let condition = startTime.getTime() > filterStartTime.getTime() 
-                    && endTime.getTime() < filterEndTime.getTime();
+        const issues = extractIssues(result.issues);
+        const worklogPromises = issues.map(issue => getFilteredWorklogs(req, issue, filterStartTime, filterEndTime));
+        return Promise.all(worklogPromises).then(worklogs => worklogs.flat());
+    });
+};
+
+function extractIssues(issues) {
+    return issues.map(issue => ({
+        issueId: issue.id,
+        issueKey: issue.key,
+        summary: issue.fields.summary,
+        issueType: issue.fields.issuetype.name,
+        issueTypeIcon: issue.fields.issuetype.iconUrl
+    }));
+}
+
+function getFilteredWorklogs(req, issue, filterStartTime, filterEndTime) {
+    return jiraAPIController.getIssueWorklogs(req, issue.issueId, filterEndTime.getTime(), filterStartTime.getTime())
+        .then(result => {
+            const worklogs = result.worklogs;
+            return worklogs.filter(worklog => filterWorklog(worklog, filterStartTime, filterEndTime))
+                .map(worklog => formatWorklog(worklog, issue));
+        });
+}
+
+function filterWorklog(worklog, filterStartTime, filterEndTime) {
+    const startTime = new Date(worklog.started);
+    const endTime = new Date(startTime.getTime() + (worklog.timeSpentSeconds * 1000));
+    let condition = startTime.getTime() > filterStartTime.getTime() && startTime.getTime() < filterEndTime.getTime();
                     if (process.env.JIRA_BASIC_AUTH_USERNAME) {
                         condition = condition && worklog.author.emailAddress == process.env.JIRA_BASIC_AUTH_USERNAME;
                     }
                     if (process.env.JIRA_AUTH_TYPE =="OAUTH") {
                         condition = condition && worklog.author.emailAddress == req.user.email;
                     }
-                    return condition;
-                })
-                .map(worklog => {
-                    worklog.issue = issue;
-                    return worklog;
-                })
-            })
-        })
+    return condition;
+}
 
-        return Promise.all(worklogPromises).then(issues => {
-            // for each worklog, create an event object
-            issues.forEach(issue => {
-                issue.forEach(log => {
-                    const startTime = new Date(log.started);
-                    const endTime = new Date(startTime.getTime() + (log.timeSpentSeconds * 1000));
-                    userWorkLogs.push({
-                        title: log.issue.issueKey + ' - ' + (log.comment  || ''),
-                        start: startTime.toISOString(),
-                        end: endTime.toISOString(),
-                        allDay: false,
-                        issueId: log.issue.issueId,
-                        issueKey: log.issue.issueKey,
-                        issueSummary: log.issue.summary,
-                        worklogId: log.id,
-                        editable: true,
-                        Testurl: 'https://' + process.env.JIRA_URL + '/browse/' + log.issue.issueKey //FIXME
-                    });
-                })
-            })
-            return userWorkLogs;
-        })
+function formatWorklog(worklog, issue) {
+    const configPath = path.join(__dirname, '..', 'config', 'settings.json');
+    let settings = {};
 
-    });
+    // Check if the configuration file exists
+    if (fs.existsSync(configPath)) {
+        try {
+            settings = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        } catch (err) {
+            console.error(`Failed to parse configuration file at ${configPath}:`, err);
+            settings = {};
+        }
+    } else {
+        console.warn(`Configuration file not found at ${configPath}. Creating a new one.`);
+        // Create an empty configuration file
+        fs.writeFileSync(configPath, JSON.stringify(settings, null, 2), 'utf8');
+    }
+
+    const defaultColor = process.env.DEFAULT_ISSUE_COLOR || '#000000'; // Default color from .env or fallback to black
+    const issueTypeLower = issue.issueType.toLowerCase();
+    const color = (settings.issueColors && settings.issueColors[issueTypeLower]) || defaultColor;
+    const showIssueTypeIcons = settings.showIssueTypeIcons || false;
+
+    let title = `<b class="plywood-event-title">${issue.issueKey} - ${issue.summary}</b> ${worklog.comment || ''}`;
+    if (showIssueTypeIcons && issue.issueTypeIcon) {
+        title = `<img src="${issue.issueTypeIcon}" alt="${issue.issueType}" class="issue-type-icon"> ` + title;
+    }
+
+    return {
+        id: worklog.id,
+        worklogId: worklog.id,
+        title: title,
+        start: worklog.started,
+        end: new Date(new Date(worklog.started).getTime() + worklog.timeSpentSeconds * 1000).toISOString(),
+        allDay: false,
+        issueId: issue.issueId,
+        issueKey: issue.issueKey,
+        comment: worklog.comment || "",
+        issueSummary: issue.summary,
+        editable: true,
+        color: color,
+        issueType: issue.issueType,
+        issueTypeIcon: issue.issueTypeIcon
+    };
 }
 
 exports.getIssue = function(req, issueId) {
@@ -93,51 +124,36 @@ exports.deleteWorkLog = function(req, issueId, worklogId) {
 }
 
 exports.suggestIssues = function(req, start, end, query) {
-    var startDate = new Date(start).toISOString().split('T')[0];
-    var endDate = new Date(end).toISOString().split('T')[0];
-    var searchInJira = req.query.searchInJira;
     var query = req.query.query;
 
     var promises = [];
 
-    var emptyJQL = 'worklogAuthor = currentUser() AND worklogDate >= ' + startDate + ' AND worklogDate <= '+endDate+' OR ((assignee = currentUser() OR reporter = currentUser()) AND ((statusCategory != '+ process.env.JIRA_DONE_STATUS +') OR (statusCategory = '+ process.env.JIRA_DONE_STATUS +' AND status CHANGED DURING (' + startDate + ', '+endDate+'))))';
-
     var keyJQL = 'key = ' + query
 
-    if (searchInJira != 'true') {
-        promises.push(jiraAPIController.searchIssues(req, emptyJQL));
-    } else {
-      promises.push(jiraAPIController.searchIssues(req, keyJQL));
-      promises.push(jiraAPIController.suggestIssues(req, query));
-    }
+
+    promises.push(jiraAPIController.searchIssues(req, keyJQL));
+    promises.push(jiraAPIController.suggestIssues(req, query));
 
     
 
     return Promise.all(promises).then(results => {
-        // results[0] = base JQL search
-        // if search in jira
         // results[0] = Key search
         // results[1] = Suggestion search
         
         var issues = []
-        if (searchInJira != 'true' && results[0].issues) {
-            issues = results[0].issues.map(mapIssuesFunction);
-        }
 
-        if (searchInJira == 'true') {
-            if (results[1] && results[1].sections && results[1].sections.length > 0) {
-                for (var i = 0; i < results[1].sections.length; i++) {
-                    if (results[1].sections[i].id == "cs") {
-                        //console.log(JSON.stringify(results[0].sections[i]));
-                        // add issues from the suggestion results to the issues array
-                        var mappedIssues = results[1].sections[i].issues.map(mapIssuesFunction);
-                        issues = issues.concat(mappedIssues);
-                    }
+        if (results[1] && results[1].sections && results[1].sections.length > 0) {
+            for (var i = 0; i < results[1].sections.length; i++) {
+                if (results[1].sections[i].id == "cs") {
+                    //console.log(JSON.stringify(results[0].sections[i]));
+                    // add issues from the suggestion results to the issues array
+                    var mappedIssues = results[1].sections[i].issues.map(mapIssuesFunction);
+                    issues = issues.concat(mappedIssues);
                 }
             }
-            if (results[0] && results[0].issues) {
-                issues = issues.concat(results[0].issues.map(mapIssuesFunction));
-            }
+        }
+        if (results[0] && results[0].issues) {
+            issues = issues.concat(results[0].issues.map(mapIssuesFunction));
         }
         return issues;
     });

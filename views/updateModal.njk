@@ -1,158 +1,23 @@
-{% macro modal(endpoint) %}
+{% macro modal() %}
   <!-- HTML structure for the modal form -->
   <div class="modal unselectable modal-update">
     <div class="modal-content">
       <h2>Update work log</h2>
-      <form class="modal-form" id="modal-form-update" method="PUT" action="{{ endpoint }}">
-        <input type="hidden" name="worklogid-update" value="">
-        <input type="hidden" name="start-update" value="">
-        <input type="hidden" name="duration-update" value="">
-        <label for="issue-update">Issue:</label>
-        <input type="hidden" id="issue-update" name="issue-update">
-        <div id="issue-label" style="text-align: center;" name="issue-label"  placeholder="No issue"></div>
+      <form class="modal-form" id="modal-form-update" method="PUT" action="/worklog/">
+        <input type="hidden" name="worklogId" value="">
+        <input type="hidden" name="start" value="">
+        <input type="hidden" name="duration" value="">
+        <label for="issue">Issue:</label>
+        <input type="hidden" id="issue-update" name="issueId">
+        <a target="_blank" id="issue-label" style="text-align: center;" name="issue-label" placeholder="No issue" target="_blank"></a>
         <label for="comment-update">Comment:</label>
-        <textarea class="comment" id="comment-update" name="comment-update"></textarea>
+        <textarea class="comment" id="comment-update" name="comment"></textarea>
         <div class="buttons">
-          <button class="destructive" id="delete-btn-update" title="Delete" type="button">🗑️</button>
-          <button id="cancel-btn-update" title="Cancel" type="button">✖️</button>
-          <button class="primary" id="submit-btn-update" title="Submit" type="submit">☑️</button>
+          <button class="destructive" id="delete-btn-update" title="Delete" type="button" onclick="handleDelete(event, '/worklog/' + document.querySelector('#modal-form-update input[name=worklogId]').value + '?issueId=' + document.querySelector('#modal-form-update input[name=issueId]').value)">🗑️</button>
+          <button id="cancel-btn-update" title="Cancel" class="close-btn" type="button" onclick="hideModal('.modal-update')">✖️</button>
+          <button class="primary" id="submit-btn-update" title="Submit" type="submit" onclick="handleSubmit(event, '/worklog/' + document.querySelector('#modal-form-update input[name=worklogId]').value, 'PUT')">☑️</button>
         </div>
       </form>
     </div>
   </div>
-
-  <!-- JavaScript to show the modal and handle form submission -->
-  <script>
-
-    // Show the modal when needed
-    function showUpdateModal(eventObj) {
-      hideCreateModal();
-  
-      const workLogId = eventObj.extendedProps.worklogId;
-      const issueId = eventObj.extendedProps.issueId;
-      console.log(workLogId + " " + issueId);
-      const workLogIdInput = document.querySelector('input[name="worklogid-update"]');
-      workLogIdInput.value = workLogId;
-
-      const startInput = document.querySelector('input[name="start-update"]');
-      startInput.value = eventObj.start.toISOString();
-
-      const durationInput = document.querySelector('input[name="duration-update"]');
-      durationInput.value = (eventObj.end - eventObj.start)/1000;
-
-      const modal = document.querySelector('.modal-update');
-      modal.style.display = 'block';
-
-      return fetchWorkLog(workLogId, issueId);
-    }
-
-    // Hide the modal
-    function hideUpdateModal() {
-      const modal = document.querySelector('.modal-update');
-      modal.style.display = 'none';
-    }
-
-    // Handle form submission
-    function handleUpdateSubmit(event) {
-      showLoading();
-      event.preventDefault();
-
-      const reqBody = {
-        issueId: document.querySelector("input[name=issue-update]").value,
-        comment: document.getElementById('comment-update').value,
-        start: document.querySelector("input[name=start-update]").value,
-        duration: document.querySelector("input[name=duration-update]").value
-      };
-      return fetch('{{ endpoint }}' +document.querySelector("input[name=worklogid-update]").value, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(reqBody)
-      })
-      .then(response => {
-          // Handle the response
-          hideLoading();
-          resetControls();
-          refreshEverything();
-        })
-        .catch(error => {
-          handleError(error);
-          console.log(error); 
-          // Handle errors
-          hideLoading();
-        });
-    }
-
-    function handleUpdateDelete(event) {
-      showLoading();
-      event.preventDefault();
-
-      if (confirm('Are you sure you want to delete this work log ?')) {
-        return fetch('{{ endpoint }}' + document.querySelector("input[name=worklogid-update]").value + '?issueId=' + document.querySelector("input[name=issue-update]").value, {
-        method: 'DELETE',
-      })
-      .then(response => {
-        hideLoading();
-          // Handle the response
-          resetControls();
-          refreshEverything();
-        })
-        .catch(error => {
-          handleError(error);
-          console.log(error); 
-          // Handle errors
-          hideLoading();
-        });
-      } else {
-        return false;
-      }
-
-      
-    }
-
-    function fetchWorkLog(workLogId, issueId) {
-      showLoading();
-      fetch(`/worklog/${workLogId}?issueId=${issueId}`)
-        .then((res) => res.json())
-        .then(data => {
-          // Set the form values
-          const issueInput = document.getElementById('issue-update');
-          issueInput.value = data.issueId;
-          fetchIssue(data.issueId)
-          .then((issue) => {
-            const issueLabel = document.getElementById('issue-label');
-            issueLabel.innerHTML = issue.key + ' ' + issue.fields.summary;
-            hideLoading();
-          });
-
-          const commentInput = document.getElementById('comment-update');
-          commentInput.value = data.comment || '';
-        })
-        .catch(error => {
-          handleError(error);
-          hideLoading();
-        });
-    }
-
-    
-    function fetchIssue(issueId) {
-      return fetch(`/issues/${issueId}`)
-      .then((res) => res.json())
-        .catch(error => {
-          handleError(error);
-        });
-    }
-
-    // Add event listeners to the buttons
-    const cancelBtnUpdate = document.getElementById('cancel-btn-update');
-    cancelBtnUpdate.addEventListener('click', hideUpdateModal);
-
-    const submitBtnUpdate = document.getElementById('submit-btn-update');
-    submitBtnUpdate.addEventListener('click', handleUpdateSubmit);
-
-    const deleteBtnUpdate = document.getElementById('delete-btn-update');
-    deleteBtnUpdate.addEventListener('click', handleUpdateDelete);
-
-  </script>
 {% endmacro %}
