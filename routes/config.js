@@ -4,6 +4,8 @@ const path = require('path');
 const router = express.Router();
 
 const configPath = path.join(__dirname, '..', 'config', 'settings.json');
+const configDir = path.dirname(configPath);
+
 
 // Default configuration
 const defaultConfig = {
@@ -12,8 +14,16 @@ const defaultConfig = {
     issueColors: {}
 };
 
+// Ensure the config directory exists
+function ensureConfigDirExists() {
+    if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+    }
+}
+
 // Route to get the configuration
 router.get('/getConfig', (req, res) => {
+    ensureConfigDirExists();
     if (fs.existsSync(configPath)) {
         fs.readFile(configPath, 'utf8', (err, data) => {
             if (err) {
@@ -35,6 +45,7 @@ router.get('/getConfig', (req, res) => {
 
 // Route to save the configuration
 router.post('/saveConfig', (req, res) => {
+    ensureConfigDirExists();
     const config = req.body;
     const normalizedConfig = { ...defaultConfig, ...config }; // Merge with default config
 

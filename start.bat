@@ -8,7 +8,8 @@ IF %ERRORLEVEL% NEQ 0 ( ECHO npm wasn't found, skipping update  && GOTO :start )
 
 cd /D "%~dp0"
 git pull
-npm install
+npm install & npm run start
+exit
 
 :start
 cd /D "%~dp0"
