@@ -11,7 +11,7 @@
         <label for="comment-create">Comment:</label>
         <textarea class="comment" id="comment-create" name="comment"></textarea>
         <div class="buttons">
-          <button id="cancel-btn-create" title="Cancel" class="close-btn" type="button" onclick="hideModal('.modal-create');calendar.unselect();">✖️</button>
+          <button id="cancel-btn-create" title="Cancel" class="close-btn" type="button" onclick="hideModal('.modal-create');window.calendar.unselect();">✖️</button>
           <button class="primary" id="submit-btn-create" title="Submit" type="submit" onclick="handleSubmit(event, '/worklog/', 'POST')">☑️</button>
         </div>
       </form>

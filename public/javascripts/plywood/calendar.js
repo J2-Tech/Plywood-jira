@@ -1,13 +1,13 @@
 import { showLoading, hideLoading } from './ui.js';
 import { showUpdateModal, showCreateModal } from './modal.js';
 
-let calendar = null;
+window.calendar = null;
 
 /**
  * Refresh calendar events.
  */
 export function refreshEverything() {
-    calendar.refetchEvents();
+    window.calendar.refetchEvents();
 }
 
 /**
@@ -32,7 +32,7 @@ export function updateTotalTime(events) {
 export function initializeCalendar() {
     var calendarElement = document.getElementById("calendar");
     const theme = document.body.classList.contains('dark-theme') ? 'bootstrap' : 'standard';
-    calendar = new FullCalendar.Calendar(calendarElement, {
+    window.calendar = new FullCalendar.Calendar(calendarElement, {
         initialView: "timeGridWeek",
         nowIndicator: true,
         themeSystem: theme,
@@ -41,7 +41,7 @@ export function initializeCalendar() {
                 text: "🔄",
                 hint: "Refresh work logs",
                 click: function () {
-                    calendar.refetchEvents();
+                    window.calendar.refetchEvents();
                 },
             },
         },
@@ -93,7 +93,7 @@ export function initializeCalendar() {
             return {html:arg.event.title};
         },
         datesSet: function (info) {
-            var visibleEvents = calendar.getEvents().filter((event) => {
+            var visibleEvents = window.calendar.getEvents().filter((event) => {
                 const s = info.start,
                     e = info.end;
                 if (event.start > e || event.end < s) return false;
@@ -172,7 +172,7 @@ export function initializeCalendar() {
             showCreateModal(info.start, info.end);
         },
     });
-    calendar.render();
+    window.calendar.render();
 }
 
 window.initializeCalendar = initializeCalendar;

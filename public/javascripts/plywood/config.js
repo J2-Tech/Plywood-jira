@@ -1,5 +1,6 @@
 import { hideModal } from './modal.js';
 import { applyTheme } from './ui.js';
+import { refreshEverything } from "./calendar.js";
 /**
  * Save configuration settings.
  */
@@ -33,6 +34,7 @@ export function saveConfig() {
         if (response.ok) {
             hideModal('#configModal');
             applyTheme(config.themeSelection); // Apply the selected theme
+            refreshEverything();
         } else {
             console.error('Failed to save configuration.');
         }
@@ -57,6 +59,7 @@ export function loadConfig() {
             }
 
             applyTheme(config.themeSelection);
+            refreshEverything();
         });
 }
 

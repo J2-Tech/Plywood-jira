@@ -31,19 +31,19 @@ export function initializeUI() {
         var zoomLabel = document.getElementById("zoom-output");
         switch (this.value) {
             case "1":
-                calendar.setOption("slotDuration", "00:30:00");
+                window.calendar.setOption("slotDuration", "00:30:00");
                 zoomLabel.innerHTML = "30 minutes / slot";
                 break;
             case "2":
-                calendar.setOption("slotDuration", "00:15:00");
+                window.calendar.setOption("slotDuration", "00:15:00");
                 zoomLabel.innerHTML = "15 minutes / slot";
                 break;
             case "3":
-                calendar.setOption("slotDuration", "00:10:00");
+                window.calendar.setOption("slotDuration", "00:10:00");
                 zoomLabel.innerHTML = "10 minutes / slot";
                 break;
             case "4":
-                calendar.setOption("slotDuration", "00:05:00");
+                window.calendar.setOption("slotDuration", "00:05:00");
                 zoomLabel.innerHTML = "5 minutes / slot";
                 break;
         }
@@ -51,7 +51,7 @@ export function initializeUI() {
 
     var weekendInput = document.getElementById("include-weekends");
     weekendInput.addEventListener("change", () => {
-        calendar.setOption("weekends", weekendInput.checked);
+        window.calendar.setOption("weekends", weekendInput.checked);
         refreshEverything();
     });
 
@@ -125,8 +125,8 @@ function searchDebounce(func, delay) {
  * @returns {Promise<Array>} - The search results.
  */
 function searchIssues(query) {
-    const startDate = encodeURIComponent(new Date(calendar.view.activeStart).toISOString());
-    const endDate = encodeURIComponent(new Date(calendar.view.activeEnd).toISOString());
+    const startDate = encodeURIComponent(new Date(window.calendar.view.activeStart).toISOString());
+    const endDate = encodeURIComponent(new Date(window.calendar.view.activeEnd).toISOString());
 
     showLoading();
     return fetch(`/issues/user?start=${startDate}&end=${endDate}&query=${query}`)
