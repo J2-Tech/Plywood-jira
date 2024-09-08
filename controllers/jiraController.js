@@ -70,7 +70,7 @@ function formatWorklog(worklog, issue) {
         fs.writeFileSync(configPath, JSON.stringify(settings, null, 2), 'utf8');
     }
 
-    const defaultColor = process.env.DEFAULT_ISSUE_COLOR || '#000000'; // Default color from .env or fallback to black
+    const defaultColor = process.env.DEFAULT_ISSUE_COLOR || '#2a75fe'; // Default color from .env or fallback to black
     const issueTypeLower = issue.issueType.toLowerCase();
     const color = (settings.issueColors && settings.issueColors[issueTypeLower]) || defaultColor;
     const showIssueTypeIcons = settings.showIssueTypeIcons || false;

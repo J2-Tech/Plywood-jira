@@ -1,6 +1,8 @@
 import { showLoading, hideLoading } from './ui.js';
 import { showUpdateModal, showCreateModal } from './modal.js';
 
+let calendar = null;
+
 /**
  * Refresh calendar events.
  */
