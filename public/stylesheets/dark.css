@@ -98,12 +98,12 @@ body.dark-theme button.primary {
 }
 
 body.dark-theme button.success {
-    background-color: #4caf50;
+    background-color: rgb(0, 103, 0);
     color: white;
 }
 
 body.dark-theme button.destructive {
-    background-color: #f44336;
+    background-color: rgb(161, 0, 0);
     color: white;
 }
 

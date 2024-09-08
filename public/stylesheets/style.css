@@ -308,6 +308,18 @@ input#include-weekends {
   text-align: left;
 }
 
+
+#configForm {
+  max-height: 600px;
+  overflow: hidden scroll;
+  padding-bottom: 50px;
+}
+
+
+#configModal {
+  resize: none;
+}
+
 #issueTypeColors {
   width: auto;
   padding: 20px;

@@ -15,7 +15,7 @@ export function saveConfig() {
 
     formData.forEach((value, key) => {
         if (key.startsWith('issueType-')) {
-            const issueType = key.replace('issueType-', '');
+            const issueType = key.replace('issueType-', '').toLowerCase();
             config.issueColors[issueType] = value;
         }
     });
