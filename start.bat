@@ -1,5 +1,5 @@
 ECHO OFF
-WHERE nodeaa >nul 2>nul
+WHERE node >nul 2>nul
 IF %ERRORLEVEL% NEQ 0 ( ECHO nodejs wasn't found, exiting && pause && EXIT /B 1 ) 
 WHERE git >nul 2>nul
 IF %ERRORLEVEL% NEQ 0 ( ECHO git wasn't found, skipping update  && GOTO :start ) 
