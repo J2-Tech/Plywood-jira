@@ -34,12 +34,12 @@ function getFilteredWorklogs(req, issue, filterStartTime, filterEndTime) {
     return jiraAPIController.getIssueWorklogs(req, issue.issueId, filterEndTime.getTime(), filterStartTime.getTime())
         .then(result => {
             const worklogs = result.worklogs;
-            return worklogs.filter(worklog => filterWorklog(worklog, filterStartTime, filterEndTime))
+            return worklogs.filter(worklog => filterWorklog(req, worklog, filterStartTime, filterEndTime))
                 .map(worklog => formatWorklog(worklog, issue));
         });
 }
 
-function filterWorklog(worklog, filterStartTime, filterEndTime) {
+function filterWorklog(req, worklog, filterStartTime, filterEndTime) {
     const startTime = new Date(worklog.started);
     const endTime = new Date(startTime.getTime() + (worklog.timeSpentSeconds * 1000));
     let condition = startTime.getTime() > filterStartTime.getTime() && startTime.getTime() < filterEndTime.getTime();

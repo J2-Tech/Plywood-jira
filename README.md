@@ -3,25 +3,50 @@ A quick and dirty NodeJS app to manage Jira worklogs using API access
 
 work *logs*... timesheets... wood sheets... plywood... you get it :)
 
+## Features :
+- Themes ! Light, dark and auto (based on system theme)
+- Timer - Start, pause, resume and stop logging time for an issue
+- Configurable colors based on issue types ! 
+- Issue type icons from your jira instance
+- Create and update worklogs in a FullCalendar instance ! 
+- Supports OAuth2
 
-![Screenshot](docs/screenshot.png)
+HTTPS Is still not yet properly implemented, but is planned
+
+## Screenshots
+### Light theme
+
+![Light Theme](docs/light.png)
+![Light Theme Worklog Creation](docs/create-light.png)
+![Light Theme Worklog Update](docs/update-light.png)
+
+### Dark theme
+
+![Dark Theme](docs/dark.png)
+
+### Timer 
+
+![Light Theme Timer](docs/timer-light.png)
+![Dark Theme Timer](docs/timer-dark.png)
+
+### Issue type colors
+
+![Light Theme Configuration](docs/config-light.png)
 
 ### How to use : 
 
 1. install Nodejs 
 2. modify the 'example.env' file to add your jira information, then save it as '.env'
-3. open a terminal in the extracted / cloned folder (ex: 'cd c:\plywood')
-4. install the app with 'npm install'
-5. run the app with 'npm run start'
-6. app is now accessible at 'http://localhost:3000'
+3. execute start.bat
+4. app is now accessible at 'http://localhost:3000'
 
 
 ### Librairies used 
-(some of them anyways)
+(This list is not 100% complete)
 
 [Fullcalendar](https://fullcalendar.io/)
 
-[Popper](https://popper.js.org/)
+[Tippy.js](https://atomiks.github.io/tippyjs/)
 
 [Choices.JS](https://github.com/Choices-js/Choices)
 

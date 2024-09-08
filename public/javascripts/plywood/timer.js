@@ -30,7 +30,7 @@ export function pauseTimer() {
     pauseStartTime = new Date();
     isPaused = true;
     document.getElementById('start-pause-resume-timer-btn').textContent = '▶️';
-    document.getElementById('start-pause-resume-timer-btn').className = 'success';
+    document.getElementById('start-pause-resume-timer-btn').className = '';
     document.getElementById('open-timer-modal-btn').classList.remove('primary');
 }
 

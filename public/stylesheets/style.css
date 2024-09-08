@@ -109,6 +109,7 @@ button {
   border: solid 1px lightgray;
   font-size: 16px;
   cursor: pointer;
+  border-radius: 5px;
 }
 
 button.destructive {

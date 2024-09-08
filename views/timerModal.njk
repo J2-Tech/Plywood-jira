@@ -10,7 +10,8 @@
       <div class="timer-display" id="timer-display">0m</div>
       <div class="buttons">
         <button type="button" id="start-pause-resume-timer-btn" class="success" onclick="toggleStartPauseResumeTimer()">Start</button>
-        <button type="button" id="stop-timer-btn" class="destructive" onclick="stopTimer()" disabled>Stop</button>
+        <button id="cancel-btn-timer" title="Cancel" class="close-btn" type="button" onclick="toggleTimerModal();">✖️</button>
+        <button type="button" id="stop-timer-btn" class="success" onclick="stopTimer()" disabled>Save</button>
       </div>
       <div id="confirmation-message" class="confirmation-message"></div> <!-- Confirmation message element -->
     </form>
