@@ -167,7 +167,7 @@ export function initializeCalendar() {
             }
             
         },
-        unselectCancel: ".unselectable",
+        unselectCancel: ".unselectable, .choices__item",
         select: function (info) {
             showCreateModal(info.start, info.end);
         },

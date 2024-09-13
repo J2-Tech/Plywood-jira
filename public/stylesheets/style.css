@@ -155,11 +155,11 @@ footer button {
 
 /* Timer Styles */
 #confirmation-message {
-  margin-top: 20px;
+  margin: 20px 0;
 }
 
 #timer-display {
-  margin-top: 20px;
+  margin: 20px 0;
 }
 
 .modal.modal-timer {
@@ -174,6 +174,12 @@ footer button {
   min-height: 450px;
   min-width: 350px;
   opacity: 95%;
+}
+
+
+#timerForm .buttons {
+  align-content: center;
+  flex-direction: row-reverse;
 }
 
 #timer-duration {
@@ -344,4 +350,8 @@ input#include-weekends {
 
 .modal .choices__inner {
   width: calc(100% - 17px);
+}
+
+.choices.is-disabled .choices__list {
+  color: grey;
 }

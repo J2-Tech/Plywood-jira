@@ -11,6 +11,7 @@ const configDir = path.dirname(configPath);
 const defaultConfig = {
     showIssueTypeIcons: true,
     themeSelection: 'auto',
+    roundingInterval: 15,
     issueColors: {}
 };
 

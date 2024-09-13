@@ -1,6 +1,7 @@
 import { hideModal } from './modal.js';
 import { applyTheme } from './ui.js';
 import { refreshEverything } from "./calendar.js";
+
 /**
  * Save configuration settings.
  */
@@ -10,7 +11,9 @@ export function saveConfig() {
     const config = {
         showIssueTypeIcons: formData.get('showIssueTypeIcons') === 'on',
         themeSelection: formData.get('themeSelection'),
-        issueColors: {}
+        issueColors: {},
+        roundingInterval: parseInt(formData.get('roundingInterval'), 10) || 15, // Default to 15 minutes
+        saveTimerOnIssueSwitch: formData.get('saveTimerOnIssueSwitch') === 'on'
     };
 
     formData.forEach((value, key) => {
@@ -33,8 +36,7 @@ export function saveConfig() {
         loadingIndicator.style.display = 'none'; // Hide loading indicator
         if (response.ok) {
             hideModal('#configModal');
-            applyTheme(config.themeSelection); // Apply the selected theme
-            refreshEverything();
+            loadConfig();
         } else {
             console.error('Failed to save configuration.');
         }
@@ -50,6 +52,10 @@ export function loadConfig() {
         .then(config => {
             document.getElementById('showIssueTypeIcons').checked = config.showIssueTypeIcons;
             document.getElementById('themeSelection').value = config.themeSelection || 'light';
+            document.getElementById('rounding-interval').value = config.roundingInterval || 15;
+            document.getElementById('timer-rounding-interval').value = config.roundingInterval || 15;
+            document.getElementById('save-timer-on-issue-switch').checked = config.saveTimerOnIssueSwitch;
+            window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
 
             const issueTypeColors = document.getElementById('issueTypeColors');
             issueTypeColors.innerHTML = '';
