@@ -93,6 +93,8 @@ export function initializeDropdown() {
         shouldSortItems: true,
     });
 
+    window.choicesTimer = choicesTimer;
+
     const fetchTimerOptions = searchDebounce((searchTerm) => {
         searchIssues(searchTerm)
             .then(options => {

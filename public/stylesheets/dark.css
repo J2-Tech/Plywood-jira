@@ -57,6 +57,14 @@ body.dark-theme .choices__input {
     color: white;
 }
 
+body.dark-theme  .choices.is-disabled .choices__inner {
+    background-color: #1e1e1e;
+}
+
+body.dark-theme .choices.is-disabled .choices__list {
+    color: #5e5e5e;
+}
+
 body.dark-theme .is-highlighted {
     background-color: #141414!important;
     color: white;

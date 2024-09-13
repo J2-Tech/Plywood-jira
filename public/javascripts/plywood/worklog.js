@@ -40,6 +40,7 @@ export function handleSubmit(event, url, method) {
         },
         body: JSON.stringify(data)
     }).then(response => {
+        window.calendar.unselect();
         if (response.ok) {
             hideModal('.modal-create');
             hideModal('.modal-update');

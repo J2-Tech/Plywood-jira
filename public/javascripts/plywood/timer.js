@@ -2,55 +2,24 @@ import { createWorkLog } from './worklog.js';
 import { refreshEverything } from './calendar.js';
 
 
+const minSaveMinutes = 5; // Minimum time to save a worklog in minutes
+let canSwitchIssue = true;
 let timerInterval;
 let timerStartTime;
-let isPaused = false;
 let pausedDuration = 0;
-let pauseStartTime;
+let roundingInterval = 15; // Default rounding interval in minutes
+
 
 /**
- * Toggles between starting, pausing, and resuming the timer.
+ * Toggles between starting and saving the timer.
  */
-export function toggleStartPauseResumeTimer() {
-    const button = document.getElementById('start-pause-resume-timer-btn');
-    if (button.textContent === 'Start') {
+export function toggleStartSaveTimer() {
+    const button = document.getElementById('start-save-timer-btn');
+    if (button.textContent === '🔴') {
         startTimer();
-    } else if (button.textContent === '⏸️') {
-        pauseTimer();
-    } else if (button.textContent === '▶️') {
-        resumeTimer();
+    } else if (button.textContent === '💾') {
+        stopTimer();
     }
-}
-
-/**
- * Pauses the timer.
- */
-export function pauseTimer() {
-    clearInterval(timerInterval);
-    pauseStartTime = new Date();
-    isPaused = true;
-    document.getElementById('start-pause-resume-timer-btn').textContent = '▶️';
-    document.getElementById('start-pause-resume-timer-btn').className = '';
-    document.getElementById('open-timer-modal-btn').classList.remove('primary');
-}
-
-/**
- * Resumes the timer.
- */
-export function resumeTimer() {
-    const now = new Date();
-    pausedDuration += now - pauseStartTime;
-    isPaused = false;
-    document.getElementById('start-pause-resume-timer-btn').textContent = '⏸️';
-    document.getElementById('start-pause-resume-timer-btn').className = 'primary';
-    document.getElementById('open-timer-modal-btn').classList.add('primary');
-
-    timerInterval = setInterval(() => {
-        const now = new Date();
-        const duration = now - timerStartTime - pausedDuration;
-        document.getElementById('timer-display').textContent = formatDuration(duration);
-        document.getElementById('timer-duration').textContent = formatDuration(duration);
-    }, 1000);
 }
 
 /**
@@ -59,30 +28,48 @@ export function resumeTimer() {
 export function startTimer() {
     timerStartTime = new Date();
     pausedDuration = 0;
-    isPaused = false;
-    document.getElementById('start-pause-resume-timer-btn').textContent = '⏸️';
-    document.getElementById('start-pause-resume-timer-btn').className = 'primary';
-    document.getElementById('stop-timer-btn').disabled = false;
+    document.getElementById('start-save-timer-btn').textContent = '💾';
+    document.getElementById('start-save-timer-btn').className = 'primary';
     document.getElementById('confirmation-message').textContent = ''; // Clear confirmation message
     document.getElementById('open-timer-modal-btn').classList.add('primary');
     document.getElementById('timer-duration').style.display = 'inline-block'; // Show the timer duration
+
+    if (window.saveTimerOnIssueSwitch) {
+        canSwitchIssue = false;
+        window.choicesTimer.disable();
+    }
 
     timerInterval = setInterval(() => {
         const now = new Date();
         const duration = now - timerStartTime - pausedDuration;
         document.getElementById('timer-display').textContent = formatDuration(duration);
         document.getElementById('timer-duration').textContent = formatDuration(duration);
+        if (window.saveTimerOnIssueSwitch && !canSwitchIssue) {
+            if (duration > minSaveMinutes * 60 * 1000) {
+                canSwitchIssue = true;
+                window.choicesTimer.enable();
+            }
+        } 
     }, 1000);
 }
 
+
 /**
- * Stops the timer.
+ * Stops the timer and saves the worklog.
  */
 export function stopTimer() {
     const timerEndTime = new Date();
-    const duration = timerEndTime - timerStartTime - pausedDuration;
+    let duration = timerEndTime - timerStartTime - pausedDuration;
 
-    if (duration < 5 * 60 * 1000) { // Less than 5 minutes
+    // Rounding logic
+    const roundCheckbox = document.getElementById('round-timer-checkbox');
+    if (roundCheckbox && roundCheckbox.checked) {
+        const intervalMs = roundingInterval * 60 * 1000;
+        timerStartTime = new Date(Math.round(timerStartTime.getTime() / intervalMs) * intervalMs);
+        duration = Math.round(duration / intervalMs) * intervalMs;
+    }
+
+    if (duration < minSaveMinutes * 60 * 1000) { // Less than minSaveMinutes
         document.getElementById('confirmation-message').textContent = 'The minimum time for a worklog is 5 minutes.';
         return;
     }
@@ -109,13 +96,45 @@ export function stopTimer() {
         document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + error.message;
     });
 
-    document.getElementById('start-pause-resume-timer-btn').textContent = 'Start';
-    document.getElementById('start-pause-resume-timer-btn').className = 'success';
-    document.getElementById('stop-timer-btn').disabled = true;
+    resetTimerUI();
+}
+
+/**
+ * Cancels the timer.
+ */
+export function cancelTimer() {
+    clearInterval(timerInterval);
+    resetTimerUI();
+}
+
+/**
+ * Handles issue switch event.
+ */
+export function handleTimerIssueSwitch(event) {
+    const duration = new Date() - timerStartTime - pausedDuration;
+    if (duration < minSaveMinutes * 60 * 1000) { // Less than minSaveMinutes
+        document.getElementById('confirmation-message').textContent = 'Cannot switch issue before 5 minutes.';
+        event.preventDefault();
+        return;
+    }
+
+    if (window.saveTimerOnIssueSwitch && document.getElementById('start-save-timer-btn').textContent === '💾') {
+        stopTimer();
+    }
+}
+
+/**
+ * Resets the timer UI to its initial state.
+ */
+function resetTimerUI() {
+    document.getElementById('start-save-timer-btn').textContent = '🔴';
+    document.getElementById('start-save-timer-btn').className = '';
     document.getElementById('timer-display').textContent = '0m';
     document.getElementById('timer-duration').textContent = '0m';
     document.getElementById('timer-duration').style.display = 'none'; // Hide the timer duration
     document.getElementById('open-timer-modal-btn').classList.remove('primary');
+    window.choicesTimer.enable(); // Re-enable the issue dropdown
+    document.getElementById('confirmation-message').textContent = ''; // Clear confirmation message
 }
 
 /**
@@ -153,10 +172,16 @@ export function toggleTimerModal() {
     }
 }
 
+
+document.addEventListener('DOMContentLoaded', () => {
+    const issueSelect = document.getElementById('issue-timer');
+    issueSelect.addEventListener('change', handleTimerIssueSwitch);
+});
+
 window.toggleTimerModal = toggleTimerModal;
-window.toggleStartPauseResumeTimer = toggleStartPauseResumeTimer;
-window.stopTimer = stopTimer;
+window.toggleStartSaveTimer = toggleStartSaveTimer;
+window.handleTimerIssueSwitch = handleTimerIssueSwitch;
 window.startTimer = startTimer;
-window.pauseTimer = pauseTimer;
-window.resumeTimer = resumeTimer;
+window.stopTimer = stopTimer;
+window.cancelTimer = cancelTimer;
 
