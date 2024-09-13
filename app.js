@@ -1,8 +1,7 @@
-var createError = require('http-errors');
+
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
-//var favicon = require('serve-favicon');
 var logger = require('morgan');
 var nunjucks = require("nunjucks");
 const passport = require('passport');
@@ -85,11 +84,6 @@ app.use('/', indexRouter);
 
 var configRouter = require('./routes/config');
 app.use('/config', configRouter);
-
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
-});
 
 // error handler
 app.use(function(err, req, res, next) {
