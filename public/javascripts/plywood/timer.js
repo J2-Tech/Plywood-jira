@@ -6,8 +6,8 @@ const minSaveMinutes = 5; // Minimum time to save a worklog in minutes
 let canSwitchIssue = true;
 let timerInterval;
 let timerStartTime;
-let pausedDuration = 0;
 let roundingInterval = 15; // Default rounding interval in minutes
+let previousIssueId;
 
 
 /**
@@ -26,8 +26,15 @@ export function toggleStartSaveTimer() {
  * Starts the timer.
  */
 export function startTimer() {
+    
+    previousIssueId = document.getElementById('issue-timer').value; // Capture the current issue ID
+    
+    if (previousIssueId === '') {
+        document.getElementById('confirmation-message').textContent = 'Please select an issue.';
+        return;
+    }
+
     timerStartTime = new Date();
-    pausedDuration = 0;
     document.getElementById('start-save-timer-btn').textContent = '💾';
     document.getElementById('start-save-timer-btn').className = 'primary';
     document.getElementById('confirmation-message').textContent = ''; // Clear confirmation message
@@ -41,7 +48,7 @@ export function startTimer() {
 
     timerInterval = setInterval(() => {
         const now = new Date();
-        const duration = now - timerStartTime - pausedDuration;
+        const duration = now - timerStartTime;
         document.getElementById('timer-display').textContent = formatDuration(duration);
         document.getElementById('timer-duration').textContent = formatDuration(duration);
         if (window.saveTimerOnIssueSwitch && !canSwitchIssue) {
@@ -59,14 +66,16 @@ export function startTimer() {
  */
 export function stopTimer() {
     const timerEndTime = new Date();
-    let duration = timerEndTime - timerStartTime - pausedDuration;
+    let duration = timerEndTime - timerStartTime;
 
     // Rounding logic
     const roundCheckbox = document.getElementById('round-timer-checkbox');
     if (roundCheckbox && roundCheckbox.checked) {
         const intervalMs = roundingInterval * 60 * 1000;
-        timerStartTime = new Date(Math.round(timerStartTime.getTime() / intervalMs) * intervalMs);
-        duration = Math.round(duration / intervalMs) * intervalMs;
+        const startRounded = Math.floor(timerStartTime.getTime() / intervalMs) * intervalMs;
+        const endRounded = Math.ceil(timerEndTime.getTime() / intervalMs) * intervalMs;
+        timerStartTime = new Date(startRounded);
+        duration = endRounded - startRounded;
     }
 
     if (duration < minSaveMinutes * 60 * 1000) { // Less than minSaveMinutes
@@ -75,7 +84,7 @@ export function stopTimer() {
     }
 
     clearInterval(timerInterval);
-    const issueId = document.getElementById('issue-timer').value;
+    const issueId = previousIssueId || document.getElementById('issue-timer').value; // Use the previous issue ID
     const comment = document.getElementById('comment-timer').value;
 
     const workLogData = {
@@ -111,12 +120,6 @@ export function cancelTimer() {
  * Handles issue switch event.
  */
 export function handleTimerIssueSwitch(event) {
-    const duration = new Date() - timerStartTime - pausedDuration;
-    if (duration < minSaveMinutes * 60 * 1000) { // Less than minSaveMinutes
-        document.getElementById('confirmation-message').textContent = 'Cannot switch issue before 5 minutes.';
-        event.preventDefault();
-        return;
-    }
 
     if (window.saveTimerOnIssueSwitch && document.getElementById('start-save-timer-btn').textContent === '💾') {
         stopTimer();
