@@ -7,12 +7,12 @@
       <select id="issue-timer" name="issueId" required></select>
       <label for="comment-timer">Comment:</label>
       <textarea class="comment" id="comment-timer" name="comment"></textarea>
-      <div class="timer-display" id="timer-display">0m</div>
       <div class="form-group">
         <label for="round-timer-checkbox">Round to</label>
         <input type="checkbox" id="round-timer-checkbox" name="roundTimer">
         <input type="number" id="timer-rounding-interval" name="roundingInterval" min="1"> minutes
       </div>
+      <div class="timer-display" id="timer-display">0m</div>
       <div class="buttons">
         <button type="button" id="start-save-timer-btn" class="" onclick="toggleStartSaveTimer()" title="Start/Save Timer">🔴</button>
         <button type="button" id="cancel-timer-btn" class="destructive" onclick="cancelTimer()" title="Cancel Timer">❌</button>
