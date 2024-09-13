@@ -49,6 +49,7 @@ body.light-theme {
   min-width: 30%;
   max-height: 90vh;
   box-shadow: 5px 5px 15px;
+  padding-bottom:35px;
 }
 
 .modal-content h2 {
