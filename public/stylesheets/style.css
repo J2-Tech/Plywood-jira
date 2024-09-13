@@ -47,7 +47,7 @@ body.light-theme {
   resize: both;
   overflow: auto;
   min-width: 30%;
-  min-height: 60%;
+  max-height: 90vh;
   box-shadow: 5px 5px 15px;
 }
 
@@ -316,14 +316,16 @@ input#include-weekends {
 
 
 #configForm {
-  max-height: 600px;
   overflow: hidden scroll;
-  padding-bottom: 50px;
+  height: calc(90vh - 120px);
+  padding: 20px 20px 50px 20px;
 }
+
 
 
 #configModal {
   resize: none;
+  overflow: hidden;
 }
 
 #issueTypeColors {
@@ -340,6 +342,8 @@ input#include-weekends {
   padding: 0 8px;
   height: 32px;
 }
+
+
 
 /* Choices.js Styles */
 .modal .choices {
