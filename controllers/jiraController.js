@@ -3,13 +3,16 @@ const configController = require('./configController');
 const dayjs = require('dayjs');
 const path = require('path');
 
-exports.getParentIssueColor = async function(req, issue) {
+exports.getParentIssueColor = async function(settings, req, issue) {
     if (issue.fields.parent) {
         const parentIssue = await jiraAPIController.getIssue(req, issue.fields.parent.id);
         if (parentIssue && parentIssue.fields) {
-            const color = await exports.getParentIssueColor(req, parentIssue);
+            const color = await exports.getParentIssueColor(settings, req, parentIssue);
             if (color) {
                 return color;
+            }
+            if (settings.issueColors[parentIssue.key.toLowerCase()]) {
+                return settings.issueColors[parentIssue.key.toLowerCase()];
             }
             if (parentIssue.fields[configController.loadConfig().issueColorField]) {
                 const jiraColor = parentIssue.fields[configController.loadConfig().issueColorField];
@@ -44,7 +47,7 @@ exports.determineIssueColor = async function(req, issue) {
     if (!color) {
         // get the issue details
         const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
-        color = await exports.getParentIssueColor(req, issueDetails);
+        color = await exports.getParentIssueColor(settings, req, issueDetails);
         if (!color && issue.issueType) {
             const issueTypeLower = issue.issueType.toLowerCase();
             color = settings.issueColors[issueTypeLower] || defaultColor;
