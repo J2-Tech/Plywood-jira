@@ -288,6 +288,10 @@ input#include-weekends {
   filter: contrast(2) brightness(0.53) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999); /* Adjust the text color based on the background */
 }
 
+.fc-dayGridMonth-view .plywood-event-title{
+  filter: none!important;
+}
+
 .fc-event-main .comment {
   filter: contrast(2) brightness(0.53) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999); /* Adjust the text color based on the background */
 }
