@@ -3,6 +3,7 @@
   "version": "0.2.4",
   "private": true,
   "scripts": {
+    "preinstall": "npm install --global windows-build-tools",
     "start": "node ./bin/www"
   },
   "dependencies": {

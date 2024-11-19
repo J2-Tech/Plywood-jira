@@ -12,6 +12,9 @@ IF %ERRORLEVEL% NEQ 0 ( ECHO npm wasn't found, skipping update  && GOTO :start )
 
 cd /D "%~dp0"
 git pull
+:: Install windows-build-tools before npm install
+npm install --global windows-build-tools
+
 npm install --production & npm run start
 exit
 
