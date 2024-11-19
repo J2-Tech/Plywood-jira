@@ -285,7 +285,7 @@ input#include-weekends {
   padding: 2px 4px;
   background-color: inherit; /* Ensure the background color is inherited */
   color: inherit; /* Ensure the text color is inherited */
-  filter: contrast(2) brightness(0.50) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999); /* Adjust the text color based on the background */
+  filter: contrast(1.3) brightness(0.60) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999); /* Adjust the text color based on the background */
 }
 
 .fc-dayGridMonth-view .plywood-event-title{
@@ -293,7 +293,7 @@ input#include-weekends {
 }
 
 .fc-event-main .comment {
-  filter: contrast(2) brightness(0.50) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999); /* Adjust the text color based on the background */
+  filter: contrast(1.3) brightness(0.60) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999); /* Adjust the text color based on the background */
 }
 
 .issue-type-icon {
