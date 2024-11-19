@@ -21,8 +21,11 @@
         </div>
       </div>
       <div class="config-section">
-        <h3>Issue Type Colors</h3>
-        <div class="form-group">
+        <h3 onclick="toggleSection('colorsSection')" style="cursor: pointer;">
+          Colors
+          <span id="colorsSectionArrow" class="arrow">◀</span>
+        </h3>
+        <div id="colorsSection" class="form-group" style="display: none;">
           <div id="issueTypeColors">
             <!-- Issue type color inputs will be dynamically added here -->
           </div>

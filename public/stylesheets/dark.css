@@ -75,6 +75,10 @@ body.dark-theme .modal-content {
     color: white;
 }
 
+body.dark-theme #colorPickerModal {
+    background-color: #1e1e1e;
+}
+
 body.dark-theme input {
     background-color: #1e1e1e!important;
     color: white;

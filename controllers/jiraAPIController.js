@@ -240,3 +240,23 @@ function deleteWorkLogInternal(req, issue, worklogId) {
 exports.deleteWorkLog = function(req, issue, worklogId) {
     return withRetry(deleteWorkLogInternal, req, issue, worklogId);
 }
+
+exports.getCustomFields = async function (req) {
+    const url = getCallURL(req);
+    const response = await fetch(url + '/rest/api/3/field', {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent: httpsAgent
+    });
+    return response.json();
+}
+
+exports.getIssueTypes = async function(req) {
+    const url = getCallURL(req);
+    const response = await fetch(url + '/rest/api/3/issuetype', {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent: httpsAgent
+    });
+    return response.json();
+}

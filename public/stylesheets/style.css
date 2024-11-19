@@ -280,8 +280,16 @@ input#include-weekends {
   overflow: hidden;
   text-overflow: ellipsis;
   display: inline-block;
-  vertical-align: middle; /* Align the text vertically in the middle */
+  vertical-align: middle;
   width: calc(100% - 24px);
+  padding: 2px 4px;
+  background-color: inherit; /* Ensure the background color is inherited */
+  color: inherit; /* Ensure the text color is inherited */
+  filter: contrast(2) brightness(0.53) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999); /* Adjust the text color based on the background */
+}
+
+.fc-event-main .comment {
+  filter: contrast(2) brightness(0.53) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999); /* Adjust the text color based on the background */
 }
 
 .issue-type-icon {
@@ -320,6 +328,38 @@ input#include-weekends {
 }
 .modal-config .config-section .form-group label {
   text-align: left;
+}
+
+.arrow {
+  display: inline-block;
+  transition: transform 0.3s ease;
+}
+
+.arrow.expanded {
+  transform: rotate(-90deg);
+}
+
+
+#colorPickerModal {
+  display: flex;
+  flex-direction: column;
+  background:white;
+  padding: 10px;
+  flex-grow: 1;
+}
+#colorPickerInput {
+  flex-grow: 1;
+  width: auto;
+  margin: 10px 0;
+}
+#colorPickerModal .buttons {
+  width: auto;
+  flex-grow: 1;
+  display: flex;
+  justify-content: center;
+}
+#colorPickerModal .buttons button {
+  margin: 0 5px;
 }
 
 

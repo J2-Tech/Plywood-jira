@@ -165,9 +165,13 @@ export function initializeCalendar() {
                     container: "body",
                 });
             }
-            
+    
+            info.el.addEventListener('contextmenu', function(event) {
+                event.preventDefault(); // Prevent the default context menu from appearing
+                showColorPicker(info.event, event);
+            });
         },
-        unselectCancel: ".unselectable, .choices__item",
+        unselectCancel: ".unselectable, .choices__item, color-picker",
         select: function (info) {
             showCreateModal(info.start, info.end);
         },

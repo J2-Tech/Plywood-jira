@@ -4,6 +4,9 @@
   {% import "aboutModal.njk" as aboutModal %}
   {% import "configModal.njk" as configModal %}
   {% import "timerModal.njk" as timerModal %}
+  {% import "colorPickerModal.njk" as colorPickerModal %}
+
+  {{ colorPickerModal.modal() }}
   {{ aboutModal.modal() }}
   {{ createModal.modal() }}
   {{ updateModal.modal() }}

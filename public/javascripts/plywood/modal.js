@@ -1,3 +1,5 @@
+import { showLoading, hideLoading } from './ui.js';
+
 /**
  * General function to show a modal.
  * @param {string} modalClass - The class of the modal to show.
@@ -66,10 +68,85 @@ export function showCreateModal(start, end) {
 export function toggleConfigModal() {
     const modal = document.getElementById('configModal');
     if (modal.style.display === 'none' || modal.style.display === '') {
-        modal.style.display = 'block';
+        window.loadConfig().then(() => {
+            modal.style.display = 'block';
+        });
+
     } else {
         modal.style.display = 'none';
+        window.calendar.refetchEvents();
     }
+}
+
+/**
+ * Show color picker for an event.
+ * @param {Object} event - The FullCalendar event object.
+ * @param {Object} jsEvent - The JavaScript event object.
+ */
+export function showColorPicker(event, jsEvent) {
+    const colorPickerModal = document.getElementById('colorPickerModal');
+    const colorPickerInput = document.getElementById('colorPickerInput');
+    const issueKeyDisplay = document.getElementById('issueKeyDisplay');
+
+    colorPickerInput.value = event.backgroundColor || '#000000';
+    issueKeyDisplay.textContent = `Issue Key: ${event.extendedProps.issueKey}`;
+
+    colorPickerModal.style.left = `${jsEvent.clientX}px`;
+    colorPickerModal.style.top = `${jsEvent.clientY}px`;
+    colorPickerModal.style.display = 'flex';
+
+    // Save the event to be used later
+    window.currentEvent = event;
+}
+
+/**
+ * Hide the color picker modal.
+ */
+export function hideColorPickerModal() {
+    const colorPickerModal = document.getElementById('colorPickerModal');
+    colorPickerModal.style.display = 'none';
+}
+
+export function saveColor() {
+    showLoading();
+    const colorPickerInput = document.getElementById('colorPickerInput');
+    const newColor = colorPickerInput.value;
+    const event = { ...window.currentEvent }; // Copy the current event
+
+    if (!event || !event._def.extendedProps) {
+        console.error('Event or extendedProps is undefined');
+        hideColorPickerModal();
+        return;
+    }
+
+    saveColorForIssue(event._def.extendedProps.issueKey, newColor);
+    hideColorPickerModal();
+}
+
+/**
+ * Save color for an issue.
+ * @param {string} issueKey - The issue key.
+ * @param {string} color - The color to save.
+ */
+function saveColorForIssue(issueKey, color) {
+    fetch(`/config/saveIssueColor`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ issueKey, color })
+    }).then(response => {
+        if (!response.ok) {
+            console.error('Failed to save issue color');
+        } else {
+            // reload issues
+            window.calendar.refetchEvents();
+        }
+        hideLoading();
+    }).catch(error => {
+        console.error('Error:', error);
+        hideLoading();
+    });
 }
 
 window.hideModal = hideModal;
@@ -77,3 +154,7 @@ window.showModal = showModal;
 window.showUpdateModal = showUpdateModal;
 window.showCreateModal = showCreateModal;
 window.toggleConfigModal = toggleConfigModal;
+window.showColorPicker = showColorPicker;
+window.hideColorPickerModal = hideColorPickerModal;
+window.saveColor = saveColor;
+window.saveColorForIssue = saveColorForIssue;

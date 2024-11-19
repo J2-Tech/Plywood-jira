@@ -1,6 +1,5 @@
 import { hideModal } from './modal.js';
 import { applyTheme } from './ui.js';
-import { refreshEverything } from "./calendar.js";
 
 /**
  * Save configuration settings.
@@ -36,7 +35,9 @@ export function saveConfig() {
         loadingIndicator.style.display = 'none'; // Hide loading indicator
         if (response.ok) {
             hideModal('#configModal');
-            loadConfig();
+            loadConfig().then(() => {
+                window.calendar.refetchEvents();
+            });
         } else {
             console.error('Failed to save configuration.');
         }
@@ -47,7 +48,7 @@ export function saveConfig() {
  * Load configuration settings.
  */
 export function loadConfig() {
-    fetch('/config/getConfig')
+    return fetch('/config/getConfig')
         .then(response => response.json())
         .then(config => {
             document.getElementById('showIssueTypeIcons').checked = config.showIssueTypeIcons;
@@ -65,7 +66,6 @@ export function loadConfig() {
             }
 
             applyTheme(config.themeSelection);
-            refreshEverything();
         });
 }
 
@@ -111,6 +111,23 @@ export function addIssueType(issueType = '', color = '#000000') {
     issueTypeColors.appendChild(div);
 }
 
+/**
+ * Toggle the visibility of a section.
+ * @param {string} sectionId - The ID of the section to toggle.
+ */
+function toggleSection(sectionId) {
+    const section = document.getElementById(sectionId);
+    const arrow = document.getElementById(`${sectionId}Arrow`);
+    if (section.style.display === 'none' || section.style.display === '') {
+        section.style.display = 'block';
+        arrow.classList.add('expanded');
+    } else {
+        section.style.display = 'none';
+        arrow.classList.remove('expanded');
+    }
+}
+
 window.saveConfig = saveConfig;
 window.loadConfig = loadConfig;
 window.addIssueType = addIssueType;
+window.toggleSection = toggleSection;

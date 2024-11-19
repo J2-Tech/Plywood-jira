@@ -1,0 +1,10 @@
+{% macro modal() %}
+<div class="unselectable modal-color-picker" id="colorPickerModal" style="display: none; z-index:999; position: absolute;">
+    <span id="issueKeyDisplay"></span>
+    <input type="color" id="colorPickerInput" class="color-picker" value="#000000">
+    <div class="buttons">
+      <button id="cancel-btn-color-picker" title="Cancel" class="" type="button" onclick="hideColorPickerModal()">✖️</button>
+      <button class="primary" id="save-btn-color-picker" title="Save" type="button" onclick="saveColor()">☑️</button>
+    </div>
+</div>
+{% endmacro %}

@@ -3,6 +3,7 @@ const router = express.Router();
 const passport = require('passport');
 const jiraAuthController = require('../controllers/jiraAuthController');
 const jiraAPIController = require('../controllers/jiraAPIController');  
+const configController = require('../controllers/configController');
 
 router.get('/login', passport.authenticate('atlassian'));
 
@@ -13,7 +14,10 @@ router.get('/refreshToken', (req, res) => {
     })
 });
 
-router.get('/callback', passport.authenticate('atlassian', { failureRedirect: '/error' }), (req, res) => {
+router.get('/callback', passport.authenticate('atlassian', { failureRedirect: '/error' }), async (req, res) => {
+
+    // create config first
+    await configController.ensureConfigDirExists(req);
     res.redirect('/');
 });
 

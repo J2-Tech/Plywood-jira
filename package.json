@@ -6,6 +6,7 @@
     "start": "node ./bin/www"
   },
   "dependencies": {
+    "canvas": "^2.11.2",
     "cookie-parser": "~1.4.6",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.5",
