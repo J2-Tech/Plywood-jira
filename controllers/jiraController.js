@@ -3,7 +3,7 @@ const configController = require('./configController');
 const dayjs = require('dayjs');
 const path = require('path');
 
-exports.getParentIssueColor = async function(settings, req, issue) {
+exports.getParentIssueColor = async function(settings, req, issue, newIssueColorKeys) {
     if (issue.fields.parent) {
         const parentIssue = await jiraAPIController.getIssue(req, issue.fields.parent.id);
         if (parentIssue && parentIssue.fields) {
@@ -13,46 +13,50 @@ exports.getParentIssueColor = async function(settings, req, issue) {
             }
             if (settings.issueColors[parentIssue.key.toLowerCase()]) {
                 return settings.issueColors[parentIssue.key.toLowerCase()];
-            }
-            if (parentIssue.fields[configController.loadConfig().issueColorField]) {
-                const jiraColor = parentIssue.fields[configController.loadConfig().issueColorField];
-                switch (jiraColor) {
-                    case 'purple': return '#8777D9';
-                    case 'blue': return '#2684FF';
-                    case 'green': return '#57D9A3';
-                    case 'teal': return '#00C7E6';
-                    case 'yellow': return '#FFC400';
-                    case 'orange': return '#FF7452';
-                    case 'grey': return '#6B778C';
-                    case 'dark_purple': return '#5243AA';
-                    case 'dark_blue': return '#0052CC';
-                    case 'dark_green': return '#00875A';
-                    case 'dark_teal': return '#00A3BF';
-                    case 'dark_yellow': return '#FF991F';
-                    case 'dark_orange': return '#DE350B';
-                    case 'dark_grey': return '#253858';
-                    default: return jiraColor;
+            }else {
+                let color = process.env.DEFAULT_ISSUE_COLOR || '#2a75fe';
+                if (parentIssue.fields[settings.issueColorField]) {
+                    const jiraColor = parentIssue.fields[settings.issueColorField];
+                    switch (jiraColor) {
+                        case 'purple': color = '#8777D9'; break;
+                        case 'blue': color =  '#2684FF'; break;
+                        case 'green': color =  '#57D9A3'; break;
+                        case 'teal': color =  '#00C7E6'; break;
+                        case 'yellow': color =  '#FFC400'; break;
+                        case 'orange': color =  '#FF7452'; break;
+                        case 'grey': color =  '#6B778C'; break;
+                        case 'dark_purple': color =  '#5243AA'; break;
+                        case 'dark_blue': color =  '#0052CC'; break;
+                        case 'dark_green': color =  '#00875A'; break;
+                        case 'dark_teal': color =  '#00A3BF'; break;
+                        case 'dark_yellow': color =  '#FF991F'; break;
+                        case 'dark_orange': color =  '#DE350B'; break;
+                        case 'dark_grey': color =  '#253858'; break;
+                        default: color =  jiraColor; break;
+                    }
+                    await configController.accumulateIssueColor(parentIssue.key, color);
+                    settings.issueColors[parentIssue.key.toLowerCase()] = color;
+                    return color;
                 }
+                
             }
+            
         }
     }
     return null;
 }
 
-exports.determineIssueColor = async function(req, issue) {
-    const settings = configController.loadConfig();
+exports.determineIssueColor = async function(settings, req, issue) {
     const defaultColor = process.env.DEFAULT_ISSUE_COLOR || '#2a75fe';
 
     let color = settings.issueColors[issue.issueKey.toLowerCase()];
     if (!color) {
-        // get the issue details
         const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
         color = await exports.getParentIssueColor(settings, req, issueDetails);
         if (!color && issue.issueType) {
             const issueTypeLower = issue.issueType.toLowerCase();
             color = settings.issueColors[issueTypeLower] || defaultColor;
         }
-        configController.setSetting('issueColors', { ...settings.issueColors, [issue.issueKey.toLowerCase()]: color });
     }
     return color;
 }
@@ -73,8 +77,10 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
             const worklogs = await getFilteredWorklogs(req, issue, filterStartTime, filterEndTime);
             return Promise.all(worklogs);
         });
-        const worklogs = await Promise.all(worklogPromises);
-        return worklogs.flat();
+        const worklogs = await Promise.all(worklogPromises)
+        const flatLogs = worklogs.flat();
+        await configController.saveAccumulatedIssueColors();
+        return flatLogs;
     });
 };
 
@@ -88,12 +94,13 @@ function extractIssues(issues) {
     }));
 }
 
-function getFilteredWorklogs(req, issue, filterStartTime, filterEndTime) {
+async function getFilteredWorklogs(req, issue, filterStartTime, filterEndTime) {
+    const settings = await configController.loadConfig();
     return jiraAPIController.getIssueWorklogs(req, issue.issueId, filterEndTime.getTime(), filterStartTime.getTime())
         .then(result => {
             const worklogs = result.worklogs;
             const filteredLogs = worklogs.filter(worklog => filterWorklog(req, worklog, filterStartTime, filterEndTime));
-            const promises = filteredLogs.map(worklog => exports.formatWorklog(req, worklog, issue));
+            const promises = filteredLogs.map(worklog => exports.formatWorklog(settings, req, worklog, issue));
             return promises;
         });
 }
@@ -111,9 +118,8 @@ function filterWorklog(req, worklog, filterStartTime, filterEndTime) {
     return condition;
 }
 
-exports.formatWorklog = async function (req, worklog, issue) {
-    const color = await exports.determineIssueColor(req, issue);
-    const settings = configController.loadConfig();
+exports.formatWorklog = async function (settings, req, worklog, issue) {
+    const color = await exports.determineIssueColor(settings, req, issue);
     const showIssueTypeIcons = settings.showIssueTypeIcons || false;
 
     let title = `<b class="plywood-event-title">${issue.issueKey} - ${issue.summary}</b> <span class="comment">${worklog.comment || ''}</span>`;

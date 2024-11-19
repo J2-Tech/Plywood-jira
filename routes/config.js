@@ -39,16 +39,16 @@ router.post('/saveConfig', async (req, res) => {
     await configController.ensureConfigDirExists(req);
     const config = req.body;
     for ( key in config ) {
-        configController.setSetting(key, config[key]);
+        await configController.setSetting(key, config[key]);
     }
     res.json({ message: 'Configuration saved successfully' }).status(200);
 });
 
 router.post('/saveIssueColor', async (req, res) => {
     const { issueKey, color } = req.body;
-    const config = configController.loadConfig();
+    const config =  await configController.loadConfig();
     config.issueColors[issueKey.toLowerCase()] = color;
-    configController.setSetting('issueColors', config.issueColors);
+    await configController.setSetting('issueColors', config.issueColors);
     res.json({ message: 'Issue color saved successfully' }).status(200);
 
 });

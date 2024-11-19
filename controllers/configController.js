@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { Mutex } = require('async-mutex');
 const jiraAPIController = require('../controllers/jiraAPIController');
 const { JSDOM } = require('jsdom');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
@@ -14,18 +15,57 @@ const defaultConfig = {
     issueColors: {}
 };
 
-exports.loadConfig = function () {
+// Create a mutex
+const mutex = new Mutex();
+
+const issueColorsToUpdate = {};
+
+exports.loadConfig = async function () {
+    return await mutex.runExclusive( async () => {
+      return readSettingsInternal();
+    });
+}
+
+function readSettingsInternal() {
     if (!fs.existsSync(configPath)) {
         fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf8');
     }
     return JSON.parse(fs.readFileSync(configPath, 'utf8'));
 }
 
-exports.setSetting = function (key, value) {
-    const config = exports.loadConfig();
-    config[key] = value;
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+exports.setSetting = async function (key, value) {
+    return await mutex.runExclusive(async () => {
+        const config = readSettingsInternal();
+        config[key] = value;
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+    });
 }
+
+/**
+ * Accumulate issue colors to update.
+ * @param {string} issueKey - The issue key.
+ * @param {string} color - The color to update.
+ */
+exports.accumulateIssueColor = async function(issueKey, color) {
+    await mutex.runExclusive(async () => {
+        issueColorsToUpdate[issueKey.toLowerCase()] = color;
+    });
+};
+
+/**
+ * Save accumulated issue colors.
+ */
+exports.saveAccumulatedIssueColors = async function() {
+    await mutex.runExclusive(async () => {
+        const config = readSettingsInternal();
+        config.issueColors = { ...config.issueColors, ...issueColorsToUpdate };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+        // Clear the accumulated colors after saving
+        for (const key in issueColorsToUpdate) {
+            delete issueColorsToUpdate[key];
+        }
+    });
+};
 
 exports.ensureConfigDirExists = async function(req) {
     if (!fs.existsSync(configDir)) {
