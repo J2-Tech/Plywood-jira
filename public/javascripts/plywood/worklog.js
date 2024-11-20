@@ -1,5 +1,6 @@
 import { hideModal } from './modal.js';
 import { refreshEverything } from './calendar.js';
+import { showLoading, hideLoading } from './ui.js';
 
 /**
  * Create a new worklog.
@@ -21,17 +22,18 @@ export function createWorkLog(worklogData) {
     });
 }
 
-/**
- * Handles the submission of a worklog form.
- * @param {Event} event - The form submission event.
- * @param {string} url - The URL to submit the form to.
- * @param {string} method - The HTTP method to use.
- */
 export function handleSubmit(event, url, method) {
+    showLoading();
     event.preventDefault();
     const form = event.target.closest('form');
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
+
+    // Convert the start and end time back to UTC
+    const startTime = new Date(data.startTime).toISOString();
+    const endTime = new Date(data.endTime).toISOString();
+    data.startTime = startTime;
+    data.endTime = endTime;
 
     fetch(url, {
         method: method,
@@ -47,6 +49,7 @@ export function handleSubmit(event, url, method) {
             refreshEverything();
         } else {
             console.error('Failed to submit form');
+            hideLoading();
         }
     }).catch(error => {
         console.error('Error:', error);

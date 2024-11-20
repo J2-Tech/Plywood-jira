@@ -1,5 +1,6 @@
 import { createWorkLog } from './worklog.js';
 import { refreshEverything } from './calendar.js';
+import { showLoading } from './ui.js';
 
 
 const minSaveMinutes = 5; // Minimum time to save a worklog in minutes
@@ -82,7 +83,7 @@ export function stopTimer() {
         document.getElementById('confirmation-message').textContent = 'The minimum time for a worklog is 5 minutes.';
         return;
     }
-
+    showLoading();
     clearInterval(timerInterval);
     const issueId = previousIssueId || document.getElementById('issue-timer').value; // Use the previous issue ID
     const comment = document.getElementById('comment-timer').value;

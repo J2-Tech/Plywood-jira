@@ -110,8 +110,8 @@ export function initializeCalendar() {
                 },
                 body: JSON.stringify({
                     issueId: info.event.extendedProps.issueId,
-                    start: info.event.start,
-                    duration: (info.event.end - info.event.start) / 1000,
+                    startTime: new Date(info.event.start).toISOString(),
+                    endTime: new Date(info.event.end).toISOString(),
                     comment: info.event.extendedProps.comment // Ensure comment is included
                 }),
             })
@@ -135,8 +135,8 @@ export function initializeCalendar() {
                 },
                 body: JSON.stringify({
                     issueId: info.event.extendedProps.issueId,
-                    start: info.event.start,
-                    duration: (info.event.end - info.event.start) / 1000,
+                    startTime: new Date(info.event.start).toISOString(),
+                    endTime: new Date(info.event.end).toISOString(),
                     comment: info.event.extendedProps.comment // Ensure comment is included
                 }),
             })

@@ -1,10 +1,12 @@
 import { hideModal } from './modal.js';
 import { applyTheme } from './ui.js';
+import { showLoading, hideLoading } from './ui.js';
 
 /**
  * Save configuration settings.
  */
 export function saveConfig() {
+    showLoading();
     const form = document.getElementById('configForm');
     const formData = new FormData(form);
     const config = {

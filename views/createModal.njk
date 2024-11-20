@@ -4,12 +4,17 @@
     <div class="modal-content">
       <h2>Create work log</h2>
       <form class="modal-form" id="modal-form-create" method="POST" action="/worklog/">
-        <input type="hidden" name="start" value="">
-        <input type="hidden" name="duration" value="">
         <label for="issue-create">Issue:</label>
         <select id="issue-create" name="issueId" required></select>
         <label for="comment-create">Comment:</label>
         <textarea class="comment" id="comment-create" name="comment"></textarea>
+        
+        <!-- New fields for start and end time -->
+        <label for="start-time-create">Start Time:</label>
+        <input type="datetime-local" id="start-time-create" name="startTime">
+        <label for="end-time-create">End Time:</label>
+        <input type="datetime-local" id="end-time-create" name="endTime">
+        
         <div class="buttons">
           <button id="cancel-btn-create" title="Cancel" class="close-btn" type="button" onclick="hideModal('.modal-create');window.calendar.unselect();">✖️</button>
           <button class="primary" id="submit-btn-create" title="Submit" type="submit" onclick="handleSubmit(event, '/worklog/', 'POST')">☑️</button>

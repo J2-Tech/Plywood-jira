@@ -37,8 +37,6 @@ export function showUpdateModal(event) {
     const form = modal.querySelector('form');
     form.querySelector('input[name="worklogId"]').value = event.extendedProps.worklogId;
     form.querySelector('input[name="issueId"]').value = event.extendedProps.issueId;
-    form.querySelector('input[name="start"]').value = event.start.toISOString();
-    form.querySelector('input[name="duration"]').value = (event.end - event.start) / 1000;
 
     const issueKey = event.extendedProps.issueKey;
     const issueSummary = event.extendedProps.issueSummary;
@@ -48,6 +46,13 @@ export function showUpdateModal(event) {
     const issueLabel = form.querySelector('#issue-label');
     issueLabel.textContent = `${issueKey} - ${issueSummary}`;
     issueLabel.href = issueUrl;
+
+    // Convert the start and end time to the user's timezone
+    const startTime = new Date(event.start).toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16);
+    const endTime = new Date(event.end).toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16);
+    form.querySelector('input[name="startTime"]').value = startTime;
+    form.querySelector('input[name="endTime"]').value = endTime;
+    form.querySelector('input[name="issueKeyColor"]').value = event.backgroundColor || '#000000';
 
     form.querySelector('textarea[name="comment"]').value = event.extendedProps.comment || ''; // Ensure comment is not undefined
     modal.style.display = "block";
@@ -59,7 +64,16 @@ export function showUpdateModal(event) {
  * @param {Date} end - The end date/time.
  */
 export function showCreateModal(start, end) {
-    showModal('.modal-create', start, end);
+    const modal = document.querySelector('.modal-create');
+    const form = modal.querySelector('form');
+    const startTimeInput = form.querySelector('input[name="startTime"]');
+    const endTimeInput = form.querySelector('input[name="endTime"]');
+
+    if (startTimeInput && endTimeInput) {
+        startTimeInput.value = start.toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16);
+        endTimeInput.value = end.toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16);
+    }
+    modal.style.display = "block";
 }
 
 /**

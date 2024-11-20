@@ -4,7 +4,7 @@ import { refreshEverything } from "./calendar.js";
  * Show loading spinner.
  */
 export function showLoading() {
-    document.getElementById("loading").style.display = "block";
+    document.getElementById("loading-container").style.display = "block";
     document.body.classList.add("loading"); // Add this line
 }
 
@@ -12,7 +12,7 @@ export function showLoading() {
  * Hide loading spinner.
  */
 export function hideLoading() {
-    document.getElementById("loading").style.display = "none";
+    document.getElementById("loading-container").style.display = "none";
     document.body.classList.remove("loading"); // Add this line
 }
 

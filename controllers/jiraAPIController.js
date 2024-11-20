@@ -1,5 +1,6 @@
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const https = require('https');
+const dayjs = require('dayjs');
 
 function getDefaultHeaders(req) {
     let defaultHeaders;
@@ -180,10 +181,10 @@ exports.getWorkLog = function(req, issueId, worklogId) {
     return withRetry(getWorkLogInternal, req, issueId, worklogId);
 }
 
-function updateWorkLogInternal(req, issue, worklogId, started, timeSpentSeconds, comment) {
+function updateWorkLogInternal(req, issue, worklogId, started, timeSpentSeconds, comment, issueKeyColor) {
     const body = {
         "comment": comment,
-        "started": started,
+        "started": formatDateToJira(new Date(started)),
         "timeSpentSeconds": timeSpentSeconds
     };
 
@@ -192,11 +193,8 @@ function updateWorkLogInternal(req, issue, worklogId, started, timeSpentSeconds,
         method: 'PUT',
         headers: getDefaultHeaders(req),
         body: JSON.stringify(body),
-        agent:httpsAgent
-    }).then(res => {
-
-        return res.json();
-    });
+        agent: httpsAgent
+    }).then(res => res.json());
 }
 
 exports.updateWorkLog = function(req, issue, worklogId, started, timeSpentSeconds, comment) {
@@ -259,4 +257,9 @@ exports.getIssueTypes = async function(req) {
         agent: httpsAgent
     });
     return response.json();
+}
+
+function formatDateToJira(date) {
+    const dayJsDate = dayjs(date);
+    return dayJsDate.format('YYYY-MM-DDTHH:mm:ss.SSSZZ');
 }

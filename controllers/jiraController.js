@@ -154,17 +154,45 @@ exports.getWorkLog = function(req, issueId, worklogId) {
     return jiraAPIController.getWorkLog(req, issueId, worklogId);
 }
 
-exports.updateWorkLog = function(req, issueId, worklogId, start, duration, comment) {
-    const startTime = new Date(start);
-    const formattedStartTime = formatDateToJira(startTime);
-    return jiraAPIController.updateWorkLog(req, issueId, worklogId, formattedStartTime, duration, comment);
+exports.updateWorkLog = function(req, issueId, worklogId, comment, startTime, endTime, issueKeyColor) {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const duration = (end - start) / 1000; // Calculate duration in seconds
 
+    // update the worklog issue key color if it is different from determined issue color
+    updateColorIfDifferent(req, issueId, issueKeyColor).then(() => {
+        configController.saveAccumulatedIssueColors();
+    });
+
+
+    return jiraAPIController.updateWorkLog(req, issueId, worklogId, startTime, duration, comment);
 }
 
-exports.createWorkLog = function(req, issueId, start, duration, comment) {
-    const startTime = new Date(start);
-    const formattedStartTime = formatDateToJira(startTime);
+exports.createWorkLog = function(req, issueId, startTime, endTime, comment) {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const duration = (end - start) / 1000; // Calculate duration in seconds
+    const formattedStartTime = formatDateToJira(start);
+
     return jiraAPIController.createWorkLog(req, issueId, formattedStartTime, duration, comment);
+}
+
+function updateColorIfDifferent(req, issueId, issueKeyColor) {
+    // get issue key from ID 
+    return jiraAPIController.getIssue(req, issueId).then(issue => {
+        if (issue && issue.fields) {
+            const issueKey = issue.key;
+            // check what the determined issue color is
+            return configController.loadConfig().then(settings => {
+                return exports.determineIssueColor(settings, req, { issueId: issueId, issueKey: issueKey, issueType: issue.fields.issuetype.name }).then(determinedColor => {
+                    if (determinedColor && issueKeyColor && determinedColor != issueKeyColor) {
+                        // if the determined color is different from the issue key color, update the issue key color
+                        configController.accumulateIssueColor(issueKey, issueKeyColor);
+                    }
+                });
+            });
+        }
+    });
 }
 
 exports.deleteWorkLog = function(req, issueId, worklogId) {

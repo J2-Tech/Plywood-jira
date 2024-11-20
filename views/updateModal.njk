@@ -5,13 +5,22 @@
       <h2>Update work log</h2>
       <form class="modal-form" id="modal-form-update" method="PUT" action="/worklog/">
         <input type="hidden" name="worklogId" value="">
-        <input type="hidden" name="start" value="">
-        <input type="hidden" name="duration" value="">
         <label for="issue">Issue:</label>
         <input type="hidden" id="issue-update" name="issueId">
         <a target="_blank" id="issue-label" style="text-align: center;" name="issue-label" placeholder="No issue" target="_blank"></a>
         <label for="comment-update">Comment:</label>
         <textarea class="comment" id="comment-update" name="comment"></textarea>
+        
+        <!-- New fields for start and end time -->
+        <label for="start-time-update">Start Time:</label>
+        <input type="datetime-local" id="start-time-update" name="startTime">
+        <label for="end-time-update">End Time:</label>
+        <input type="datetime-local" id="end-time-update" name="endTime">
+        
+        <!-- New field for issue key color -->
+        <label for="issue-key-color">Issue Color:</label>
+        <input type="color" id="issue-key-color" name="issueKeyColor" class="issue-key-color-update" value="#000000">
+        
         <div class="buttons">
           <button class="destructive" id="delete-btn-update" title="Delete" type="button" onclick="handleDelete(event, '/worklog/' + document.querySelector('#modal-form-update input[name=worklogId]').value + '?issueId=' + document.querySelector('#modal-form-update input[name=issueId]').value)">🗑️</button>
           <button id="cancel-btn-update" title="Cancel" class="close-btn" type="button" onclick="hideModal('.modal-update')">✖️</button>

@@ -62,7 +62,7 @@ router.get('/worklog/:worklogId', function(req, res, next) {
 
 router.put('/worklog/:worklogId', function(req, res, next) {
   try {
-    jiraController.updateWorkLog(req, req.body.issueId, req.params.worklogId, req.body.start, req.body.duration, req.body.comment).then(result => {
+    jiraController.updateWorkLog(req, req.body.issueId, req.params.worklogId, req.body.comment, req.body.startTime, req.body.endTime, req.body.issueKeyColor).then(result => {
       res.json(result);
     });
   } catch (error) {
@@ -72,7 +72,7 @@ router.put('/worklog/:worklogId', function(req, res, next) {
 
 router.post('/worklog', function(req, res, next) {  
   try {
-    jiraController.createWorkLog(req, req.body.issueId, req.body.start, req.body.duration, req.body.comment).then(result => {
+    jiraController.createWorkLog(req, req.body.issueId, req.body.startTime, req.body.endTime, req.body.comment).then(result => {
       res.json(result);
     });
   } catch (error) {

@@ -71,6 +71,7 @@ body.light-theme {
   width:70%;
   min-height: 60px;
   resize: vertical;
+  margin-bottom: 15px;
 }
 
 .modal-content label {
