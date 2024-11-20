@@ -33,7 +33,7 @@ export function startTimer() {
     }
 
     timerStartTime = new Date();
-    document.getElementById('start-time-timer').value = timerStartTime.toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16); // Set start time input
+    document.getElementById('start-time-timer').value = new Date(timerStartTime.getTime() - timerStartTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16); // Set start time input
     document.getElementById('start-save-timer-btn').textContent = '💾';
     document.getElementById('start-save-timer-btn').className = 'primary';
     document.getElementById('confirmation-message').textContent = ''; // Clear confirmation message
@@ -50,7 +50,7 @@ export function startTimer() {
         const duration = now - timerStartTime;
         document.getElementById('timer-display').textContent = formatDuration(duration);
         document.getElementById('timer-duration').textContent = formatDuration(duration);
-        document.getElementById('end-time-timer').value = now.toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16); // Update end time input
+        document.getElementById('end-time-timer').value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16); // Update end time input
         if (window.saveTimerOnIssueSwitch && !canSwitchIssue) {
             if (duration > minSaveMinutes * 60 * 1000) {
                 canSwitchIssue = true;

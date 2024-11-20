@@ -47,9 +47,9 @@ export function showUpdateModal(event) {
     issueLabel.textContent = `${issueKey} - ${issueSummary}`;
     issueLabel.href = issueUrl;
 
-    // Convert the start and end time to the user's timezone
-    const startTime = new Date(event.start).toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16);
-    const endTime = new Date(event.end).toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16);
+    // Convert the start and end time to the client's timezone
+    const startTime = new Date(event.start.getTime() - event.start.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const endTime = new Date(event.end.getTime() - event.end.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     form.querySelector('input[name="startTime"]').value = startTime;
     form.querySelector('input[name="endTime"]').value = endTime;
     form.querySelector('input[name="issueKeyColor"]').value = event.backgroundColor || '#000000';
@@ -70,8 +70,8 @@ export function showCreateModal(start, end) {
     const endTimeInput = form.querySelector('input[name="endTime"]');
 
     if (startTimeInput && endTimeInput) {
-        startTimeInput.value = start.toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16);
-        endTimeInput.value = end.toLocaleString('sv-SE', { timeZoneName: 'short' }).slice(0, 16);
+        startTimeInput.value = new Date(start.getTime() - start.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        endTimeInput.value = new Date(end.getTime() - end.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     }
     modal.style.display = "block";
 }

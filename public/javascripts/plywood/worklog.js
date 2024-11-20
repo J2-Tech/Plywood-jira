@@ -30,10 +30,10 @@ export function handleSubmit(event, url, method) {
     const data = Object.fromEntries(formData.entries());
 
     // Convert the start and end time back to UTC
-    const startTime = new Date(data.startTime).toISOString();
-    const endTime = new Date(data.endTime).toISOString();
-    data.startTime = startTime;
-    data.endTime = endTime;
+    const startTime = new Date(data.startTime);
+    const endTime = new Date(data.endTime);
+    data.startTime = new Date(startTime.getTime() + startTime.getTimezoneOffset() * 60000).toISOString();
+    data.endTime = new Date(endTime.getTime() + endTime.getTimezoneOffset() * 60000).toISOString();
 
     fetch(url, {
         method: method,
