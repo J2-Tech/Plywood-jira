@@ -11,13 +11,18 @@
         <label for="comment-update">Comment:</label>
         <textarea class="comment" id="comment-update" name="comment"></textarea>
         
-        <!-- New fields for start and end time -->
-        <label for="start-time-update">Start Time:</label>
-        <input type="datetime-local" id="start-time-update" name="startTime">
-        <label for="end-time-update">End Time:</label>
-        <input type="datetime-local" id="end-time-update" name="endTime">
+        <div class="time-fields">
+          <div class="time-field">
+            <label for="start-time-update">Start Time:</label>
+            <input type="datetime-local" id="start-time-update" name="startTime">
+          </div>
+          <div class="time-field">
+            <label for="end-time-update">End Time:</label>
+            <input type="datetime-local" id="end-time-update" name="endTime">
+          </div>
+        </div>
+
         
-        <!-- New field for issue key color -->
         <label for="issue-key-color">Issue Color:</label>
         <input type="color" id="issue-key-color" name="issueKeyColor" class="issue-key-color-update" value="#000000">
         

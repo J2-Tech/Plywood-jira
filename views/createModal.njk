@@ -9,11 +9,16 @@
         <label for="comment-create">Comment:</label>
         <textarea class="comment" id="comment-create" name="comment"></textarea>
         
-        <!-- New fields for start and end time -->
-        <label for="start-time-create">Start Time:</label>
-        <input type="datetime-local" id="start-time-create" name="startTime">
-        <label for="end-time-create">End Time:</label>
-        <input type="datetime-local" id="end-time-create" name="endTime">
+        <div class="time-fields">
+          <div class="time-field">
+            <label for="start-time-create">Start Time:</label>
+            <input type="datetime-local" id="start-time-create" name="startTime">
+          </div>
+          <div class="time-field">
+            <label for="end-time-create">End Time:</label>
+            <input type="datetime-local" id="end-time-create" name="endTime">
+          </div>
+        </div>
         
         <div class="buttons">
           <button id="cancel-btn-create" title="Cancel" class="close-btn" type="button" onclick="hideModal('.modal-create');window.calendar.unselect();">✖️</button>
