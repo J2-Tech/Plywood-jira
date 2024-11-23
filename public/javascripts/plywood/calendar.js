@@ -15,9 +15,18 @@ export function refreshEverything() {
  * @param {Array} events - The calendar events.
  */
 export function updateTotalTime(events) {
+    let currentEvents = events || window.calendar.getEvents();
+    let startRange = window.calendar.view.activeStart;
+    let endRange = window.calendar.view.activeEnd;
+    var visibleEvents = currentEvents.filter((event) => {
+        const s = startRange,
+            e = endRange;
+        if ( new Date(event.start) > e || new Date(event.end) < s) return false;
+        return true;
+    });
     let totalTime = 0;
 
-    events.forEach((event) => {
+    visibleEvents.forEach((event) => {
         const start = new Date(event.start);
         const end = new Date(event.end);
         const duration = end - start;
@@ -25,7 +34,7 @@ export function updateTotalTime(events) {
     });
 
     const timeElement = document.getElementById("total-time-value");
-    const duration = moment.duration(totalTime);
+    const duration = moment.duration(totalTime, 'milliseconds');
     const hours = Math.floor(duration.asHours());
     const minutes = duration.minutes();
     timeElement.innerHTML = `${hours} hour${hours !== 1 ? 's' : ''} and ${minutes} minute${minutes !== 1 ? 's' : ''}`;
@@ -58,9 +67,7 @@ export function refreshWorklog(issueId, worklogId) {
             event.setProp('color', data.color);
             event.setProp('title', data.title);
             event.setProp('textColor', data.textColor);
-
-            const events = window.calendar.getEvents();
-            updateTotalTime(events);
+            updateTotalTime();
             hideLoading();
         })
         .catch(error => {
@@ -135,13 +142,7 @@ export function initializeCalendar() {
             return {html:arg.event.title};
         },
         datesSet: function (info) {
-            var visibleEvents = window.calendar.getEvents().filter((event) => {
-                const s = info.start,
-                    e = info.end;
-                if (event.start > e || event.end < s) return false;
-                return true;
-            });
-            updateTotalTime(visibleEvents);
+            //updateTotalTime();
         },
         eventResize: function (info) {
             showLoading();
