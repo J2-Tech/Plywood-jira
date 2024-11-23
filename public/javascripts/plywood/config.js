@@ -24,9 +24,6 @@ export function saveConfig() {
         }
     });
 
-    const loadingIndicator = document.getElementById('loading-container');
-    loadingIndicator.style.display = 'block'; // Show loading indicator
-
     fetch('/config/saveConfig', {
         method: 'POST',
         headers: {
@@ -34,12 +31,16 @@ export function saveConfig() {
         },
         body: JSON.stringify(config)
     }).then(response => {
-        loadingIndicator.style.display = 'none'; // Hide loading indicator
+        hideLoading();
         if (response.ok) {
             hideModal('#configModal');
-            loadConfig().then(() => {
+            if (config.themeSelection !== document.body.className) {
+                applyTheme(config.themeSelection);
+            }
+            if (config.showIssueTypeIcons !== window.showIssueTypeIcons) {
+                window.showIssueTypeIcons = config.showIssueTypeIcons;
                 window.calendar.refetchEvents();
-            });
+            }
         } else {
             console.error('Failed to save configuration.');
         }

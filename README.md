@@ -4,12 +4,13 @@ A quick and dirty NodeJS app to manage Jira worklogs using API access
 work *logs*... timesheets... wood sheets... plywood... you get it :)
 
 ## Features :
-- Themes ! Light, dark and auto (based on system theme)
-- Timer - Start, pause, resume and stop logging time for an issue
-- Configurable colors based on issue types ! 
-- Issue type icons from your jira instance
-- Create and update worklogs in a FullCalendar instance ! 
+- Themes: Light, dark, and auto (based on system theme)
+- Timer: Record time for an issue 
+- Configurable colors based on issue types or keys
+- Issue type icons from your Jira instance
+- Create and update worklogs in a FullCalendar instance
 - Supports OAuth2
+- HTTPS support
 
 HTTPS Is still not yet properly implemented, but is planned
 

@@ -1,5 +1,5 @@
 import { showLoading, hideLoading } from './ui.js';
-
+import { refreshWorklog } from './calendar.js';
 /**
  * General function to show a modal.
  * @param {string} modalClass - The class of the modal to show.
@@ -74,6 +74,7 @@ export function showCreateModal(start, end) {
         endTimeInput.value = new Date(end.getTime() - end.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     }
     modal.style.display = "block";
+    
 }
 
 /**
@@ -103,7 +104,7 @@ export function showColorPicker(event, jsEvent) {
     const issueKeyDisplay = document.getElementById('issueKeyDisplay');
 
     colorPickerInput.value = event.backgroundColor || '#000000';
-    issueKeyDisplay.textContent = `Issue Key: ${event.extendedProps.issueKey}`;
+    issueKeyDisplay.textContent = `${event.extendedProps.issueKey}`;
 
     colorPickerModal.style.left = `${jsEvent.clientX}px`;
     colorPickerModal.style.top = `${jsEvent.clientY}px`;
@@ -153,13 +154,21 @@ function saveColorForIssue(issueKey, color) {
         if (!response.ok) {
             console.error('Failed to save issue color');
         } else {
-            // reload issues
-            window.calendar.refetchEvents();
+            refreshAllWorklogsOfIssueKey(issueKey)
         }
         hideLoading();
     }).catch(error => {
         console.error('Error:', error);
         hideLoading();
+    });
+}
+
+function refreshAllWorklogsOfIssueKey(issueKey) {
+    const events = window.calendar.getEvents();
+    events.forEach(event => {
+        if (event.extendedProps.issueKey === issueKey) {
+            refreshWorklog(event.extendedProps.issueId, event.extendedProps.worklogId);
+        }
     });
 }
 

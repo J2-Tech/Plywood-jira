@@ -1,5 +1,5 @@
 import { createWorkLog } from './worklog.js';
-import { refreshEverything } from './calendar.js';
+import { refreshWorklog } from './calendar.js';
 import { showLoading, hideLoading } from './ui.js';
 
 const minSaveMinutes = 5; // Minimum time to save a worklog in minutes
@@ -33,6 +33,15 @@ export function startTimer() {
     }
 
     timerStartTime = new Date();
+    
+    // Rounding logic
+    const roundCheckbox = document.getElementById('round-timer-checkbox');
+    if (roundCheckbox && roundCheckbox.checked) {
+        const intervalMs = roundingInterval * 60 * 1000;
+        const startRounded = Math.floor(timerStartTime.getTime() / intervalMs) * intervalMs;
+        timerStartTime = new Date(startRounded);
+    }
+
     document.getElementById('start-time-timer').value = new Date(timerStartTime.getTime() - timerStartTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16); // Set start time input
     document.getElementById('start-save-timer-btn').textContent = '💾';
     document.getElementById('start-save-timer-btn').className = 'primary';
@@ -74,6 +83,7 @@ export function stopTimer() {
         const startRounded = Math.floor(timerStartTime.getTime() / intervalMs) * intervalMs;
         const endRounded = Math.ceil(timerEndTime.getTime() / intervalMs) * intervalMs;
         timerStartTime = new Date(startRounded);
+        timerEndTime.setTime(endRounded); // Set the end time to the rounded value
         duration = endRounded - startRounded;
     }
 
@@ -89,7 +99,7 @@ export function stopTimer() {
 
     // Convert the start and end time back to UTC
     const startTimeUTC = timerStartTime.toISOString();
-    const endTimeUTC = timerEndTime.toISOString();
+    const endTimeUTC = timerEndTime.toISOString(); // Use the rounded end time
 
     const workLogData = {
         startTime: startTimeUTC,
@@ -103,7 +113,7 @@ export function stopTimer() {
             document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + response.errors.join(', ');
         } else {
             document.getElementById('confirmation-message').textContent = 'Worklog created successfully!';
-            refreshEverything();
+            refreshWorklog(response.issueId, response.id); // Refresh only the created worklog
         }
     }).catch(error => {
         document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + error.message;

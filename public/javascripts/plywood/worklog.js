@@ -1,5 +1,5 @@
 import { hideModal } from './modal.js';
-import { refreshEverything } from './calendar.js';
+import { refreshWorklog } from './calendar.js';
 import { showLoading, hideLoading } from './ui.js';
 
 /**
@@ -41,18 +41,19 @@ export function handleSubmit(event, url, method) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify(data)
-    }).then(response => {
-        window.calendar.unselect();
+    }).then(async response => {
         if (response.ok) {
             hideModal('.modal-create');
             hideModal('.modal-update');
-            refreshEverything();
+            const result = await response.json();
+            refreshWorklog(result.issueId, result.id);
         } else {
             console.error('Failed to submit form');
-            hideLoading();
         }
+        hideLoading();
     }).catch(error => {
         console.error('Error:', error);
+        hideLoading();
     });
 }
 
@@ -69,7 +70,16 @@ export function handleDelete(event, url) {
     }).then(response => {
         if (response.ok) {
             hideModal('.modal-update');
-            refreshEverything();
+            // url = '/worklog/:worklogId?issueId=:issueId'
+            // get last url segment as worklog id, and issueId query parameter for issue ID
+
+            const issueId = url.split('?')[1].split('=')[1];
+            const worklogId = url.split('/')[2].split('?')[0];
+            window.calendar.getEvents().find(event => {
+                if (event.extendedProps.worklogId === worklogId) {
+                    event.remove();
+                }
+            });
         } else {
             console.error('Failed to delete worklog');
         }

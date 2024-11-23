@@ -184,7 +184,7 @@ footer button {
 
 /* Timer Styles */
 #confirmation-message {
-
+  margin: 20px 0;
 }
 
 #timer-display {
@@ -365,6 +365,14 @@ input#include-weekends {
   transform: rotate(-90deg);
 }
 
+#issue-key-color {
+  margin-bottom: 15px;
+}
+
+#issueKeyDisplay {
+  margin-bottom: 10px;
+  text-align: center;
+}
 
 #colorPickerModal {
   display: flex;

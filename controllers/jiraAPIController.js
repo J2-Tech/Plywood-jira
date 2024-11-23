@@ -114,7 +114,8 @@ exports.getAvailableSites= function(req) {
 function searchIssuesInternal(req, jql) {
     const headers = getDefaultHeaders(req);
     const url = getCallURL(req);
-    return fetch(url + '/rest/api/3/search?maxResults='+process.env.JIRA_MAX_SEARCH_RESULTS+'&jql=' + jql, {
+    const fields = ['summary', 'issuetype', 'parent', 'customfield_10017']; // Include parent and custom color field
+    return fetch(url + '/rest/api/3/search?maxResults=' + process.env.JIRA_MAX_SEARCH_RESULTS + '&jql=' + jql + '&fields=' + fields.join(','), {
         method: 'GET',
         headers,
         agent: httpsAgent
@@ -147,6 +148,20 @@ function getIssueInternal(req, issueId) {
     return fetch(url + '/rest/api/3/issue/' + issueId, {
         method: 'GET',
         headers: getDefaultHeaders(req),
+        agent:httpsAgent
+    }).then(res => res.json());
+}
+
+exports.getIssues = function(req, issuesIds) {
+    return withRetry(getIssuesInternal, req, issuesIds);
+}
+
+function getIssuesInternal(req, issuesIds) {
+    const url = getCallURL(req);
+    return fetch(url + '/rest/api/3/search/jql', {
+        method: 'POST',
+        headers: getDefaultHeaders(req),
+        body: JSON.stringify({jql: 'key in (' + issuesIds.join(',') + ')'}),
         agent:httpsAgent
     }).then(res => res.json());
 }
@@ -258,6 +273,21 @@ exports.getIssueTypes = async function(req) {
     });
     return response.json();
 }
+
+async function searchIssuesWithWorkLogsInternal(req, start, end) {
+    const url = getCallURL(req);
+    const jql = `worklogAuthor = currentUser() AND worklogDate >= "${start}" AND worklogDate <= "${end}"`;
+    return fetch(url + '/rest/api/2/search/jql?expand=renderedFields', {
+        method: 'POST',
+        headers: getDefaultHeaders(req),
+        body: JSON.stringify({ jql, expand: 'renderedFields', fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype'] }),
+        agent: httpsAgent
+    }).then(res => res.json());
+}
+
+exports.searchIssuesWithWorkLogs = function(req, start, end) {
+    return withRetry(searchIssuesWithWorkLogsInternal, req, start, end);
+};
 
 function formatDateToJira(date) {
     const dayJsDate = dayjs(date);

@@ -15,6 +15,15 @@ router.get(['/', '/index'], function(req, res, next) {
   res.render('index', { title: 'Jira Time', jiraUrl: process.env.JIRA_URL});
 });
 
+router.get('/events/:worklogId', function(req, res, next) {
+  try {
+    jiraController.getSingleEvent(req, req.query.issueId, req.params.worklogId).then(result => {
+      res.json(result);
+    });
+  } catch (error) {
+    console.log(error);
+  }
+});
 
 router.get('/events', function(req, res, next) {
   try {
@@ -60,9 +69,9 @@ router.get('/worklog/:worklogId', function(req, res, next) {
 });
 
 
-router.put('/worklog/:worklogId', function(req, res, next) {
+router.put('/worklog/:worklogId', async function(req, res, next) {
   try {
-    jiraController.updateWorkLog(req, req.body.issueId, req.params.worklogId, req.body.comment, req.body.startTime, req.body.endTime, req.body.issueKeyColor).then(result => {
+    await jiraController.updateWorkLog(req, req.body.issueId, req.params.worklogId, req.body.comment, req.body.startTime, req.body.endTime, req.body.issueKeyColor).then(result => {
       res.json(result);
     });
   } catch (error) {

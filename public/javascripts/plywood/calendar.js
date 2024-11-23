@@ -15,15 +15,57 @@ export function refreshEverything() {
  * @param {Array} events - The calendar events.
  */
 export function updateTotalTime(events) {
-    var totalTime = 0;
+    let totalTime = 0;
 
     events.forEach((event) => {
-        var duration = new Date(event.end) - new Date(event.start);
-        totalTime = totalTime + duration;
+        const start = new Date(event.start);
+        const end = new Date(event.end);
+        const duration = end - start;
+        totalTime += duration;
     });
 
-    var timeElement = document.getElementById("total-time-value");
-    timeElement.innerHTML = moment.duration(totalTime).format("H [hour and] m [min]");
+    const timeElement = document.getElementById("total-time-value");
+    const duration = moment.duration(totalTime);
+    const hours = Math.floor(duration.asHours());
+    const minutes = duration.minutes();
+    timeElement.innerHTML = `${hours} hour${hours !== 1 ? 's' : ''} and ${minutes} minute${minutes !== 1 ? 's' : ''}`;
+}
+
+/**
+ * Refresh a single worklog by ID.
+ * @param {string} worklogId - The ID of the worklog to refresh.
+ */
+export function refreshWorklog(issueId, worklogId) {
+    showLoading();
+    let event = window.calendar.getEventById(worklogId);
+    fetch(`/events/${worklogId}?issueId=${issueId}`)
+        .then(response => response.json())
+        .then(data => {
+            if (!event) {
+                event = window.calendar.addEvent(data, true);
+                window.calendar.unselect(); // Unselect the selected time range
+            }
+            // merge the original event with data
+            event.setProp('start', data.start);
+            event.setProp('end', data.end);
+            event.setExtendedProp('comment', data.comment);
+            event.setExtendedProp('issueKey', data.issueKey);
+            event.setExtendedProp('issueSummary', data.issueSummary);
+            event.setExtendedProp('issueId', data.issueId);
+            event.setExtendedProp('worklogId', data.id);
+            event.setExtendedProp('issueType', data.issueType);
+            event.setExtendedProp('issueTypeIcon', data.issueTypeIcon);
+            event.setProp('color', data.color);
+            event.setProp('title', data.title);
+            event.setProp('textColor', data.textColor);
+
+            const events = window.calendar.getEvents();
+            updateTotalTime(events);
+            hideLoading();
+        })
+        .catch(error => {
+            console.error('Error refreshing worklog:', error);
+        });
 }
 
 /**
@@ -115,16 +157,17 @@ export function initializeCalendar() {
                     comment: info.event.extendedProps.comment // Ensure comment is included
                 }),
             })
-                .then(function (response) {
-                    hideLoading();
-                })
-                .catch((error) => {
-                    if (error && error.message && error.message == "NetworkError when attempting to fetch resource.") {
-                        window.location.href = "/auth/login";
-                    }
-                    info.revert();
-                    hideLoading();
-                });
+            .then(function (response) {
+                hideLoading();
+                refreshWorklog(info.event.extendedProps.issueId, info.event.extendedProps.worklogId); // Refresh only the resized worklog
+            })
+            .catch((error) => {
+                if (error && error.message && error.message == "NetworkError when attempting to fetch resource.") {
+                    window.location.href = "/auth/login";
+                }
+                info.revert();
+                hideLoading();
+            });
         },
         eventDrop: function (info) {
             showLoading();
@@ -140,16 +183,17 @@ export function initializeCalendar() {
                     comment: info.event.extendedProps.comment // Ensure comment is included
                 }),
             })
-                .then(function (response) {
-                    hideLoading();
-                })
-                .catch((error) => {
-                    if (error && error.message && error.message == "NetworkError when attempting to fetch resource.") {
-                        window.location.href = "/auth/login";
-                    }
-                    info.revert();
-                    hideLoading();
-                });
+            .then(function (response) {
+                hideLoading();
+                refreshWorklog(info.event.extendedProps.issueId, info.event.extendedProps.worklogId); // Refresh only the dropped worklog
+            })
+            .catch((error) => {
+                if (error && error.message && error.message == "NetworkError when attempting to fetch resource.") {
+                    window.location.href = "/auth/login";
+                }
+                info.revert();
+                hideLoading();
+            });
         },
         eventClick: function (info) {
             showUpdateModal(info.event);

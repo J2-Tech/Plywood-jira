@@ -3,17 +3,20 @@ const configController = require('./configController');
 const dayjs = require('dayjs');
 const path = require('path');
 
-exports.getParentIssueColor = async function(settings, req, issue, newIssueColorKeys) {
+exports.getParentIssueColor = async function(settings, req, issue, issueColors) {
     if (issue.fields.parent) {
-        const parentIssue = await jiraAPIController.getIssue(req, issue.fields.parent.id);
-        if (parentIssue && parentIssue.fields) {
-            const color = await exports.getParentIssueColor(settings, req, parentIssue);
+        const parentIssueKey = issue.fields.parent.key.toLowerCase();
+        if (issueColors[parentIssueKey]) {
+            return issueColors[parentIssueKey];
+        } else {
+            const parentIssue = await jiraAPIController.getIssue(req, issue.fields.parent.id);
+            const color = await exports.getParentIssueColor(settings, req, parentIssue, issueColors);
             if (color) {
                 return color;
             }
-            if (settings.issueColors[parentIssue.key.toLowerCase()]) {
-                return settings.issueColors[parentIssue.key.toLowerCase()];
-            }else {
+            if (settings.issueColors[parentIssueKey]) {
+                return settings.issueColors[parentIssueKey];
+            } else {
                 let color = process.env.DEFAULT_ISSUE_COLOR || '#2a75fe';
                 if (parentIssue.fields[settings.issueColorField]) {
                     const jiraColor = parentIssue.fields[settings.issueColorField];
@@ -35,12 +38,10 @@ exports.getParentIssueColor = async function(settings, req, issue, newIssueColor
                         default: color =  jiraColor; break;
                     }
                     await configController.accumulateIssueColor(parentIssue.key, color);
-                    settings.issueColors[parentIssue.key.toLowerCase()] = color;
+                    settings.issueColors[parentIssueKey] = color;
                     return color;
                 }
-                
             }
-            
         }
     }
     return null;
@@ -52,7 +53,7 @@ exports.determineIssueColor = async function(settings, req, issue) {
     let color = settings.issueColors[issue.issueKey.toLowerCase()];
     if (!color) {
         const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
-        color = await exports.getParentIssueColor(settings, req, issueDetails);
+        color = await exports.getParentIssueColor(settings, req, issueDetails, settings.issueColors);
         if (!color && issue.issueType) {
             const issueTypeLower = issue.issueType.toLowerCase();
             color = settings.issueColors[issueTypeLower] || defaultColor;
@@ -62,25 +63,48 @@ exports.determineIssueColor = async function(settings, req, issue) {
 }
 
 exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
+    const settings = await configController.loadConfig();
     const filterStartTime = new Date(start);
     const filterEndTime = new Date(end);
 
-    const formattedStart = filterStartTime.toLocaleDateString('en-CA');
-    const formattedEnd = filterEndTime.toLocaleDateString('en-CA');
+    const formattedStart = filterStartTime.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+    const formattedEnd = filterEndTime.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
 
-    const issuesPromise = jiraAPIController.searchIssues(req, 
-        `worklogAuthor = currentUser() AND worklogDate >= ${formattedStart} AND worklogDate <= ${formattedEnd}`);
-    
+    // Fetch all issues with worklogs for the user within the specified period
+    const issuesPromise = jiraAPIController.searchIssuesWithWorkLogs(req, formattedStart, formattedEnd);
+
     return issuesPromise.then(async result => {
-        const issues = extractIssues(result.issues);
-        const worklogPromises = issues.map(async issue => {
-            const worklogs = await getFilteredWorklogs(req, issue, filterStartTime, filterEndTime);
-            return Promise.all(worklogs);
-        });
-        const worklogs = await Promise.all(worklogPromises)
-        const flatLogs = worklogs.flat();
+        const issues = result.issues;
+
+        // each issue has a fields.worklog.worklogs array
+        const worklogs = issues.reduce((acc, issue) => {
+            const issueWorklogs = issue.fields.worklog.worklogs.map(worklog => {
+                return {
+                    id: worklog.id,
+                    issueId: issue.id,
+                    started: worklog.started,
+                    timeSpentSeconds: worklog.timeSpentSeconds,
+                    comment: worklog.comment,
+                };
+            });
+            return acc.concat(issueWorklogs);
+        }, []);
+
+        // Map issues to a dictionary for quick lookup
+        const formattedIssues = extractIssues(issues);
+        const issueMap = formattedIssues.reduce((map, issue) => {
+            map[issue.issueId] = issue;
+            return map;
+        }, {});
+
+        // Format worklogs with issue details
+        const formattedWorklogs = await Promise.all(worklogs.map(async worklog => {
+            const issue = issueMap[worklog.issueId];
+            return await exports.formatWorklog(settings, req, worklog, issue);
+        }));
+
         await configController.saveAccumulatedIssueColors();
-        return flatLogs;
+        return formattedWorklogs;
     });
 };
 
@@ -146,6 +170,7 @@ exports.formatWorklog = async function (settings, req, worklog, issue) {
     };
 };
 
+
 exports.getIssue = function(req, issueId) {
     return jiraAPIController.getIssue(req, issueId);
 }
@@ -154,14 +179,14 @@ exports.getWorkLog = function(req, issueId, worklogId) {
     return jiraAPIController.getWorkLog(req, issueId, worklogId);
 }
 
-exports.updateWorkLog = function(req, issueId, worklogId, comment, startTime, endTime, issueKeyColor) {
+exports.updateWorkLog = async function(req, issueId, worklogId, comment, startTime, endTime, issueKeyColor) {
     const start = new Date(startTime);
     const end = new Date(endTime);
     const duration = (end - start) / 1000; // Calculate duration in seconds
 
     // update the worklog issue key color if it is different from determined issue color
-    updateColorIfDifferent(req, issueId, issueKeyColor).then(() => {
-        configController.saveAccumulatedIssueColors();
+    await updateColorIfDifferent(req, issueId, issueKeyColor).then(async () => {
+        await configController.saveAccumulatedIssueColors();
     });
 
 
@@ -249,3 +274,11 @@ function formatDateToJira(toFormat) {
     const formatted = dayJsDate.format('YYYY-MM-DDTHH:mm:ss.SSSZZ');
     return formatted;
 }
+
+exports.getSingleEvent = async function(req, issueId, worklogId) {
+    const settings = await configController.loadConfig();
+    const worklog = await jiraAPIController.getWorkLog(req, issueId, worklogId);
+    const issue = extractIssues([await jiraAPIController.getIssue(req, issueId)])[0];
+    const formattedEvent = await exports.formatWorklog(settings, req, worklog, issue);
+    return formattedEvent;
+};
