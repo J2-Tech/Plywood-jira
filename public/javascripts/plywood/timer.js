@@ -3,10 +3,9 @@ import { refreshWorklog } from './calendar.js';
 import { showLoading, hideLoading } from './ui.js';
 
 const minSaveMinutes = 5; // Minimum time to save a worklog in minutes
-let canSwitchIssue = true;
+window.roundingInterval = 1;
 let timerInterval;
 let timerStartTime;
-let roundingInterval = 15; // Default rounding interval in minutes
 let previousIssueId;
 
 /**
@@ -24,86 +23,51 @@ export function toggleStartSaveTimer() {
 /**
  * Starts the timer.
  */
-export function startTimer() {
-    previousIssueId = document.getElementById('issue-timer').value; // Capture the current issue ID
-    
-    if (previousIssueId === '') {
+function startTimer() {
+    document.getElementById('confirmation-message').textContent = '';
+    previousIssueId = document.getElementById('issue-timer').value;
+    if (!previousIssueId) {
         document.getElementById('confirmation-message').textContent = 'Please select an issue.';
         return;
     }
 
     timerStartTime = new Date();
-    
-    // Rounding logic
-    const roundCheckbox = document.getElementById('round-timer-checkbox');
-    if (roundCheckbox && roundCheckbox.checked) {
-        const intervalMs = roundingInterval * 60 * 1000;
-        const startRounded = Math.floor(timerStartTime.getTime() / intervalMs) * intervalMs;
-        timerStartTime = new Date(startRounded);
-    }
+    applyRoundingDown(timerStartTime);
 
-    document.getElementById('start-time-timer').value = new Date(timerStartTime.getTime() - timerStartTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16); // Set start time input
+    const localStartTime = new Date(timerStartTime.getTime() - timerStartTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    document.getElementById('start-time-timer').value = localStartTime;
+    timerInterval = setInterval(updateTimerDisplay, 1000);
     document.getElementById('start-save-timer-btn').textContent = '💾';
-    document.getElementById('start-save-timer-btn').className = 'primary';
-    document.getElementById('confirmation-message').textContent = ''; // Clear confirmation message
+    document.getElementById('start-save-timer-btn').classList.add('primary');
     document.getElementById('open-timer-modal-btn').classList.add('primary');
-    document.getElementById('timer-duration').style.display = 'inline-block'; // Show the timer duration
 
-    if (window.saveTimerOnIssueSwitch) {
-        canSwitchIssue = false;
-        window.choicesTimer.disable();
-    }
-
-    timerInterval = setInterval(() => {
-        const now = new Date();
-        const duration = now - timerStartTime;
-        document.getElementById('timer-display').textContent = formatDuration(duration);
-        document.getElementById('timer-duration').textContent = formatDuration(duration);
-        document.getElementById('end-time-timer').value = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16); // Update end time input
-        if (window.saveTimerOnIssueSwitch && !canSwitchIssue) {
-            if (duration > minSaveMinutes * 60 * 1000) {
-                canSwitchIssue = true;
-                window.choicesTimer.enable();
-            }
-        } 
-    }, 1000);
+    document.getElementById('timer-duration').style.display = 'inline';
 }
 
 /**
  * Stops the timer and saves the worklog.
  */
-export function stopTimer() {
+function stopTimer() {
     const timerEndTime = new Date();
-    let duration = timerEndTime - timerStartTime;
+    applyRoundingUp(timerEndTime);
 
-    // Rounding logic
-    const roundCheckbox = document.getElementById('round-timer-checkbox');
-    if (roundCheckbox && roundCheckbox.checked) {
-        const intervalMs = roundingInterval * 60 * 1000;
-        const startRounded = Math.floor(timerStartTime.getTime() / intervalMs) * intervalMs;
-        const endRounded = Math.ceil(timerEndTime.getTime() / intervalMs) * intervalMs;
-        timerStartTime = new Date(startRounded);
-        timerEndTime.setTime(endRounded); // Set the end time to the rounded value
-        duration = endRounded - startRounded;
-    }
-
-    if (duration < minSaveMinutes * 60 * 1000) { // Less than minSaveMinutes
+    const duration = timerEndTime - timerStartTime;
+    if (duration < minSaveMinutes * 60 * 1000) {
         document.getElementById('confirmation-message').textContent = 'The minimum time for a worklog is 5 minutes.';
         return;
     }
+
+    const localEndTime = new Date(timerEndTime.getTime() - timerEndTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    document.getElementById('end-time-timer').value = localEndTime;
     showLoading();
     clearInterval(timerInterval);
 
-    const issueId = previousIssueId || document.getElementById('issue-timer').value; // Use the previous issue ID
+    const issueId = previousIssueId;
     const comment = document.getElementById('comment-timer').value;
 
-    // Convert the start and end time back to UTC
-    const startTimeUTC = timerStartTime.toISOString();
-    const endTimeUTC = timerEndTime.toISOString(); // Use the rounded end time
-
     const workLogData = {
-        startTime: startTimeUTC,
-        endTime: endTimeUTC,
+        startTime: timerStartTime.toISOString(),
+        endTime: timerEndTime.toISOString(),
         issueId: issueId,
         comment: comment,
     };
@@ -113,7 +77,7 @@ export function stopTimer() {
             document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + response.errors.join(', ');
         } else {
             document.getElementById('confirmation-message').textContent = 'Worklog created successfully!';
-            refreshWorklog(response.issueId, response.id); // Refresh only the created worklog
+            refreshWorklog(response.issueId, response.id);
         }
     }).catch(error => {
         document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + error.message;
@@ -144,15 +108,15 @@ export function handleTimerIssueSwitch(event) {
  */
 function resetTimerUI() {
     document.getElementById('start-save-timer-btn').textContent = '🔴';
-    document.getElementById('start-save-timer-btn').className = '';
+    document.getElementById('start-save-timer-btn').classList.remove('primary');
     document.getElementById('timer-display').textContent = '0m';
     document.getElementById('timer-duration').textContent = '0m';
-    document.getElementById('timer-duration').style.display = 'none'; // Hide the timer duration
+    document.getElementById('timer-duration').style.display = 'none';
     document.getElementById('open-timer-modal-btn').classList.remove('primary');
-    window.choicesTimer.enable(); // Re-enable the issue dropdown
-    document.getElementById('confirmation-message').textContent = ''; // Clear confirmation message
-    document.getElementById('start-time-timer').value = ''; // Clear start time input
-    document.getElementById('end-time-timer').value = ''; // Clear end time input
+    window.choicesTimer.enable();
+    document.getElementById('confirmation-message').textContent = '';
+    document.getElementById('start-time-timer').value = '';
+    document.getElementById('end-time-timer').value = '';
 }
 
 /**
@@ -183,16 +147,85 @@ export function formatDuration(duration) {
  */
 export function toggleTimerModal() {
     const modal = document.getElementById('timerModal');
-    if (modal.style.display === 'none' || modal.style.display === '') {
-        modal.style.display = 'block';
-    } else {
-        modal.style.display = 'none';
+    modal.style.display = (modal.style.display === 'none' || modal.style.display === '') ? 'block' : 'none';
+}
+
+/**
+ * Updates the timer display.
+ */
+function updateTimerDisplay() {
+    const timerEndTime = new Date();
+    applyRoundingUp(timerEndTime);
+
+    const localEndTime = new Date(timerEndTime.getTime() - timerEndTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const duration = timerEndTime - timerStartTime;
+    const formattedDuration = formatDuration(duration);
+
+    
+    document.getElementById('end-time-timer').value = localEndTime;
+    document.getElementById('timer-display').textContent = formattedDuration;
+    document.getElementById('timer-duration').textContent = formattedDuration;
+}
+
+/**
+ * Applies rounding down to the given date based on the rounding interval.
+ * @param {Date} date - The date to apply rounding to.
+ */
+function applyRoundingDown(date) {
+    const roundCheckbox = document.getElementById('round-timer-checkbox');
+    if (roundCheckbox && roundCheckbox.checked) {
+        const intervalMs = window.roundingInterval * 60 * 1000;
+        date.setTime(Math.floor(date.getTime() / intervalMs) * intervalMs);
+    }
+}
+
+/**
+ * Applies rounding up to the given date based on the rounding interval.
+ * @param {Date} date - The date to apply rounding to.
+ */
+function applyRoundingUp(date) {
+    const roundCheckbox = document.getElementById('round-timer-checkbox');
+    if (roundCheckbox && roundCheckbox.checked) {
+        const intervalMs = window.roundingInterval * 60 * 1000;
+        date.setTime(Math.ceil(date.getTime() / intervalMs) * intervalMs);
+    }
+}
+
+/**
+ * Syncs the rounding interval inputs.
+ */
+function syncRoundingInterval() {
+    const configRoundingIntervalInput = document.getElementById('rounding-interval');
+    const timerRoundingIntervalInput = document.getElementById('timer-rounding-interval');
+    if (configRoundingIntervalInput) {
+        configRoundingIntervalInput.value = window.roundingInterval;
+    }
+    if (timerRoundingIntervalInput) {
+        timerRoundingIntervalInput.value = window.roundingInterval;
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    const issueSelect = document.getElementById('issue-timer');
-    issueSelect.addEventListener('change', handleTimerIssueSwitch);
+    document.getElementById('issue-timer').addEventListener('change', handleTimerIssueSwitch);
+
+    const configRoundingIntervalInput = document.getElementById('rounding-interval');
+    const timerRoundingIntervalInput = document.getElementById('timer-rounding-interval');
+
+    if (configRoundingIntervalInput) {
+        configRoundingIntervalInput.value = window.roundingInterval;
+        configRoundingIntervalInput.addEventListener('input', (event) => {
+            window.roundingInterval = parseInt(event.target.value, 10);
+            syncRoundingInterval();
+        });
+    }
+
+    if (timerRoundingIntervalInput) {
+        timerRoundingIntervalInput.value = window.roundingInterval;
+        timerRoundingIntervalInput.addEventListener('input', (event) => {
+            window.roundingInterval = parseInt(event.target.value, 10);
+            syncRoundingInterval();
+        });
+    }
 });
 
 window.toggleTimerModal = toggleTimerModal;

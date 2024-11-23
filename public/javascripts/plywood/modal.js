@@ -172,6 +172,24 @@ function refreshAllWorklogsOfIssueKey(issueKey) {
     });
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+    const configRoundingIntervalInput = document.getElementById('rounding-interval');
+    if (configRoundingIntervalInput) {
+        configRoundingIntervalInput.value = window.roundingInterval;
+        configRoundingIntervalInput.addEventListener('input', (event) => {
+            window.roundingInterval = parseInt(event.target.value, 10);
+            syncRoundingInterval();
+        });
+    }
+});
+
+function syncRoundingInterval() {
+    const timerRoundingIntervalInput = document.getElementById('timer-rounding-interval');
+    if (timerRoundingIntervalInput) {
+        timerRoundingIntervalInput.value = window.roundingInterval;
+    }
+}
+
 window.hideModal = hideModal;
 window.showModal = showModal;
 window.showUpdateModal = showUpdateModal;

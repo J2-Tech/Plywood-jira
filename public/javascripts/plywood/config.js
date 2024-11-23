@@ -6,32 +6,20 @@ import { showLoading, hideLoading } from './ui.js';
  * Save configuration settings.
  */
 export function saveConfig() {
-    showLoading();
-    const form = document.getElementById('configForm');
-    const formData = new FormData(form);
     const config = {
-        showIssueTypeIcons: formData.get('showIssueTypeIcons') === 'on',
-        themeSelection: formData.get('themeSelection'),
-        issueColors: {},
-        roundingInterval: parseInt(formData.get('roundingInterval'), 10) || 15, // Default to 15 minutes
-        saveTimerOnIssueSwitch: formData.get('saveTimerOnIssueSwitch') === 'on'
+        showIssueTypeIcons: document.getElementById('showIssueTypeIcons').checked,
+        themeSelection: document.getElementById('themeSelection').value,
+        roundingInterval: parseInt(document.getElementById('rounding-interval').value, 10),
+        saveTimerOnIssueSwitch: document.getElementById('save-timer-on-issue-switch').checked,
     };
-
-    formData.forEach((value, key) => {
-        if (key.startsWith('issueType-')) {
-            const issueType = key.replace('issueType-', '').toLowerCase();
-            config.issueColors[issueType] = value;
-        }
-    });
 
     fetch('/config/saveConfig', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
         },
-        body: JSON.stringify(config)
+        body: JSON.stringify(config),
     }).then(response => {
-        hideLoading();
         if (response.ok) {
             hideModal('#configModal');
             if (config.themeSelection !== document.body.className) {
@@ -41,6 +29,8 @@ export function saveConfig() {
                 window.showIssueTypeIcons = config.showIssueTypeIcons;
                 window.calendar.refetchEvents();
             }
+            window.roundingInterval = config.roundingInterval;
+            syncRoundingInterval();
         } else {
             console.error('Failed to save configuration.');
         }
@@ -60,6 +50,8 @@ export function loadConfig() {
             document.getElementById('timer-rounding-interval').value = config.roundingInterval || 15;
             document.getElementById('save-timer-on-issue-switch').checked = config.saveTimerOnIssueSwitch;
             window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
+            window.roundingInterval = config.roundingInterval || 15;
+            syncRoundingInterval();
 
             const issueTypeColors = document.getElementById('issueTypeColors');
             issueTypeColors.innerHTML = '';
@@ -127,6 +119,20 @@ function toggleSection(sectionId) {
     } else {
         section.style.display = 'none';
         arrow.classList.remove('expanded');
+    }
+}
+
+/**
+ * Syncs the rounding interval inputs.
+ */
+function syncRoundingInterval() {
+    const configRoundingIntervalInput = document.getElementById('rounding-interval');
+    const timerRoundingIntervalInput = document.getElementById('timer-rounding-interval');
+    if (configRoundingIntervalInput) {
+        configRoundingIntervalInput.value = window.roundingInterval;
+    }
+    if (timerRoundingIntervalInput) {
+        timerRoundingIntervalInput.value = window.roundingInterval;
     }
 }
 
