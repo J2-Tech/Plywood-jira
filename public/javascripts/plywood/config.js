@@ -11,7 +11,22 @@ export function saveConfig() {
         themeSelection: document.getElementById('themeSelection').value,
         roundingInterval: parseInt(document.getElementById('rounding-interval').value, 10),
         saveTimerOnIssueSwitch: document.getElementById('save-timer-on-issue-switch').checked,
+        issueColors: {}
     };
+
+    // Gather issue colors from the DOM
+    const issueTypeColors = document.getElementById('issueTypeColors').children;
+    for (const issueTypeColor of issueTypeColors) {
+        const issueType = issueTypeColor.querySelector('input[type="text"]').value;
+        const color = issueTypeColor.querySelector('input[type="color"]').value;
+        if (issueType) {
+            config.issueColors[issueType] = color;
+        }
+    }
+
+    // Detect removed colors
+    const previousConfig = window.previousConfig || {};
+    const removedColors = Object.keys(previousConfig.issueColors || {}).filter(issueType => !(issueType in config.issueColors));
 
     fetch('/config/saveConfig', {
         method: 'POST',
@@ -31,6 +46,11 @@ export function saveConfig() {
             }
             window.roundingInterval = config.roundingInterval;
             syncRoundingInterval();
+
+            // Refresh relevant issues
+            removedColors.forEach(issueType => {
+                refreshAllWorklogsOfIssueType(issueType);
+            });
         } else {
             console.error('Failed to save configuration.');
         }
@@ -61,6 +81,7 @@ export function loadConfig() {
             }
 
             applyTheme(config.themeSelection);
+            window.previousConfig = config;
         });
 }
 
@@ -134,6 +155,19 @@ function syncRoundingInterval() {
     if (timerRoundingIntervalInput) {
         timerRoundingIntervalInput.value = window.roundingInterval;
     }
+}
+
+/**
+ * Refresh all worklogs of a specific issue type.
+ * @param {string} issueType - The issue type to refresh.
+ */
+function refreshAllWorklogsOfIssueType(issueType) {
+    const events = window.calendar.getEvents();
+    events.forEach(event => {
+        if (event.extendedProps.issueType.toLowerCase() === issueType.toLowerCase()) {
+            refreshWorklog(event.extendedProps.issueId, event.extendedProps.worklogId);
+        }
+    });
 }
 
 window.saveConfig = saveConfig;
