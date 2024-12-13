@@ -276,7 +276,7 @@ exports.getIssueTypes = async function(req) {
 
 async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const url = getCallURL(req);
-    const jql = `worklogDate >= "${start}" AND worklogDate <= "${end}"`;
+    const jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
     return fetch(url + '/rest/api/2/search', {
         method: 'POST',
         headers: getDefaultHeaders(req),

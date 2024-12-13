@@ -87,7 +87,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
                     comment: worklog.comment,
                     author: worklog.author.emailAddress
                 };
-            });
+            }).filter(worklog => filterWorklog(req, worklog, filterStartTime, filterEndTime));
             return acc.concat(issueWorklogs);
         }, []);
 
@@ -136,10 +136,10 @@ function filterWorklog(req, worklog, filterStartTime, filterEndTime) {
     let condition = startTime.getTime() > filterStartTime.getTime() && startTime.getTime() < filterEndTime.getTime();
     
     if (process.env.JIRA_BASIC_AUTH_USERNAME) {
-        condition = condition && worklog.author.emailAddress == process.env.JIRA_BASIC_AUTH_USERNAME;
+        condition = condition && worklog.author == process.env.JIRA_BASIC_AUTH_USERNAME;
     }
     if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
-        condition = condition && worklog.author.emailAddress == req.user.email;
+        condition = condition && worklog.author == req.user.email;
     }
     
     return condition;
