@@ -47,6 +47,10 @@ export function showUpdateModal(event) {
     issueLabel.textContent = `${issueKey} - ${issueSummary}`;
     issueLabel.href = issueUrl;
 
+    // Set the author
+    const authorLabel = form.querySelector('#author-label');
+    authorLabel.textContent = `Author: ${event.extendedProps.author}`;
+
     // Convert the start and end time to the client's timezone
     const startTime = new Date(event.start.getTime() - event.start.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     const endTime = new Date(event.end.getTime() - event.end.getTimezoneOffset() * 60000).toISOString().slice(0, 16);

@@ -276,11 +276,15 @@ exports.getIssueTypes = async function(req) {
 
 async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const url = getCallURL(req);
-    const jql = `worklogAuthor = currentUser() AND worklogDate >= "${start}" AND worklogDate <= "${end}"`;
-    return fetch(url + '/rest/api/2/search/jql?expand=renderedFields', {
+    const jql = `worklogDate >= "${start}" AND worklogDate <= "${end}"`;
+    return fetch(url + '/rest/api/2/search', {
         method: 'POST',
         headers: getDefaultHeaders(req),
-        body: JSON.stringify({ jql, expand: 'renderedFields', fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype'] }),
+        body: JSON.stringify({
+            jql,
+            expand: ['renderedFields', 'worklog'],
+            fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype']
+        }),
         agent: httpsAgent
     }).then(res => res.json());
 }

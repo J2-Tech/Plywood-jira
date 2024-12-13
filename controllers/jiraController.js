@@ -85,6 +85,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
                     started: worklog.started,
                     timeSpentSeconds: worklog.timeSpentSeconds,
                     comment: worklog.comment,
+                    author: worklog.author.emailAddress
                 };
             });
             return acc.concat(issueWorklogs);
@@ -133,12 +134,14 @@ function filterWorklog(req, worklog, filterStartTime, filterEndTime) {
     const startTime = new Date(worklog.started);
     const endTime = new Date(startTime.getTime() + (worklog.timeSpentSeconds * 1000));
     let condition = startTime.getTime() > filterStartTime.getTime() && startTime.getTime() < filterEndTime.getTime();
-                    if (process.env.JIRA_BASIC_AUTH_USERNAME) {
-                        condition = condition && worklog.author.emailAddress == process.env.JIRA_BASIC_AUTH_USERNAME;
-                    }
-                    if (process.env.JIRA_AUTH_TYPE =="OAUTH") {
-                        condition = condition && worklog.author.emailAddress == req.user.email;
-                    }
+    
+    if (process.env.JIRA_BASIC_AUTH_USERNAME) {
+        condition = condition && worklog.author.emailAddress == process.env.JIRA_BASIC_AUTH_USERNAME;
+    }
+    if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
+        condition = condition && worklog.author.emailAddress == req.user.email;
+    }
+    
     return condition;
 }
 
@@ -154,6 +157,7 @@ exports.formatWorklog = async function (settings, req, worklog, issue) {
     return {
         id: worklog.id,
         worklogId: worklog.id,
+        author: worklog.author,
         title: title,
         start: worklog.started,
         end: new Date(new Date(worklog.started).getTime() + worklog.timeSpentSeconds * 1000).toISOString(),

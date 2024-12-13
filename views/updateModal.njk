@@ -8,7 +8,9 @@
         <label for="issue">Issue:</label>
         <input type="hidden" id="issue-update" name="issueId">
         <a target="_blank" id="issue-label" style="text-align: center;" name="issue-label" placeholder="No issue" target="_blank"></a>
-                
+        
+        
+        
         <label for="issue-key-color">Issue Color:</label>
         <input type="color" id="issue-key-color" name="issueKeyColor" class="issue-key-color-update" value="#000000">
         
@@ -26,7 +28,7 @@
             <input type="datetime-local" id="end-time-update" name="endTime">
           </div>
         </div>
-
+        <label id="author-label" style="text-align: center;"></label> <!-- Add this line to display the author -->
 
         <div class="buttons">
           <button class="destructive" id="delete-btn-update" title="Delete" type="button" onclick="handleDelete(event, '/worklog/' + document.querySelector('#modal-form-update input[name=worklogId]').value + '?issueId=' + document.querySelector('#modal-form-update input[name=issueId]').value)">🗑️</button>
