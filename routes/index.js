@@ -68,6 +68,15 @@ router.get('/worklog/:worklogId', function(req, res, next) {
   }
 });
 
+router.get('/projects', async function(req, res, next) {
+    try {
+        const projects = await jiraAPIController.getProjects(req);
+        res.json(projects);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: 'Failed to fetch projects' });
+    }
+});
 
 router.put('/worklog/:worklogId', async function(req, res, next) {
   try {

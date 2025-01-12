@@ -53,4 +53,10 @@ router.post('/saveIssueColor', async (req, res) => {
 
 });
 
+router.post('/setProject', async (req, res) => {
+    const { project } = req.body;
+    global.selectedProject = project;
+    res.json({ message: 'Project updated successfully' }).status(200);
+});
+
 module.exports = router;

@@ -1,5 +1,5 @@
 import { hideModal } from './modal.js';
-import { applyTheme } from './ui.js';
+import { applyTheme, getCurrentProject, changeProject } from './ui.js';
 import { showLoading, hideLoading } from './ui.js';
 
 /**
@@ -11,8 +11,17 @@ export function saveConfig() {
         themeSelection: document.getElementById('themeSelection').value,
         roundingInterval: parseInt(document.getElementById('rounding-interval').value, 10),
         saveTimerOnIssueSwitch: document.getElementById('save-timer-on-issue-switch').checked,
+        selectedProject: document.getElementById('projectSelection').value,
         issueColors: {}
     };
+
+    // Add event listener for project selection in config
+    const configProjectSelect = document.getElementById('projectSelection');
+    if (configProjectSelect) {
+        configProjectSelect.addEventListener('change', (event) => {
+            changeProject(event.target.value);
+        });
+    }
 
     // Gather issue colors from the DOM
     const issueTypeColors = document.getElementById('issueTypeColors').children;
@@ -63,7 +72,17 @@ export function saveConfig() {
 export function loadConfig() {
     return fetch('/config/getConfig')
         .then(response => response.json())
-        .then(config => {
+        .then(async config => {
+            // Set default values if undefined
+            config = {
+                showIssueTypeIcons: true,
+                themeSelection: 'auto',
+                roundingInterval: 15,
+                issueColors: {},
+                selectedProject: 'all',
+                ...config
+            };
+
             document.getElementById('showIssueTypeIcons').checked = config.showIssueTypeIcons;
             document.getElementById('themeSelection').value = config.themeSelection || 'light';
             document.getElementById('rounding-interval').value = config.roundingInterval || 15;
@@ -81,7 +100,14 @@ export function loadConfig() {
             }
 
             applyTheme(config.themeSelection);
+            
+            const configProjectSelect = document.getElementById('projectSelection');
+            if (configProjectSelect) {
+                await loadProjects(configProjectSelect, config.selectedProject);
+            }
+
             window.previousConfig = config;
+            return config;
         });
 }
 
@@ -168,6 +194,43 @@ function refreshAllWorklogsOfIssueType(issueType) {
             refreshWorklog(event.extendedProps.issueId, event.extendedProps.worklogId);
         }
     });
+}
+
+export async function loadProjects(targetElement, selectedValue = 'all') {
+    const response = await fetch('/projects');
+    const data = await response.json();
+    targetElement.innerHTML = '<option value="all">All Projects</option>';
+    
+    data.values.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.key;
+        option.textContent = `${project.key} - ${project.name}`;
+        targetElement.appendChild(option);
+    });
+
+    targetElement.value = selectedValue;
+}
+
+export async function initializeProjectSelectors() {
+    const headerProjectSelect = document.getElementById('headerProjectSelection');
+    const configProjectSelect = document.getElementById('projectSelection');
+    
+    // Get current project using the getter from ui.js
+    const savedProject = localStorage.getItem('currentProject') || 'all';
+    
+    if (headerProjectSelect) {
+        await loadProjects(headerProjectSelect, savedProject);
+        headerProjectSelect.addEventListener('change', (event) => {
+            changeProject(event.target.value);
+        });
+    }
+    
+    if (configProjectSelect) {
+        await loadProjects(configProjectSelect, savedProject);
+        configProjectSelect.addEventListener('change', (event) => {
+            changeProject(event.target.value);
+        });
+    }
 }
 
 window.saveConfig = saveConfig;

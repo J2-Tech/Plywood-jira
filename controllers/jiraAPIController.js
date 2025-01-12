@@ -1,6 +1,10 @@
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const https = require('https');
 const dayjs = require('dayjs');
+const configController = require('./configController');
+
+// Add this to store the current project
+global.selectedProject = 'all';
 
 function getDefaultHeaders(req) {
     let defaultHeaders;
@@ -114,7 +118,9 @@ exports.getAvailableSites= function(req) {
 function searchIssuesInternal(req, jql) {
     const headers = getDefaultHeaders(req);
     const url = getCallURL(req);
-    const fields = ['summary', 'issuetype', 'parent', 'customfield_10017']; // Include parent and custom color field
+    jql = appendProjectFilter(jql, req.query.project);
+    
+    const fields = ['summary', 'issuetype', 'parent', 'customfield_10017'];
     return fetch(url + '/rest/api/3/search?maxResults=' + process.env.JIRA_MAX_SEARCH_RESULTS + '&jql=' + jql + '&fields=' + fields.join(','), {
         method: 'GET',
         headers,
@@ -132,15 +138,17 @@ exports.suggestIssues = function(req, query) {
 
 function suggestIssuesInternal(req, query) {
     const url = getCallURL(req);
-    if (process.env.JIRA_PROJECT_JQL) {
-        query += '&currentJQL=' + process.env.JIRA_PROJECT_JQL
+    const projectFilter = appendProjectFilter('', req.query.project);
+    
+    if (projectFilter) {
+        query += '&currentJQL=' + projectFilter;
     }
-    return fetch(url + '/rest/api/3/issue/picker?query=' + query , {
+    
+    return fetch(url + '/rest/api/3/issue/picker?query=' + query, {
         method: 'GET',
         headers: getDefaultHeaders(req),
-        agent:httpsAgent
+        agent: httpsAgent
     }).then(res => res.json());
-
 }
 
 function getIssueInternal(req, issueId) {
@@ -276,7 +284,9 @@ exports.getIssueTypes = async function(req) {
 
 async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const url = getCallURL(req);
-    const jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
+    let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
+    jql = appendProjectFilter(jql, req.query.project);
+    
     return fetch(url + '/rest/api/2/search', {
         method: 'POST',
         headers: getDefaultHeaders(req),
@@ -292,6 +302,23 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
 exports.searchIssuesWithWorkLogs = function(req, start, end) {
     return withRetry(searchIssuesWithWorkLogsInternal, req, start, end);
 };
+
+exports.getProjects = async function(req) {
+    const url = getCallURL(req);
+    const response = await fetch(url + '/rest/api/3/project/search', {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent: httpsAgent
+    });
+    return response.json();
+};
+
+function appendProjectFilter(jql, projectKey) {
+    if (projectKey && projectKey !== 'all') {
+        return jql ? `project = "${projectKey}" AND (${jql})` : `project = "${projectKey}"`;
+    }
+    return jql;
+}
 
 function formatDateToJira(date) {
     const dayJsDate = dayjs(date);

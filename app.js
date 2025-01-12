@@ -1,4 +1,3 @@
-
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
@@ -84,6 +83,8 @@ app.use('/', indexRouter);
 
 var configRouter = require('./routes/config');
 app.use('/config', configRouter);
+
+const configController = require('./controllers/configController');
 
 // error handler
 app.use(function(err, req, res, next) {

@@ -12,7 +12,8 @@ const defaultConfig = {
     showIssueTypeIcons: true,
     themeSelection: 'auto',
     roundingInterval: 15,
-    issueColors: {}
+    issueColors: {},
+    selectedProject: 'all'
 };
 
 // Create a mutex
