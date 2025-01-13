@@ -123,6 +123,7 @@ export function hideColorPickerModal() {
     colorPickerModal.style.display = 'none';
 }
 
+// Update the saveColor function
 export function saveColor() {
     showLoading();
     const colorPickerInput = document.getElementById('colorPickerInput');
@@ -132,44 +133,37 @@ export function saveColor() {
     if (!event || !event._def.extendedProps) {
         console.error('Event or extendedProps is undefined');
         hideColorPickerModal();
+        hideLoading();
         return;
     }
 
-    saveColorForIssue(event._def.extendedProps.issueKey, newColor);
-    hideColorPickerModal();
+    saveColorForIssue(event._def.extendedProps.issueKey, newColor)
+        .then(() => {
+            // After saving color, refresh all calendar events
+            if (window.calendar) {
+                window.calendar.refetchEvents();
+            }
+        })
+        .finally(() => {
+            hideColorPickerModal();
+            hideLoading();
+        });
 }
 
-/**
- * Save color for an issue.
- * @param {string} issueKey - The issue key.
- * @param {string} color - The color to save.
- */
+// Update saveColorForIssue to return a promise
 function saveColorForIssue(issueKey, color) {
-    fetch(`/config/saveIssueColor`, {
+    return fetch(`/config/saveIssueColor`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({ issueKey, color })
-    }).then(response => {
+    })
+    .then(response => {
         if (!response.ok) {
-            console.error('Failed to save issue color');
-        } else {
-            refreshAllWorklogsOfIssueKey(issueKey)
+            throw new Error('Failed to save issue color');
         }
-        hideLoading();
-    }).catch(error => {
-        console.error('Error:', error);
-        hideLoading();
-    });
-}
-
-function refreshAllWorklogsOfIssueKey(issueKey) {
-    const events = window.calendar.getEvents();
-    events.forEach(event => {
-        if (event.extendedProps.issueKey === issueKey) {
-            refreshWorklog(event.extendedProps.issueId, event.extendedProps.worklogId);
-        }
+        return response.json();
     });
 }
 
