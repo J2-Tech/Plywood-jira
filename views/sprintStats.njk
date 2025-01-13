@@ -1,0 +1,31 @@
+{% extends "layout.njk" %}
+
+{% block head %}
+<script src="/javascripts/plywood/stats.js" type="module"></script>
+{% endblock %}
+
+{% block content %}
+<div class="stats-page">
+    <div class="stats-header">
+        <button onclick="window.location.href='/'" class="back-button">← Back to Calendar</button>
+        <div class="date-controls">
+            <input type="date" id="startDate" class="date-input">
+            <span>to</span>
+            <input type="date" id="endDate" class="date-input">
+            <button id="refreshStats" class="refresh-button">Refresh</button>
+        </div>
+    </div>
+
+    <div class="stats-container">
+        <div class="stats-section">
+            <h2>Time Spent by Issue</h2>
+            <div id="timeSpentList" class="stats-list"></div>
+        </div>
+        
+        <div class="stats-section">
+            <h2>Worklog Comments</h2>
+            <div id="commentsList" class="stats-list"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

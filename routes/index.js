@@ -78,6 +78,16 @@ router.get('/projects', async function(req, res, next) {
     }
 });
 
+router.get('/projects/sprints', async function(req, res, next) {
+    try {
+        const sprints = await jiraAPIController.getSprints(req);
+        res.json(sprints);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: 'Failed to fetch sprints' });
+    }
+});
+
 router.put('/worklog/:worklogId', async function(req, res, next) {
   try {
     await jiraController.updateWorkLog(req, req.body.issueId, req.params.worklogId, req.body.comment, req.body.startTime, req.body.endTime, req.body.issueKeyColor).then(result => {
@@ -108,5 +118,44 @@ router.delete('/worklog/:worklogId', function(req, res, next) {
   }
 });
 
+/*router.get('/sprint-stats', function(req, res) {
+    res.render('sprintStats', { 
+        title: 'Sprint Statistics',
+        jiraUrl: process.env.JIRA_URL,
+        user: req.user  // Pass user data if needed
+    });
+});*/
+
+router.get('/stats', function(req, res) {
+  res.render('sprintStats', { 
+      title: 'Sprint Statistics',
+      jiraUrl: process.env.JIRA_URL,
+      user: req.user  // Pass user data if needed
+  });
+});
+
+router.get('/sprint-stats/data', async function(req, res, next) {
+    try {
+        const sprintData = await jiraController.getSprintStats(req, req.query.sprintId);
+        res.json(sprintData);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: 'Failed to fetch sprint statistics' });
+    }
+});
+
+router.get('/stats/data', async function(req, res, next) {
+    try {
+        const { start, end, project } = req.query;
+        if (!start || !end) {
+            return res.status(400).json({ error: 'Start and end dates are required' });
+        }
+        const statsData = await jiraController.getWorklogStats(req, start, end, project);
+        res.json(statsData);
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ error: 'Failed to fetch statistics' });
+    }
+});
 
 module.exports = router;

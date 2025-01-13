@@ -285,7 +285,10 @@ exports.getIssueTypes = async function(req) {
 async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const url = getCallURL(req);
     let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
-    jql = appendProjectFilter(jql, req.query.project);
+    
+    // Get project from query params
+    const projectKey = req.query.project;
+    jql = appendProjectFilter(jql, projectKey);
     
     return fetch(url + '/rest/api/2/search', {
         method: 'POST',
@@ -293,14 +296,30 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
         body: JSON.stringify({
             jql,
             expand: ['renderedFields', 'worklog'],
-            fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype']
+            fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype', 'status', 'project']
         }),
         agent: httpsAgent
     }).then(res => res.json());
 }
 
-exports.searchIssuesWithWorkLogs = function(req, start, end) {
-    return withRetry(searchIssuesWithWorkLogsInternal, req, start, end);
+exports.searchIssuesWithWorkLogs = async function(req, start, end) {
+    const url = getCallURL(req);
+    let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
+    
+    // Get project from query params and apply filter
+    const projectKey = req.query.project;
+    jql = appendProjectFilter(jql, projectKey);
+    
+    return fetch(url + '/rest/api/2/search', {
+        method: 'POST',
+        headers: getDefaultHeaders(req),
+        body: JSON.stringify({
+            jql,
+            expand: ['renderedFields', 'worklog'],
+            fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype', 'status', 'project']
+        }),
+        agent: httpsAgent
+    }).then(res => res.json());
 };
 
 exports.getProjects = async function(req) {
@@ -311,6 +330,31 @@ exports.getProjects = async function(req) {
         agent: httpsAgent
     });
     return response.json();
+};
+
+exports.getSprints = async function(req) {
+    const url = getCallURL(req);
+    const response = await fetch(url + '/rest/agile/1.0/sprint/search', {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent: httpsAgent
+    });
+    return response.json();
+};
+
+exports.getSprintIssues = async function(req, sprintId) {
+    const url = getCallURL(req);
+    const jql = `sprint = ${sprintId}`;
+    return fetch(url + '/rest/api/2/search', {
+        method: 'POST',
+        headers: getDefaultHeaders(req),
+        body: JSON.stringify({
+            jql,
+            expand: ['renderedFields', 'worklog'],
+            fields: ['worklog', 'summary', 'issuetype', 'status']
+        }),
+        agent: httpsAgent
+    }).then(res => res.json());
 };
 
 function appendProjectFilter(jql, projectKey) {

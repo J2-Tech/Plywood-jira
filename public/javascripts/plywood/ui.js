@@ -13,7 +13,7 @@ export async function changeProject(projectKey) {
     // Save to localStorage for persistence
     localStorage.setItem('currentProject', projectKey);
     
-    // Save to backend
+    // Save to config
     await fetch('/config/saveConfig', {
         method: 'POST',
         headers: {
@@ -35,8 +35,12 @@ export async function changeProject(projectKey) {
         configProjectSelect.value = projectKey;
     }
 
-    // Refresh calendar events with new filter
-    window.calendar.refetchEvents();
+    // Refresh calendar or stats based on current page
+    if (window.location.pathname === '/stats') {
+        loadStats(); // Make sure loadStats is available globally
+    } else {
+        window.calendar?.refetchEvents();
+    }
 }
 
 /**
