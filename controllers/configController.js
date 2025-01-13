@@ -67,29 +67,43 @@ exports.findColorFieldName = async function (req) {
 }
 
 exports.getMainColorFromIcon = async function (imageUrl) {
-    const response = await fetch(imageUrl);
-    const svgText = await response.text();
-    const dom = new JSDOM(svgText);
-    const svg = dom.window.document.querySelector('svg');
+    try {
+        const response = await fetch(imageUrl);
+        const svgText = await response.text();
+        const dom = new JSDOM(svgText);
+        const svg = dom.window.document.querySelector('svg');
 
-    const colorCount = {};
-    let maxCount = 0;
-    let mainColor = '#000000';
+        // Return default color if SVG parsing failed
+        if (!svg) {
+            console.warn(`Failed to parse SVG from ${imageUrl}`);
+            return '#2684FF'; // Default Jira blue
+        }
 
-    function countColor(color) {
-        if (color && color != 'none') {
-            colorCount[color] = (colorCount[color] || 0) + 1;
-            if (colorCount[color] > maxCount) {
-                maxCount = colorCount[color];
-                mainColor = color;
+        const colorCount = {};
+        let maxCount = 0;
+        let mainColor = '#2684FF'; // Default color if no fills found
+
+        function countColor(color) {
+            if (color && color !== 'none') {
+                colorCount[color] = (colorCount[color] || 0) + 1;
+                if (colorCount[color] > maxCount) {
+                    maxCount = colorCount[color];
+                    mainColor = color;
+                }
             }
         }
+
+        // Try to get colors from both fill and stroke attributes
+        svg.querySelectorAll('*').forEach(element => {
+            const fill = element.getAttribute('fill');
+            const stroke = element.getAttribute('stroke');
+            countColor(fill);
+            countColor(stroke);
+        });
+
+        return mainColor;
+    } catch (error) {
+        console.error(`Error getting icon color from ${imageUrl}:`, error);
+        return '#2684FF'; // Default Jira blue
     }
-
-    svg.querySelectorAll('*').forEach(element => {
-        const fill = element.getAttribute('fill');
-        countColor(fill);
-    });
-
-    return mainColor;
 }
