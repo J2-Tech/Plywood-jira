@@ -1,7 +1,16 @@
 import { showLoading, hideLoading, getCurrentProject, changeProject } from './ui.js';
 import { loadProjects } from './config.js';
 
-let currentSortMode = 'date'; // 'date' or 'issue'
+let currentChartType = 'issueTypes'; // 'issueTypes', 'issues', or 'projects'
+let currentChartStyle = 'pie'; // Start with pie charts
+let currentChart = null;
+let lastData = null; // Store the last data to rerender chart
+
+let charts = {
+    timeDistribution: null,
+    issueTypes: null,
+    commentedTasks: null
+};
 
 async function loadSprints() {
     const response = await fetch('/projects/sprints');
@@ -26,12 +35,14 @@ async function loadSprintStats() {
     const data = await response.json();
     
     renderTimeSpentList(data);
-    renderCommentsList(data);
 }
 
 function renderTimeSpentList(data) {
     const container = document.getElementById('timeSpentList');
     container.innerHTML = '';
+    
+    // Calculate max time for relative sizing
+    const maxTime = Math.max(...data.map(issue => issue.totalTimeSpent));
     
     // Sort data by total time spent descending
     data.sort((a, b) => b.totalTimeSpent - a.totalTimeSpent);
@@ -39,58 +50,49 @@ function renderTimeSpentList(data) {
     data.forEach(issue => {
         const hours = Math.floor(issue.totalTimeSpent / 3600);
         const minutes = Math.floor((issue.totalTimeSpent % 3600) / 60);
+        const percentage = (issue.totalTimeSpent / maxTime) * 100;
         
         const div = document.createElement('div');
-        div.className = 'issue-stats';
-        div.innerHTML = `
-            <h3>${issue.key} - ${issue.summary}</h3>
-            <div class="issue-time">
-                Time spent: ${hours}h ${minutes}m | Type: ${issue.type} | Status: ${issue.status}
+        div.className = 'issue-stats-container';
+        
+        // Create expandable header with progress bar
+        const header = document.createElement('div');
+        header.className = 'issue-header';
+        header.innerHTML = `
+            <div class="issue-header-content">
+                <span class="expand-button">▶</span>
+                <h3>${issue.key} - ${issue.summary}</h3>
+                <div class="time-info">
+                    ${hours}h ${minutes}m
+                </div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${percentage}%"></div>
             </div>
         `;
-        container.appendChild(div);
-    });
-}
 
-function renderCommentsList(data) {
-    const container = document.getElementById('commentsList');
-    container.innerHTML = '';
-    
-    let comments;
-    
-    if (currentSortMode === 'date') {
-        // Flatten all comments and sort by date
-        comments = data.reduce((acc, issue) => {
-            return acc.concat(issue.comments.map(comment => ({
-                ...comment,
-                issueKey: issue.key,
-                issueSummary: issue.summary
-            })));
-        }, []).sort((a, b) => new Date(b.created) - new Date(a.created));
+        // Create expandable content for worklogs
+        const content = document.createElement('div');
+        content.className = 'issue-content hidden';
         
-        comments.forEach(comment => {
-            container.appendChild(createCommentElement(comment));
+        // Sort comments by time spent
+        const sortedComments = issue.comments
+            .sort((a, b) => b.timeSpent - a.timeSpent)
+            .map(comment => createCommentElement(comment, false));
+            
+        content.append(...sortedComments);
+        
+        div.appendChild(header);
+        div.appendChild(content);
+        container.appendChild(div);
+        
+        // Add click handler for expansion
+        header.addEventListener('click', () => {
+            const button = header.querySelector('.expand-button');
+            button.textContent = content.classList.contains('hidden') ? '▼' : '▶';
+            content.classList.toggle('hidden');
         });
-    } else {
-        // Group by issue and sort issues by total time spent
-        data.sort((a, b) => b.totalTimeSpent - a.totalTimeSpent)
-            .forEach(issue => {
-                if (issue.comments.length > 0) {
-                    // Add issue header
-                    const issueHeader = document.createElement('div');
-                    issueHeader.className = 'issue-header';
-                    issueHeader.innerHTML = `<h3>${issue.key} - ${issue.summary}</h3>`;
-                    container.appendChild(issueHeader);
-                    
-                    // Sort comments by date within each issue
-                    issue.comments
-                        .sort((a, b) => new Date(b.created) - new Date(a.created))
-                        .forEach(comment => {
-                            container.appendChild(createCommentElement(comment, false));
-                        });
-                }
-            });
-    }
+    });
 }
 
 function createCommentElement(comment, showIssueInfo = true) {
@@ -130,9 +132,10 @@ async function loadStats() {
     try {
         const response = await fetch(`/stats/data?start=${start}&end=${end}&project=${project}`);
         const data = await response.json();
+        lastData = data;
         
         renderTimeSpentList(data);
-        renderCommentsList(data);
+        renderAnalysisChart(data);
     } catch (error) {
         console.error('Error loading stats:', error);
     } finally {
@@ -140,15 +143,248 @@ async function loadStats() {
     }
 }
 
-function toggleCommentsSort() {
-    currentSortMode = currentSortMode === 'date' ? 'issue' : 'date';
-    const button = document.getElementById('toggleSort');
-    button.textContent = currentSortMode === 'date' ? '📅 Sort by Issue' : '📑 Sort by Date';
-    loadStats();
+function renderCharts(data) {
+    // Time Distribution Pie Chart
+    const timeDistributionCtx = document.getElementById('timeDistributionChart');
+    if (charts.timeDistribution) charts.timeDistribution.destroy();
+    
+    const timeByIssue = data.reduce((acc, issue) => {
+        acc[`${issue.key} - ${issue.summary}`] = issue.totalTimeSpent;
+        return acc;
+    }, {});
+
+    charts.timeDistribution = new Chart(timeDistributionCtx, {
+        type: 'pie',
+        data: {
+            labels: Object.keys(timeByIssue),
+            datasets: [{
+                data: Object.values(timeByIssue).map(time => time / 3600), // Convert to hours
+                backgroundColor: generateColors(Object.keys(timeByIssue).length)
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right'
+                },
+                title: {
+                    display: true,
+                    text: 'Time Distribution (hours)'
+                }
+            }
+        }
+    });
+
+    // Issue Types Bar Chart
+    renderIssueTypesChart(data);
+
+    // Commented Tasks Horizontal Bar Chart
+    const commentedTasksCtx = document.getElementById('commentedTasksChart');
+    if (charts.commentedTasks) charts.commentedTasks.destroy();
+    
+    const tasksWithComments = data
+        .filter(issue => issue.comments.length > 0)
+        .sort((a, b) => b.totalTimeSpent - a.totalTimeSpent)
+        .slice(0, 10);
+
+    charts.commentedTasks = new Chart(commentedTasksCtx, {
+        type: 'bar',
+        data: {
+            labels: tasksWithComments.map(issue => `${issue.key} - ${issue.summary}`),
+            datasets: [{
+                label: 'Hours Spent',
+                data: tasksWithComments.map(issue => issue.totalTimeSpent / 3600),
+                backgroundColor: generateColors(tasksWithComments.length),
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+}
+
+function generateColors(count) {
+    const colors = [];
+    for (let i = 0; i < count; i++) {
+        colors.push(`hsl(${(i * 360) / count}, 70%, 50%)`);
+    }
+    return colors;
+}
+
+// Add tab switching functionality
+function initializeTabs() {
+    const tabs = document.querySelectorAll('.tab-button');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            
+            document.querySelectorAll('.stats-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById(`${tab.dataset.tab}-content`).classList.remove('hidden');
+        });
+    });
+}
+
+function toggleChartStyle() {
+    currentChartStyle = currentChartStyle === 'bar' ? 'pie' : 'bar';
+    const button = document.getElementById('toggleChart');
+    button.textContent = currentChartStyle === 'bar' ? '🥧' : '📊';
+    if (lastData) renderAnalysisChart(lastData);
+}
+
+function renderIssueTypesChart(data) {
+    const ctx = document.getElementById('issueTypesChart');
+    if (issueTypesChart) issueTypesChart.destroy();
+    
+    const timeByType = data.reduce((acc, issue) => {
+        acc[issue.type] = (acc[issue.type] || 0) + issue.totalTimeSpent;
+        return acc;
+    }, {});
+
+    const chartData = {
+        labels: Object.keys(timeByType),
+        datasets: [{
+            label: 'Hours Spent',
+            data: Object.values(timeByType).map(time => time / 3600),
+            backgroundColor: generateColors(Object.keys(timeByType).length)
+        }]
+    };
+
+    const options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: currentChartType === 'pie' ? 'right' : 'top'
+            }
+        }
+    };
+
+    issueTypesChart = new Chart(ctx, {
+        type: currentChartType,
+        data: chartData,
+        options: options
+    });
+}
+
+function renderAnalysisChart(data) {
+    const ctx = document.getElementById('analysisChart');
+    if (currentChart) currentChart.destroy();
+    
+    let chartData;
+    let options = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: currentChartStyle === 'pie' ? 'right' : 'top'
+            },
+            title: {
+                display: true,
+                position: 'bottom',
+                text: getChartTitle()
+            }
+        }
+    };
+
+    switch (currentChartType) {
+        case 'issueTypes':
+            const timeByType = data.reduce((acc, issue) => {
+                acc[issue.type] = (acc[issue.type] || 0) + issue.totalTimeSpent;
+                return acc;
+            }, {});
+            chartData = {
+                labels: Object.keys(timeByType),
+                datasets: [{
+                    label: 'Hours Spent',
+                    data: Object.values(timeByType).map(time => time / 3600),
+                    backgroundColor: generateColors(Object.keys(timeByType).length)
+                }]
+            };
+            break;
+
+        case 'issues':
+            const timeByIssue = data.reduce((acc, issue) => {
+                acc[`${issue.key} - ${issue.summary}`] = issue.totalTimeSpent;
+                return acc;
+            }, {});
+            chartData = {
+                labels: Object.keys(timeByIssue),
+                datasets: [{
+                    label: 'Hours Spent',
+                    data: Object.values(timeByIssue).map(time => time / 3600),
+                    backgroundColor: generateColors(Object.keys(timeByIssue).length)
+                }]
+            };
+            break;
+
+        case 'projects':
+            const timeByProject = data.reduce((acc, issue) => {
+                const project = issue.key.split('-')[0];
+                acc[project] = (acc[project] || 0) + issue.totalTimeSpent;
+                return acc;
+            }, {});
+            chartData = {
+                labels: Object.keys(timeByProject),
+                datasets: [{
+                    label: 'Hours Spent',
+                    data: Object.values(timeByProject).map(time => time / 3600),
+                    backgroundColor: generateColors(Object.keys(timeByProject).length)
+                }]
+            };
+            break;
+    }
+
+    currentChart = new Chart(ctx, {
+        type: currentChartStyle,
+        data: chartData,
+        options: options
+    });
+}
+
+function getChartTitle() {
+    switch (currentChartType) {
+        case 'issueTypes':
+            return 'Distribution by Issue Type';
+        case 'issues':
+            return 'Distribution by Issue';
+        case 'projects':
+            return 'Distribution by Project';
+        default:
+            return '';
+    }
+}
+
+function initializeChartControls() {
+    const buttons = document.querySelectorAll('.type-button');
+    buttons.forEach(button => {
+        button.addEventListener('click', () => {
+            buttons.forEach(b => b.classList.remove('active'));
+            button.classList.add('active');
+            currentChartType = button.dataset.type;
+            if (lastData) {
+                renderAnalysisChart(lastData);
+            }
+        });
+    });
+
+    const chartToggle = document.getElementById('toggleChart');
+    if (chartToggle) {
+        chartToggle.addEventListener('click', toggleChartStyle);
+    }
 }
 
 async function initializeStats() {
     initializeDateInputs();
+    initializeTabs();
+    initializeChartControls();
     
     // Initialize project selector with saved value first
     const headerProjectSelect = document.getElementById('headerProjectSelection');
@@ -166,16 +402,11 @@ async function initializeStats() {
         await changeProject(savedProject);
     }
     
-    // Add sort toggle button
-    const header = document.querySelector('.stats-section:nth-child(2) h2');
-    const sortButton = document.createElement('button');
-    sortButton.id = 'toggleSort';
-    sortButton.className = 'sort-toggle';
-    sortButton.textContent = '📅 Sort by Issue';
-    sortButton.onclick = toggleCommentsSort;
-    header.appendChild(sortButton);
-    
     document.getElementById('refreshStats').addEventListener('click', loadStats);
+    document.getElementById('toggleChart').addEventListener('click', toggleChartStyle);
+    
+    // Initial load
+    loadStats();
 }
 
 document.addEventListener('DOMContentLoaded', initializeStats);

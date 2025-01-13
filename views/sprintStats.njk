@@ -23,8 +23,27 @@
         </div>
         
         <div class="stats-section">
-            <h2>Worklog Comments</h2>
-            <div id="commentsList" class="stats-list"></div>
+            <h2>
+                Worklog Analysis
+                
+            </h2>
+            <div class="chart-container">
+                <canvas id="analysisChart"></canvas>
+            </div>
+            <div class="chart-controls">
+                    <div class="chart-selector">
+                        <button class="type-button active" data-type="issueTypes">
+                            <span>📊 By Issue Type</span>
+                        </button>
+                        <button class="type-button" data-type="issues">
+                            <span>🎯 By Issue</span>
+                        </button>
+                        <button class="type-button" data-type="projects">
+                            <span>📈 By Project</span>
+                        </button>
+                    </div>
+                    <button id="toggleChart" class="chart-toggle" title="Toggle chart type">📊</button>
+                </div>
         </div>
     </div>
 </div>
