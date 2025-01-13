@@ -201,7 +201,11 @@ export function hideAboutModal() {
     modal.style.display = 'none';
 }
 
-// Make functions available globally
+// Make all modal functions available globally
+window.showModal = showModal;
+window.hideModal = hideModal;
+window.showUpdateModal = showUpdateModal;
+window.showCreateModal = showCreateModal;
 window.toggleConfigModal = toggleConfigModal;
 window.showColorPicker = showColorPicker;
 window.hideColorPickerModal = hideColorPickerModal;

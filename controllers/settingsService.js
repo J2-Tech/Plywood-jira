@@ -150,6 +150,8 @@ class FileSettingsStore {
 class SettingsService {
     constructor() {
         this.store = new FileSettingsStore();
+        this.cache = new Map(); // Add settings cache per user
+        this.cacheTTL = 5 * 60 * 1000; // 5 minutes TTL
         this.initialized = false;
         this.initPromise = null;
     }
@@ -170,7 +172,20 @@ class SettingsService {
         if (!userId) {
             return minimalDefaults;
         }
-        return await this.store.getSettings(userId);
+
+        // Check cache first
+        const cached = this.cache.get(userId);
+        if (cached && (Date.now() - cached.timestamp < this.cacheTTL)) {
+            return cached.settings;
+        }
+
+        // Get from store and cache
+        const settings = await this.store.getSettings(userId);
+        this.cache.set(userId, {
+            settings,
+            timestamp: Date.now()
+        });
+        return settings;
     }
 
     async setSetting(req, key, value) {
@@ -188,7 +203,14 @@ class SettingsService {
         if (!userId) {
             throw new Error('No user identified');
         }
-        return await this.store.updateSettings(userId, settings);
+        const newSettings = await this.store.updateSettings(userId, settings);
+        
+        // Update cache
+        this.cache.set(userId, {
+            settings: newSettings,
+            timestamp: Date.now()
+        });
+        return newSettings;
     }
 
     _getUserId(req) {

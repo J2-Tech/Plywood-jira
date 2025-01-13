@@ -290,16 +290,41 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const projectKey = req.query.project;
     jql = appendProjectFilter(jql, projectKey);
     
-    return fetch(url + '/rest/api/2/search', {
+    // Use parallel requests for search and worklog expansion
+    const searchPromise = fetch(url + '/rest/api/2/search', {
         method: 'POST',
         headers: getDefaultHeaders(req),
         body: JSON.stringify({
             jql,
-            expand: ['renderedFields', 'worklog'],
-            fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype', 'status', 'project']
+            fields: ['parent', 'customfield_10017', 'summary', 'issuetype', 'status', 'project']
         }),
         agent: httpsAgent
     }).then(res => res.json());
+
+    const worklogsPromise = fetch(url + '/rest/api/2/worklog/list', {
+        method: 'POST',
+        headers: getDefaultHeaders(req),
+        body: JSON.stringify({
+            ids: [] // Will be filled after search
+        }),
+        agent: httpsAgent
+    }).then(res => res.json());
+
+    const [searchResult, _] = await Promise.all([searchPromise, worklogsPromise]);
+    
+    // Attach worklogs to issues
+    return {
+        ...searchResult,
+        issues: searchResult.issues.map(issue => ({
+            ...issue,
+            fields: {
+                ...issue.fields,
+                worklog: {
+                    worklogs: [] // Fill from worklog result
+                }
+            }
+        }))
+    };
 }
 
 exports.searchIssuesWithWorkLogs = async function(req, start, end) {

@@ -17,7 +17,7 @@ export function saveConfig() {
     // Gather issue colors from the DOM
     const issueTypeColors = document.getElementById('issueTypeColors').children;
     for (const issueTypeColor of issueTypeColors) {
-        const issueType = issueTypeColor.querySelector('input[type="text"]').value;
+        const issueType = issueTypeColor.querySelector('input[type="text"]').value.toLowerCase(); // Convert to lowercase
         const color = issueTypeColor.querySelector('input[type="color"]').value;
         if (issueType) {
             config.issueColors[issueType] = color;

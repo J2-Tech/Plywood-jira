@@ -973,7 +973,7 @@ select {
   display: inline-block;
 }
 .choices__inner {
-  width: calc(100% - 17px);
+  width: calc(100% - 17px) !important;
   background: #fff;
   border-color: #dee2e6;
 }

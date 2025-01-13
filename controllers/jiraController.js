@@ -47,40 +47,38 @@ exports.getParentIssueColor = async function(settings, req, issue, issueColors) 
     return null;
 }
 
+// Add color cache
+const issueColorCache = new Map();
+const colorCacheTTL = 30 * 60 * 1000; // 30 minutes
+
 exports.determineIssueColor = async function(settings, req, issue) {
     const defaultColor = process.env.DEFAULT_ISSUE_COLOR || '#2a75fe';
-
+    
     // Try to get color for specific issue key
     let color = settings.issueColors[issue.issueKey.toLowerCase()];
-    if (color) return color;
+    if (color) {
+        return color;
+    }
 
-    // Try to get color from parent issues recursively
+    // Try to get color from parent issue
     try {
         const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
         if (issueDetails.fields.parent) {
             const parentColor = await exports.getParentIssueColor(settings, req, issueDetails, settings.issueColors);
-            if (parentColor) return parentColor;
+            if (parentColor) {
+                return parentColor;
+            }
         }
     } catch (error) {
         console.error('Error getting parent issue color:', error);
     }
 
-    // If no parent color found, try issue type colors
+    // Try issue type color
     if (issue.issueType) {
         const issueTypeLower = issue.issueType.toLowerCase();
         color = settings.issueColors[issueTypeLower];
-        if (color) return color;
-
-        // Try to get parent issue type color recursively
-        try {
-            const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
-            if (issueDetails.fields.parent) {
-                const parentType = issueDetails.fields.parent.fields.issuetype.name.toLowerCase();
-                color = settings.issueColors[parentType];
-                if (color) return color;
-            }
-        } catch (error) {
-            console.error('Error getting parent issue type color:', error);
+        if (color) {
+            return color;
         }
     }
 
