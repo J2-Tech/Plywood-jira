@@ -42,19 +42,43 @@ exports.ensureConfigDirExists = async function(req) {
     const config = await settingsService.getSettings(req);
     if (!config.issueColorField) {
         const customFields = await jiraAPIController.getCustomFields(req);
-        const issueTypes = await jiraAPIController.getIssueTypes(req);
         const issueColorField = await exports.findColorFieldName(req);
 
+        // Get user's projects first
+        let projectKey = req.query.project || 'all';
+        let jql = projectKey !== 'all' ? `project = "${projectKey}"` : '';
+        
+        // Get all issue types actually used in user's projects
+        const searchResult = await jiraAPIController.searchIssues(req, jql);
+        const usedIssueTypes = new Set();
+        searchResult.issues?.forEach(issue => {
+            if (issue.fields?.issuetype?.name) {
+                usedIssueTypes.add(issue.fields.issuetype);
+            }
+        });
+
+        // Only get colors for issue types that are actually used
         const issueColors = {};
-        for (const issueType of issueTypes) {
+        for (const issueType of usedIssueTypes) {
             const iconUrl = issueType.iconUrl;
             const color = await exports.getMainColorFromIcon(iconUrl);
             issueColors[issueType.name.toLowerCase()] = color;
         }
 
+        // Add some sensible defaults for common issue types if not already set
+        const defaultColors = {
+            'story': '#63ba3c',
+            'bug': '#e5493a',
+            'task': '#4bade8',
+            'epic': '#904ee2'
+        };
+
         await settingsService.updateSettings(req, {
             issueColorField,
-            issueColors
+            issueColors: {
+                ...defaultColors,
+                ...issueColors
+            }
         });
     }
 };
