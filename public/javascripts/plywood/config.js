@@ -89,6 +89,15 @@ export function loadConfig() {
             if (timerRoundingIntervalInput) timerRoundingIntervalInput.value = config.roundingInterval || 15;
             if (saveTimerOnIssueSwitchInput) saveTimerOnIssueSwitchInput.checked = config.saveTimerOnIssueSwitch;
 
+            // Clear and populate issue colors
+            const issueTypeColors = document.getElementById('issueTypeColors');
+            if (issueTypeColors) {
+                issueTypeColors.innerHTML = ''; // Clear existing colors
+                Object.entries(config.issueColors || {}).forEach(([issueType, color]) => {
+                    addIssueType(issueType, color);
+                });
+            }
+
             // Set global variables
             window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
             window.roundingInterval = config.roundingInterval || 15;

@@ -385,11 +385,10 @@ input#include-weekends {
 
 .fc-event {
   color: #fff !important;
-  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+  
 }
 
 .dark-theme .fc-event {
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .issue-type-icon {
