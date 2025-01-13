@@ -1,43 +1,30 @@
 import { refreshEverything } from "./calendar.js";
 import { loadProjects } from './config.js';
 
-let currentProject = 'all';
+// Initialize with localStorage value immediately
+let currentProject = localStorage.getItem('currentProject') || 'all';
 
 export function getCurrentProject() {
     return currentProject;
 }
 
+export function initializeProject() {
+    // Ensure currentProject is set on initialization
+    currentProject = localStorage.getItem('currentProject') || 'all';
+    return currentProject;
+}
+
 export async function changeProject(projectKey) {
     currentProject = projectKey;
-    
-    // Save to localStorage for persistence
     localStorage.setItem('currentProject', projectKey);
     
-    // Save to config
-    await fetch('/config/saveConfig', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            selectedProject: projectKey
-        }),
-    });
-
-    // Sync both dropdowns
     const headerProjectSelect = document.getElementById('headerProjectSelection');
-    const configProjectSelect = document.getElementById('projectSelection');
-    
     if (headerProjectSelect) {
         headerProjectSelect.value = projectKey;
     }
-    if (configProjectSelect) {
-        configProjectSelect.value = projectKey;
-    }
 
-    // Refresh calendar or stats based on current page
     if (window.location.pathname === '/stats') {
-        loadStats(); // Make sure loadStats is available globally
+        await loadStats();
     } else {
         window.calendar?.refetchEvents();
     }

@@ -11,7 +11,6 @@ export function saveConfig() {
         themeSelection: document.getElementById('themeSelection').value,
         roundingInterval: parseInt(document.getElementById('rounding-interval').value, 10),
         saveTimerOnIssueSwitch: document.getElementById('save-timer-on-issue-switch').checked,
-        selectedProject: document.getElementById('projectSelection').value,
         issueColors: {}
     };
 
@@ -35,7 +34,6 @@ export function saveConfig() {
         if (response.ok) {
             window.previousConfig = config;
             localStorage.setItem('themeSelection', config.themeSelection);
-            localStorage.setItem('currentProject', config.selectedProject);
             
             hideModal('#configModal');
             applyTheme(config.themeSelection);
@@ -46,8 +44,6 @@ export function saveConfig() {
             if (window.calendar) {
                 window.calendar.refetchEvents();
             }
-        } else {
-            console.error('Failed to save configuration.');
         }
     });
 }

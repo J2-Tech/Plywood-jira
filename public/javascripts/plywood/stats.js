@@ -1,4 +1,4 @@
-import { showLoading, hideLoading, getCurrentProject, changeProject } from './ui.js';
+import { showLoading, hideLoading, getCurrentProject, changeProject, initializeProject } from './ui.js';
 import { loadProjects } from './config.js';
 
 let currentChartType = 'issueTypes'; // 'issueTypes', 'issues', or 'projects'
@@ -135,7 +135,7 @@ async function loadStats() {
     showLoading();
     const start = document.getElementById('startDate').value;
     const end = document.getElementById('endDate').value;
-    const project = getCurrentProject();
+    const project = getCurrentProject(); // This should now have the correct value
     
     try {
         const response = await fetch(`/stats/data?start=${start}&end=${end}&project=${project}`);
@@ -390,16 +390,15 @@ function initializeChartControls() {
 }
 
 async function initializeStats() {
-    // First load config to ensure we have proper settings
-    const config = await loadConfig();
+    // Initialize project first
+    await initializeProject();
     
     initializeDateInputs();
     initializeChartControls();
     
-    // Initialize project selector with saved value from config
     const headerProjectSelect = document.getElementById('headerProjectSelection');
     if (headerProjectSelect) {
-        await loadProjects(headerProjectSelect, config.selectedProject);
+        await loadProjects(headerProjectSelect, getCurrentProject());
         
         headerProjectSelect.addEventListener('change', (event) => {
             changeProject(event.target.value);
@@ -409,14 +408,7 @@ async function initializeStats() {
     document.getElementById('refreshStats').addEventListener('click', loadStats);
     document.getElementById('toggleChart').addEventListener('click', toggleChartStyle);
     
-    // Apply theme from config
-    applyTheme(config.themeSelection);
-    
-    // Store config globally
-    window.previousConfig = config;
-    
-    // Initial load with config's project
-    loadStats();
+    await loadStats();
 }
 
 document.addEventListener('DOMContentLoaded', initializeStats);
