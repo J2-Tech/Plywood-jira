@@ -6,6 +6,7 @@ var nunjucks = require("nunjucks");
 const passport = require('passport');
 const AtlassianOAuth2Strategy = require('passport-atlassian-oauth2');
 const session = require('express-session');
+const winston = require('winston');
 
 var fs = require('fs');
 
@@ -38,6 +39,25 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Create logger
+const winstonLogger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'logs/combined.log' })
+  ]
+});
+
+// Add console transport if not in production
+if (process.env.NODE_ENV !== 'production') {
+  winstonLogger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
 
 if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
   
@@ -62,6 +82,11 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
   },
   function(accessToken, refreshToken, profile, cb) {
       try {
+          winstonLogger.info('Authentication attempt', { 
+            email: profile.email,
+            timestamp: new Date()
+          });
+
           profile.accessToken = accessToken;
           profile.refreshToken = refreshToken;
           const cloudId = profile.accessibleResources.find(
@@ -69,12 +94,20 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
           )?.id;
           
           if (!cloudId) {
+              winstonLogger.error('No matching Jira site found', {
+                url: process.env.JIRA_URL,
+                resources: profile.accessibleResources
+              });
               return cb(new Error('No matching Jira site found'));
           }
           
           profile.cloudId = cloudId;
           cb(null, profile);
       } catch (error) {
+          winstonLogger.error('Authentication error', {
+            error: error.message,
+            stack: error.stack
+          });
           cb(error);
       }
   });
@@ -108,6 +141,15 @@ app.use('/config', configRouter);
 const configController = require('./controllers/configController');
 
 // error handler
+app.use(function(err, req, res, next) {
+  winstonLogger.error('Application error', {
+    error: err.message,
+    stack: err.stack,
+    path: req.path
+  });
+  next(err);
+});
+
 app.use(function(err, req, res, next) {
   // set locals, only providing error in development
   res.locals.message = err.message;
