@@ -21,6 +21,7 @@
     "passport": "^0.7.0",
     "passport-atlassian-oauth2": "^2.1.0",
     "passport-oauth2": "^1.8.0",
-    "selfsigned": "^2.4.1"
+    "selfsigned": "^2.4.1",
+    "winston": "^3.17.0"
   }
 }
