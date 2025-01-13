@@ -460,9 +460,6 @@ input[type=range]::-webkit-slider-thumb:hover {
   visibility: visible;
   pointer-events: all;
 }
-.modal.modal-timer .choices__list--dropdown .choices__item--selectable.is-highlighted, .modal.modal-timer .choices__list[aria-expanded] .choices__item--selectable.is-highlighted {
-  background-color: #121212;
-}
 
 #colorPickerModal {
   display: flex;
@@ -1031,6 +1028,10 @@ select {
   background: #1e1e1e;
   border-color: #444;
   color: #cacaca;
+}
+
+.dark-theme .choices__list--dropdown .choices__item--selectable.is-highlighted, .dark-theme .choices__list[aria-expanded] .choices__item--selectable.is-highlighted {
+  background-color: #121212;
 }
 
 .chart-container {

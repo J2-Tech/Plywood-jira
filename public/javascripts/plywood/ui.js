@@ -1,15 +1,38 @@
 import { refreshEverything } from "./calendar.js";
 import { loadProjects } from './config.js';
 
-// Initialize with localStorage value immediately
+// State management
 let currentProject = localStorage.getItem('currentProject') || 'all';
 
+// Theme management
+export function initializeTheme() {
+    const savedTheme = localStorage.getItem('themeSelection') || 'auto';
+    applyTheme(savedTheme);
+}
+
+export function applyTheme(theme) {
+    const body = document.body;
+    body.classList.remove('light-theme', 'dark-theme');
+    localStorage.setItem('themeSelection', theme);
+
+    if (theme === 'auto') {
+        const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+        theme = prefersDarkScheme.matches ? 'dark' : 'light';
+
+        prefersDarkScheme.addEventListener('change', (e) => {
+            applyTheme('auto'); // Re-apply auto theme on system change
+        });
+    }
+
+    body.classList.add(`${theme}-theme`);
+}
+
+// Project management
 export function getCurrentProject() {
     return currentProject;
 }
 
 export function initializeProject() {
-    // Ensure currentProject is set on initialization
     currentProject = localStorage.getItem('currentProject') || 'all';
     return currentProject;
 }
@@ -77,7 +100,8 @@ if (document.readyState === 'loading') {
 }
 
 export async function initializeUI() {
-    // Existing initialization code...
+    initializeTheme();
+    await initializeProject();
     
     initializeMenu();
     
@@ -222,27 +246,6 @@ function searchIssues(query) {
             handleError(error);
             hideLoading();
         });
-}
-
-export function applyTheme(theme) {
-    const body = document.body;
-    body.classList.remove('light-theme', 'dark-theme');
-
-    // Store theme selection in localStorage for persistence across pages
-    localStorage.setItem('themeSelection', theme);
-
-    if (theme === 'auto') {
-        const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
-        theme = prefersDarkScheme.matches ? 'dark' : 'light';
-
-        prefersDarkScheme.addEventListener('change', (e) => {
-            const newTheme = e.matches ? 'dark' : 'light';
-            body.classList.remove('light-theme', 'dark-theme');
-            body.classList.add(`${newTheme}-theme`);
-        });
-    }
-
-    body.classList.add(`${theme}-theme`);
 }
 
 window.applyTheme = applyTheme;

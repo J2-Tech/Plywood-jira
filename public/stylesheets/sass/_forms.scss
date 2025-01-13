@@ -198,3 +198,9 @@ select {
         color: $dark-text;
     }
 }
+
+.choices__list--dropdown .choices__item--selectable.is-highlighted, .choices__list[aria-expanded] .choices__item--selectable.is-highlighted {
+    @include dark-theme {
+        background-color: $dark-bg;
+    }
+}

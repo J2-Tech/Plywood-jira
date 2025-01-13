@@ -1,4 +1,4 @@
-import { showLoading, hideLoading, getCurrentProject, changeProject, initializeProject } from './ui.js';
+import { showLoading, hideLoading, getCurrentProject, changeProject, initializeProject, initializeTheme } from './ui.js';
 import { loadProjects } from './config.js';
 
 let currentChartType = 'issueTypes'; // 'issueTypes', 'issues', or 'projects'
@@ -390,7 +390,8 @@ function initializeChartControls() {
 }
 
 async function initializeStats() {
-    // Initialize project first
+    // Initialize theme and project
+    initializeTheme();
     await initializeProject();
     
     initializeDateInputs();
