@@ -3,6 +3,10 @@ const https = require('https');
 const dayjs = require('dayjs');
 const configController = require('./configController');
 
+// Add at the top of the file
+const issueCache = new Map();
+const ISSUE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 // Remove global state
 // global.selectedProject = 'all';
 
@@ -283,6 +287,12 @@ exports.getIssueTypes = async function(req) {
 }
 
 async function searchIssuesWithWorkLogsInternal(req, start, end) {
+    const cacheKey = `${start}-${end}-${req.query.project || 'all'}`;
+    const cached = issueCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < ISSUE_CACHE_TTL) {
+        return cached.data;
+    }
+
     const url = getCallURL(req);
     let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
     
@@ -290,41 +300,24 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const projectKey = req.query.project;
     jql = appendProjectFilter(jql, projectKey);
     
-    // Use parallel requests for search and worklog expansion
-    const searchPromise = fetch(url + '/rest/api/2/search', {
+    const searchResult = await fetch(url + '/rest/api/2/search', {
         method: 'POST',
         headers: getDefaultHeaders(req),
         body: JSON.stringify({
             jql,
-            fields: ['parent', 'customfield_10017', 'summary', 'issuetype', 'status', 'project']
+            fields: ['parent', 'customfield_10017', 'summary', 'issuetype', 'status', 'project'],
+            maxResults: 100 // Limit results for faster response
         }),
         agent: httpsAgent
     }).then(res => res.json());
 
-    const worklogsPromise = fetch(url + '/rest/api/2/worklog/list', {
-        method: 'POST',
-        headers: getDefaultHeaders(req),
-        body: JSON.stringify({
-            ids: [] // Will be filled after search
-        }),
-        agent: httpsAgent
-    }).then(res => res.json());
+    // Cache the result
+    issueCache.set(cacheKey, {
+        data: searchResult,
+        timestamp: Date.now()
+    });
 
-    const [searchResult, _] = await Promise.all([searchPromise, worklogsPromise]);
-    
-    // Attach worklogs to issues
-    return {
-        ...searchResult,
-        issues: searchResult.issues.map(issue => ({
-            ...issue,
-            fields: {
-                ...issue.fields,
-                worklog: {
-                    worklogs: [] // Fill from worklog result
-                }
-            }
-        }))
-    };
+    return searchResult;
 }
 
 exports.searchIssuesWithWorkLogs = async function(req, start, end) {

@@ -97,31 +97,60 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
     const events = [];
 
     for (const issue of result.issues) {
-        const issueData = {
+        if (!issue.fields || !issue.fields.worklog || !issue.fields.worklog.worklogs) {
+            continue;
+        }
+
+        // Filter worklogs first
+        const filteredWorklogs = issue.fields.worklog.worklogs.filter(worklog => {
+            if (process.env.JIRA_BASIC_AUTH_USERNAME) {
+                return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
+            }
+            if (process.env.JIRA_AUTH_TYPE === "OAUTH") {
+                return worklog.author.emailAddress === req.user.email;
+            }
+            return true;
+        });
+
+        // Get color for the issue
+        const color = await exports.determineIssueColor(settings, req, {
             issueId: issue.id,
             issueKey: issue.key,
-            summary: issue.fields.summary,
-            issueType: issue.fields.issuetype.name,
-            issueTypeIcon: issue.fields.issuetype.iconUrl
-        };
+            issueType: issue.fields.issuetype.name
+        });
 
-        const worklogs = issue.fields.worklog.worklogs
-            .filter(worklog => {
-                if (process.env.JIRA_BASIC_AUTH_USERNAME) {
-                    return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
-                }
-                if (process.env.JIRA_AUTH_TYPE === "OAUTH") {
-                    return worklog.author.emailAddress === req.user.email;
-                }
-                return true;
-            });
+        // Map worklogs to events
+        const issueWorklogs = filteredWorklogs.map(worklog => {
+            // Format title with proper HTML structure
+            let title = '';
+            if (settings.showIssueTypeIcons && issue.fields.issuetype.iconUrl) {
+                title += `<img src="${issue.fields.issuetype.iconUrl}" class="issue-type-icon" alt="${issue.fields.issuetype.name}">`;
+            }
+            title += `<span class="plywood-event-title">${issue.key} - ${issue.fields.summary}</span>`;
+            if (worklog.comment) {
+                title += `<span class="comment">${worklog.comment}</span>`;
+            }
 
-        // Format each worklog using the common formatter
-        const formattedWorklogs = await Promise.all(
-            worklogs.map(worklog => exports.formatWorklog(settings, req, worklog, issueData))
-        );
-        
-        events.push(...formattedWorklogs);
+            return {
+                id: worklog.id,
+                title: title,
+                start: worklog.started,
+                end: new Date(new Date(worklog.started).getTime() + worklog.timeSpentSeconds * 1000).toISOString(),
+                worklogId: worklog.id,
+                issueId: issue.id,
+                issueKey: issue.key,
+                comment: worklog.comment || "",
+                issueSummary: issue.fields.summary,
+                editable: true,
+                backgroundColor: color,
+                textColor: color,
+                issueType: issue.fields.issuetype.name,
+                issueTypeIcon: settings.showIssueTypeIcons ? issue.fields.issuetype.iconUrl : null,
+                author: worklog.author.displayName
+            };
+        });
+
+        events.push(...issueWorklogs);
     }
 
     return events;

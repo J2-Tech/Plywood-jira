@@ -224,13 +224,13 @@ input[type=range]::-webkit-slider-thumb:hover {
   transition: background-color 0.2s ease;
 }
 .issue-header:hover {
-  background: #eff1f4;
+  background: rgb(239.075, 241.35, 243.625);
 }
 .dark-theme .issue-header {
   background: #1e1e1e;
 }
 .dark-theme .issue-header:hover {
-  background: #262626;
+  background: rgb(37.65, 37.65, 37.65);
 }
 
 .issue-header-content {
@@ -993,7 +993,7 @@ select {
   background-color: rgba(0, 0, 0, 0.05);
 }
 .dark-theme .choices__list--dropdown .choices__item--selectable.is-highlighted {
-  background-color: #383838;
+  background-color: rgb(55.5, 55.5, 55.5);
   color: #fff;
 }
 .choices__input {
@@ -1176,10 +1176,10 @@ body {
 }
 
 .dark-theme a {
-  color: #5d96fe;
+  color: rgb(92.761682243, 149.8878504673, 254.238317757);
 }
 .dark-theme a:hover {
-  color: #90b7fe;
+  color: rgb(143.523364486, 182.7757009346, 254.476635514);
 }
 .dark-theme input, .dark-theme select, .dark-theme textarea {
   background-color: #1e1e1e;
@@ -1192,7 +1192,7 @@ body {
   border-color: #444;
 }
 .dark-theme button:hover {
-  background-color: #2b2b2b;
+  background-color: rgb(42.75, 42.75, 42.75);
 }
 .dark-theme button.primary {
   background-color: #3788d8;
@@ -1219,7 +1219,7 @@ body {
   color: #cacaca;
 }
 .dark-theme .choices__list--dropdown .choices__item--selectable.is-highlighted {
-  background-color: #2b2b2b;
+  background-color: rgb(42.75, 42.75, 42.75);
 }
 
 #loading-container {
@@ -1351,13 +1351,13 @@ body {
   transition: background-color 0.2s ease;
 }
 .issue-header:hover {
-  background: #eff1f4;
+  background: rgb(239.075, 241.35, 243.625);
 }
 .dark-theme .issue-header {
   background: #1e1e1e;
 }
 .dark-theme .issue-header:hover {
-  background: #262626;
+  background: rgb(37.65, 37.65, 37.65);
 }
 
 .issue-header-content {

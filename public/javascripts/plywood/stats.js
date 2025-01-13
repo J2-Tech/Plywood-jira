@@ -8,68 +8,91 @@ let lastData = null; // Store the last data to rerender chart
 
 function renderTimeSpentList(data) {
     const container = document.getElementById('timeSpentList');
-    container.innerHTML = '';
-    
-    // Calculate max time for relative sizing
-    const maxTime = Math.max(...data.map(issue => issue.totalTimeSpent));
-    
-    // Sort data by total time spent descending
-    data.sort((a, b) => b.totalTimeSpent - a.totalTimeSpent);
-    
-    data.forEach(issue => {
-        const hours = Math.floor(issue.totalTimeSpent / 3600);
-        const minutes = Math.floor((issue.totalTimeSpent % 3600) / 60);
-        const percentage = (issue.totalTimeSpent / maxTime) * 100;
-        
-        const div = document.createElement('div');
-        div.className = 'issue-stats-container';
-        
-        // Create expandable header with progress bar
-        const header = document.createElement('div');
-        header.className = 'issue-header';
-        header.innerHTML = `
-            <div class="issue-header-content">
-                <span class="expand-button">▶</span>
-                <h3>${issue.key} - ${issue.summary}</h3>
-                <div class="time-info">
-                    ${hours}h ${minutes}m
-                </div>
-            </div>
-            <div class="progress-bar">
-                <div class="progress-fill" style="width: ${percentage}%"></div>
-            </div>
-        `;
+    const pageSize = 20;
+    let currentPage = 0;
 
-        // Create expandable content for worklogs
-        const content = document.createElement('div');
-        content.className = 'issue-content hidden';
+    // Calculate max time first
+    const maxTime = Math.max(...data.map(issue => issue.totalTimeSpent));
+
+    function renderPage(page) {
+        const start = page * pageSize;
+        const end = start + pageSize;
+        const pageData = data.slice(start, end);
         
-        if (issue.comments && issue.comments.length > 0) {
-            // Sort comments by time spent
-            const sortedComments = issue.comments
-                .sort((a, b) => b.timeSpent - a.timeSpent)
-                .map(comment => createCommentElement(comment, false));
-                
-            content.append(...sortedComments);
-        } else {
-            // Add "no comments" message
-            const noComments = document.createElement('div');
-            noComments.className = 'no-comments';
-            noComments.textContent = 'No worklog comments';
-            content.appendChild(noComments);
+        // Only clear if it's the first page
+        if (page === 0) {
+            container.innerHTML = '';
         }
-        
-        div.appendChild(header);
-        div.appendChild(content);
-        container.appendChild(div);
-        
-        // Add click handler for expansion
-        header.addEventListener('click', () => {
-            const button = header.querySelector('.expand-button');
-            button.textContent = content.classList.contains('hidden') ? '▼' : '▶';
-            content.classList.toggle('hidden');
+
+        pageData.forEach(issue => {
+            const hours = Math.floor(issue.totalTimeSpent / 3600);
+            const minutes = Math.floor((issue.totalTimeSpent % 3600) / 60);
+            const percentage = (issue.totalTimeSpent / maxTime) * 100;
+            
+            const div = document.createElement('div');
+            div.className = 'issue-stats-container';
+            
+            // Create expandable header with progress bar
+            const header = document.createElement('div');
+            header.className = 'issue-header';
+            header.innerHTML = `
+                <div class="issue-header-content">
+                    <span class="expand-button">▶</span>
+                    <h3>${issue.key} - ${issue.summary}</h3>
+                    <div class="time-info">
+                        ${hours}h ${minutes}m
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${percentage}%"></div>
+                </div>
+            `;
+
+            // Create expandable content for worklogs
+            const content = document.createElement('div');
+            content.className = 'issue-content hidden';
+            
+            if (issue.comments && issue.comments.length > 0) {
+                // Sort comments by time spent
+                const sortedComments = issue.comments
+                    .sort((a, b) => b.timeSpent - a.timeSpent)
+                    .map(comment => createCommentElement(comment, false));
+                    
+                content.append(...sortedComments);
+            } else {
+                // Add "no comments" message
+                const noComments = document.createElement('div');
+                noComments.className = 'no-comments';
+                noComments.textContent = 'No worklog comments';
+                content.appendChild(noComments);
+            }
+            
+            div.appendChild(header);
+            div.appendChild(content);
+            container.appendChild(div);
+            
+            // Add click handler for expansion
+            header.addEventListener('click', () => {
+                const button = header.querySelector('.expand-button');
+                button.textContent = content.classList.contains('hidden') ? '▼' : '▶';
+                content.classList.toggle('hidden');
+            });
         });
-    });
+
+        // Add load more button if there's more data
+        if (end < data.length) {
+            const loadMore = document.createElement('button');
+            loadMore.className = 'load-more';
+            loadMore.textContent = 'Load More';
+            loadMore.onclick = () => {
+                loadMore.remove();
+                renderPage(page + 1);
+            };
+            container.appendChild(loadMore);
+        }
+    }
+
+    renderPage(0);
 }
 
 function createCommentElement(comment, showIssueInfo = true) {

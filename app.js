@@ -7,6 +7,7 @@ const passport = require('passport');
 const AtlassianOAuth2Strategy = require('passport-atlassian-oauth2');
 const session = require('express-session');
 const winston = require('winston');
+const compression = require('compression');
 
 var fs = require('fs');
 
@@ -38,6 +39,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(compression());
 
 // Create logger
 const winstonLogger = winston.createLogger({
