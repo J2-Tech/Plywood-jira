@@ -23,28 +23,57 @@ class FileSettingsStore {
         if (!fsSync.existsSync(this.configDir)) {
             fsSync.mkdirSync(this.configDir, { recursive: true });
         }
-        
-        this.loadDefaults();
-        this.migrateOldConfig();
+    }
+
+    async initialize() {
+        await this.loadDefaults();
+        await this.migrateOldConfig();
     }
 
     async loadDefaults() {
         try {
             if (fsSync.existsSync(this.defaultsPath)) {
                 const data = await fs.readFile(this.defaultsPath, 'utf8');
-                this.cachedDefaults = JSON.parse(data);
-            } else {
-                this.cachedDefaults = minimalDefaults;
-                // Create defaults.json with minimal defaults
+                const loadedDefaults = JSON.parse(data);
+                
+                this.cachedDefaults = {
+                    ...minimalDefaults,
+                    ...loadedDefaults,
+                    issueColors: {
+                        ...minimalDefaults.issueColors,
+                        ...loadedDefaults.issueColors
+                    }
+                };
+            } else if (fsSync.existsSync(this.oldConfigPath)) {
+                // Migrate from old settings.json
+                const settingsData = await fs.readFile(this.oldConfigPath, 'utf8');
+                const oldSettings = JSON.parse(settingsData);
+                
+                this.cachedDefaults = {
+                    ...minimalDefaults,
+                    ...oldSettings,
+                    issueColors: {
+                        ...minimalDefaults.issueColors,
+                        ...oldSettings.issueColors
+                    }
+                };
+
                 await fs.writeFile(
-                    this.defaultsPath, 
-                    JSON.stringify(minimalDefaults, null, 2), 
+                    this.defaultsPath,
+                    JSON.stringify(this.cachedDefaults, null, 2),
+                    'utf8'
+                );
+            } else {
+                this.cachedDefaults = { ...minimalDefaults };
+                await fs.writeFile(
+                    this.defaultsPath,
+                    JSON.stringify(minimalDefaults, null, 2),
                     'utf8'
                 );
             }
         } catch (error) {
             console.error('Error loading defaults:', error);
-            this.cachedDefaults = minimalDefaults;
+            this.cachedDefaults = { ...minimalDefaults };
         }
     }
 
@@ -176,9 +205,22 @@ class FileSettingsStore {
 class SettingsService {
     constructor() {
         this.store = new FileSettingsStore();
+        this.initialized = false;
+        this.initPromise = null;
+    }
+
+    async initialize() {
+        if (!this.initialized) {
+            if (!this.initPromise) {
+                this.initPromise = this.store.initialize();
+            }
+            await this.initPromise;
+            this.initialized = true;
+        }
     }
 
     async getSettings(req) {
+        await this.initialize();
         const userId = this._getUserId(req);
         if (!userId) {
             return minimalDefaults;
@@ -187,6 +229,7 @@ class SettingsService {
     }
 
     async setSetting(req, key, value) {
+        await this.initialize();
         const userId = this._getUserId(req);
         if (!userId) {
             throw new Error('No user identified');
@@ -195,6 +238,7 @@ class SettingsService {
     }
 
     async updateSettings(req, settings) {
+        await this.initialize();
         const userId = this._getUserId(req);
         if (!userId) {
             throw new Error('No user identified');
