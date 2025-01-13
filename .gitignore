@@ -163,6 +163,6 @@ dist
 /config/*
 
 # CSS compiled from SASS
-public/stylesheets/*.css
-public/stylesheets/*.css.map
-public/stylesheets/style.css
+/public/stylesheets/*.css
+/public/stylesheets/*.css.map
+/public/stylesheets/style.css
