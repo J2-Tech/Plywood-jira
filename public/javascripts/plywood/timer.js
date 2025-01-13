@@ -147,7 +147,21 @@ export function formatDuration(duration) {
  */
 export function toggleTimerModal() {
     const modal = document.getElementById('timerModal');
-    modal.style.display = (modal.style.display === 'none' || modal.style.display === '') ? 'block' : 'none';
+    if (modal.style.display === 'none' || modal.style.display === '') {
+        showTimerModal();
+    } else {
+        hideTimerModal();
+    }
+}
+
+export function showTimerModal() {
+    const modal = document.getElementById('timerModal');
+    modal.style.display = 'block';
+}
+
+export function hideTimerModal() {
+    const modal = document.getElementById('timerModal');
+    modal.style.display = 'none';
 }
 
 /**

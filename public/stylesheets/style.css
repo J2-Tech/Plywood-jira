@@ -251,10 +251,17 @@ footer button {
   resize: none;
   min-height: 450px;
   min-width: 350px;
-  opacity: 95%;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
   padding-bottom:0;
 }
 
+.modal.modal-timer[style*="display: block"] {
+  opacity: 0.95;
+  visibility: visible;
+  pointer-events: all;
+}
 
 #timerForm .buttons {
   align-content: center;
@@ -277,6 +284,7 @@ footer button {
   border: 1px solid #ddd;
   border-radius: 4px;
   cursor: pointer;
+  transition: all 0.2s;
 }
 #timer-container {
   display: flex;

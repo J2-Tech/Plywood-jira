@@ -1,5 +1,6 @@
 import { showLoading, hideLoading } from './ui.js';
 import { refreshWorklog } from './calendar.js';
+import { toggleTimerModal, showTimerModal, hideTimerModal } from './timer.js';
 
 /**
  * General function to show a modal.
@@ -200,14 +201,18 @@ export function hideAboutModal() {
     modal.style.display = 'none';
 }
 
-window.hideModal = hideModal;
+// Make functions available globally
 window.showModal = showModal;
+window.hideModal = hideModal;
 window.showUpdateModal = showUpdateModal;
 window.showCreateModal = showCreateModal;
 window.toggleConfigModal = toggleConfigModal;
 window.showColorPicker = showColorPicker;
 window.hideColorPickerModal = hideColorPickerModal;
 window.saveColor = saveColor;
-window.saveColorForIssue = saveColorForIssue;
 window.showAboutModal = showAboutModal;
 window.hideAboutModal = hideAboutModal;
+window.toggleTimerModal = toggleTimerModal;
+window.showTimerModal = showTimerModal;
+window.hideTimerModal = hideTimerModal;
+window.saveColorForIssue = saveColorForIssue;
