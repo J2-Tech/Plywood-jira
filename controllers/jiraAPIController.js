@@ -6,6 +6,11 @@ const configController = require('./configController');
 // Remove global state
 // global.selectedProject = 'all';
 
+const shouldValidateHttps = process.env.JIRA_API_DISABLE_HTTPS_VALIDATION !== 'true';
+const httpsAgent = new https.Agent({
+    rejectUnauthorized: shouldValidateHttps
+});
+
 function getDefaultHeaders(req) {
     if (!req.user && process.env.JIRA_AUTH_TYPE === "OAUTH") {
         throw new Error('No user session found');
@@ -47,16 +52,6 @@ function getCallURL(req) {
             break;
     }
     return defaultURL;
-}
-
-let httpsAgent;
-
-if (process.env.JIRA_API_DISABLE_HTTPS_VALIDATION || process.env.JIRA_API_DISABLE_HTTPS_VALIDATION===undefined) {
-    httpsAgent = new https.Agent({
-        rejectUnauthorized: false,
-    });
-} else {
-    httpsAgent = new https.Agent();
 }
 
 async function withRetry(fetchFn, req, ...args) {
@@ -373,3 +368,20 @@ function formatDateToJira(date) {
     const dayJsDate = dayjs(date);
     return dayJsDate.format('YYYY-MM-DDTHH:mm:ss.SSSZZ');
 }
+
+exports.getMainColorFromIcon = async function (imageUrl) {
+    if (!imageUrl) {
+        return '#2684FF'; // Default Jira blue
+    }
+
+    try {
+        const response = await fetch(imageUrl, {
+            agent: httpsAgent // Use the same HTTPS validation settings as other API calls
+        });
+        const svgText = await response.text();
+        // ... rest of the function
+    } catch (error) {
+        console.error('Error fetching icon:', error);
+        return '#2684FF'; // Default Jira blue
+    }
+};

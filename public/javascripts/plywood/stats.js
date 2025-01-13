@@ -75,12 +75,20 @@ function renderTimeSpentList(data) {
         const content = document.createElement('div');
         content.className = 'issue-content hidden';
         
-        // Sort comments by time spent
-        const sortedComments = issue.comments
-            .sort((a, b) => b.timeSpent - a.timeSpent)
-            .map(comment => createCommentElement(comment, false));
-            
-        content.append(...sortedComments);
+        if (issue.comments && issue.comments.length > 0) {
+            // Sort comments by time spent
+            const sortedComments = issue.comments
+                .sort((a, b) => b.timeSpent - a.timeSpent)
+                .map(comment => createCommentElement(comment, false));
+                
+            content.append(...sortedComments);
+        } else {
+            // Add "no comments" message
+            const noComments = document.createElement('div');
+            noComments.className = 'no-comments';
+            noComments.textContent = 'No worklog comments';
+            content.appendChild(noComments);
+        }
         
         div.appendChild(header);
         div.appendChild(content);

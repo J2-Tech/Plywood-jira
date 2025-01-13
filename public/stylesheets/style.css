@@ -1323,3 +1323,18 @@ body {
 .dark-theme .type-button {
     color: #ccc;
 }
+
+.no-comments {
+    padding: 10px;
+    color: #666;
+    text-align: center;
+    font-style: italic;
+    background: #f5f5f5;
+    border-radius: 4px;
+    margin: 8px 0;
+}
+
+.dark-theme .no-comments {
+    background: #363636;
+    color: #aaa;
+}

@@ -18,7 +18,6 @@ class FileSettingsStore {
         this.configDir = path.join(__dirname, '..', 'config', 'users');
         this.oldConfigPath = path.join(__dirname, '..', 'config', 'settings.json');
         this.defaultsPath = path.join(__dirname, '..', 'config', 'defaults.json');
-        this.cachedDefaults = null;
         
         if (!fsSync.existsSync(this.configDir)) {
             fsSync.mkdirSync(this.configDir, { recursive: true });
@@ -34,80 +33,42 @@ class FileSettingsStore {
         try {
             if (fsSync.existsSync(this.defaultsPath)) {
                 const data = await fs.readFile(this.defaultsPath, 'utf8');
-                const loadedDefaults = JSON.parse(data);
-                
-                this.cachedDefaults = {
-                    ...minimalDefaults,
-                    ...loadedDefaults,
-                    issueColors: {
-                        ...minimalDefaults.issueColors,
-                        ...loadedDefaults.issueColors
-                    }
-                };
-            } else if (fsSync.existsSync(this.oldConfigPath)) {
-                // Migrate from old settings.json
-                const settingsData = await fs.readFile(this.oldConfigPath, 'utf8');
-                const oldSettings = JSON.parse(settingsData);
-                
-                this.cachedDefaults = {
-                    ...minimalDefaults,
-                    ...oldSettings,
-                    issueColors: {
-                        ...minimalDefaults.issueColors,
-                        ...oldSettings.issueColors
-                    }
-                };
-
-                await fs.writeFile(
-                    this.defaultsPath,
-                    JSON.stringify(this.cachedDefaults, null, 2),
-                    'utf8'
-                );
-            } else {
-                this.cachedDefaults = { ...minimalDefaults };
-                await fs.writeFile(
-                    this.defaultsPath,
-                    JSON.stringify(minimalDefaults, null, 2),
-                    'utf8'
-                );
+                return { ...minimalDefaults, ...JSON.parse(data) };
             }
+            return { ...minimalDefaults };
         } catch (error) {
             console.error('Error loading defaults:', error);
-            this.cachedDefaults = { ...minimalDefaults };
+            return { ...minimalDefaults };
         }
     }
 
     async getSettings(userId) {
         const mutex = this._getUserMutex(userId);
         if (mutex.isLocked()) {
-            return { ...this.cachedDefaults };
+            return { ...minimalDefaults };
         }
         
         const release = await mutex.acquire();
         try {
             const userConfigPath = this._getUserConfigPath(userId);
             
-            // Load user config if exists
-            const exists = await fs.access(userConfigPath).then(() => true).catch(() => false);
-            if (!exists) {
-                return { ...this.cachedDefaults };
-            }
-            
-            const data = await fs.readFile(userConfigPath, 'utf8');
-            const userConfig = JSON.parse(data);
-            
-            // Merge with defaults
-            return {
-                ...this.cachedDefaults,
-                ...userConfig,
-                issueColors: {
-                    ...this.cachedDefaults.issueColors,
-                    ...userConfig.issueColors
+            try {
+                // Check if user config exists
+                const exists = await fs.access(userConfigPath).then(() => true).catch(() => false);
+                if (!exists) {
+                    // Only use defaults for new users
+                    const defaults = await this.loadDefaults();
+                    await fs.writeFile(userConfigPath, JSON.stringify(defaults, null, 2), 'utf8');
+                    return { ...defaults };
                 }
-            };
-        } catch (error) {
-            console.error(`Error reading settings for user ${userId}:`, error);
-            return { ...this.cachedDefaults };
+
+                // Load existing user config
+                const data = await fs.readFile(userConfigPath, 'utf8');
+                return { ...minimalDefaults, ...JSON.parse(data) };
+            } catch (error) {
+                console.error(`Error reading settings for user ${userId}:`, error);
+                return { ...minimalDefaults };
+            }
         } finally {
             release();
             this._cleanupMutex(userId);
@@ -142,24 +103,8 @@ class FileSettingsStore {
         const release = await mutex.acquire();
         try {
             const userConfigPath = this._getUserConfigPath(userId);
-            const currentConfig = await this.getSettings(userId);
-            
-            // Properly merge settings, especially for nested objects
-            const newConfig = {
-                ...currentConfig,
-                ...settings,
-                issueColors: {
-                    ...currentConfig.issueColors,
-                    ...settings.issueColors
-                }
-            };
-
-            await fs.writeFile(
-                userConfigPath, 
-                JSON.stringify(newConfig, null, 2), 
-                'utf8'
-            );
-            return newConfig;
+            await fs.writeFile(userConfigPath, JSON.stringify(settings, null, 2), 'utf8');
+            return settings;
         } finally {
             release();
             this._cleanupMutex(userId);

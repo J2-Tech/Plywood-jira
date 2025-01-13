@@ -34,14 +34,10 @@ export function saveConfig() {
     }).then(response => {
         if (response.ok) {
             window.previousConfig = config;
-            
-            // Store settings in localStorage
             localStorage.setItem('themeSelection', config.themeSelection);
             localStorage.setItem('currentProject', config.selectedProject);
             
             hideModal('#configModal');
-            
-            // Apply settings
             applyTheme(config.themeSelection);
             window.showIssueTypeIcons = config.showIssueTypeIcons;
             window.roundingInterval = config.roundingInterval;

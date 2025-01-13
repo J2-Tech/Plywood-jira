@@ -43,47 +43,24 @@ exports.saveAccumulatedIssueColors = async function(req) {
 
 exports.ensureConfigDirExists = async function(req) {
     const config = await settingsService.getSettings(req);
-    if (!config.issueColorField) {
+    /*if (!config.issueColorField) {
         const customFields = await jiraAPIController.getCustomFields(req);
         const issueColorField = await exports.findColorFieldName(req);
 
-        // Get user's projects first
-        let projectKey = req.query.project || 'all';
-        let jql = projectKey !== 'all' ? `project = "${projectKey}"` : '';
-        
-        // Get all issue types actually used in user's projects
-        const searchResult = await jiraAPIController.searchIssues(req, jql);
-        const usedIssueTypes = new Set();
-        searchResult.issues?.forEach(issue => {
-            if (issue.fields?.issuetype?.name) {
-                usedIssueTypes.add(issue.fields.issuetype);
-            }
-        });
-
-        // Only get colors for issue types that are actually used
-        const issueColors = {};
-        for (const issueType of usedIssueTypes) {
-            const iconUrl = issueType.iconUrl;
-            const color = await exports.getMainColorFromIcon(iconUrl);
-            issueColors[issueType.name.toLowerCase()] = color;
-        }
-
-        // Add some sensible defaults for common issue types if not already set
+        // Get default colors
         const defaultColors = {
             'story': '#63ba3c',
             'bug': '#e5493a',
             'task': '#4bade8',
-            'epic': '#904ee2'
+            'epic': '#904ee2',
+            'subtask': '#4baee8'
         };
 
         await settingsService.updateSettings(req, {
             issueColorField,
-            issueColors: {
-                ...defaultColors,
-                ...issueColors
-            }
+            issueColors: defaultColors
         });
-    }
+    }*/
 };
 
 exports.findColorFieldName = async function (req) {
@@ -149,4 +126,22 @@ exports.getMainColorFromIcon = async function (imageUrl) {
         console.error(`Error getting icon color from ${imageUrl}:`, error);
         return '#2684FF';
     }
+};
+
+// Update determineIssueColor to not try fetching colors automatically
+exports.determineIssueColor = async function(settings, req, issue) {
+    const defaultColor = process.env.DEFAULT_ISSUE_COLOR || '#2a75fe';
+
+    // Try to get color for specific issue key
+    let color = settings.issueColors[issue.issueKey.toLowerCase()];
+    if (color) return color;
+
+    // Try to get color from issue type
+    if (issue.issueType) {
+        const issueTypeLower = issue.issueType.toLowerCase();
+        color = settings.issueColors[issueTypeLower];
+        if (color) return color;
+    }
+
+    return defaultColor;
 };

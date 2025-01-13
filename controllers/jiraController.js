@@ -54,17 +54,6 @@ exports.determineIssueColor = async function(settings, req, issue) {
     let color = settings.issueColors[issue.issueKey.toLowerCase()];
     if (color) return color;
 
-    // Try to get color from parent issue
-    if (!color) {
-        try {
-            const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
-            color = await exports.getParentIssueColor(settings, req, issueDetails, settings.issueColors);
-            if (color) return color;
-        } catch (error) {
-            console.error('Error getting parent issue color:', error);
-        }
-    }
-
     // Try to get color from issue type
     if (issue.issueType) {
         const issueTypeLower = issue.issueType.toLowerCase();
