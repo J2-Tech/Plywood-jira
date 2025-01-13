@@ -1,32 +1,37 @@
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const https = require('https');
 const dayjs = require('dayjs');
+const configController = require('./configController');
+
+// Remove global state
+// global.selectedProject = 'all';
 
 function getDefaultHeaders(req) {
-    let defaultHeaders;
+    if (!req.user && process.env.JIRA_AUTH_TYPE === "OAUTH") {
+        throw new Error('No user session found');
+    }
 
     switch (process.env.JIRA_AUTH_TYPE) {
         case "OAUTH":
-            defaultHeaders = {
+            return {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'Authorization': 'Bearer ' + req.user.accessToken
             };
-        break;
         
         case "BASIC":
         default:
-            const bearerToken = 'Basic ' + Buffer.from(process.env.JIRA_BASIC_AUTH_USERNAME + ':' + process.env.JIRA_BASIC_AUTH_API_TOKEN).toString('base64');
+            const bearerToken = 'Basic ' + Buffer.from(
+                process.env.JIRA_BASIC_AUTH_USERNAME + ':' + 
+                process.env.JIRA_BASIC_AUTH_API_TOKEN
+            ).toString('base64');
 
-            defaultHeaders = {
+            return {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'Authorization': bearerToken
             };
-            break;
     }
-
-    return defaultHeaders;
 }
 
 function getCallURL(req) {
@@ -55,16 +60,20 @@ if (process.env.JIRA_API_DISABLE_HTTPS_VALIDATION || process.env.JIRA_API_DISABL
 }
 
 async function withRetry(fetchFn, req, ...args) {
-    const data = await fetchFn(req, ...args);
-    if (data.code === 401 && process.env.JIRA_AUTH_TYPE === "OAUTH") {
-        console.log('Token expired. Refreshing token...');
-        await refreshToken(req);
-        // Retry the API call with the new token
-        return fetchFn(req, ...args);
-    } else if (data.code === 401) {
-        console.log('Error - unauthorized. Check your credentials.');
-    } else {
+    try {
+        const data = await fetchFn(req, ...args);
+        if (data.code === 401 && process.env.JIRA_AUTH_TYPE === "OAUTH") {
+            console.log('Token expired. Refreshing token...');
+            await refreshToken(req);
+            return await fetchFn(req, ...args);
+        } else if (data.code === 401) {
+            console.log('Error - unauthorized. Check your credentials.');
+            throw new Error('Unauthorized');
+        }
         return data;
+    } catch (error) {
+        console.error('API call failed:', error);
+        throw error;
     }
 }
 
@@ -114,7 +123,9 @@ exports.getAvailableSites= function(req) {
 function searchIssuesInternal(req, jql) {
     const headers = getDefaultHeaders(req);
     const url = getCallURL(req);
-    const fields = ['summary', 'issuetype', 'parent', 'customfield_10017']; // Include parent and custom color field
+    jql = appendProjectFilter(jql, req.query.project);
+    
+    const fields = ['summary', 'issuetype', 'parent', 'customfield_10017'];
     return fetch(url + '/rest/api/3/search?maxResults=' + process.env.JIRA_MAX_SEARCH_RESULTS + '&jql=' + jql + '&fields=' + fields.join(','), {
         method: 'GET',
         headers,
@@ -132,15 +143,17 @@ exports.suggestIssues = function(req, query) {
 
 function suggestIssuesInternal(req, query) {
     const url = getCallURL(req);
-    if (process.env.JIRA_PROJECT_JQL) {
-        query += '&currentJQL=' + process.env.JIRA_PROJECT_JQL
+    const projectFilter = appendProjectFilter('', req.query.project);
+    
+    if (projectFilter) {
+        query += '&currentJQL=' + projectFilter;
     }
-    return fetch(url + '/rest/api/3/issue/picker?query=' + query , {
+    
+    return fetch(url + '/rest/api/3/issue/picker?query=' + query, {
         method: 'GET',
         headers: getDefaultHeaders(req),
-        agent:httpsAgent
+        agent: httpsAgent
     }).then(res => res.json());
-
 }
 
 function getIssueInternal(req, issueId) {
@@ -276,22 +289,85 @@ exports.getIssueTypes = async function(req) {
 
 async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const url = getCallURL(req);
-    const jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
+    let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
+    
+    // Get project from query params
+    const projectKey = req.query.project;
+    jql = appendProjectFilter(jql, projectKey);
+    
     return fetch(url + '/rest/api/2/search', {
         method: 'POST',
         headers: getDefaultHeaders(req),
         body: JSON.stringify({
             jql,
             expand: ['renderedFields', 'worklog'],
-            fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype']
+            fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype', 'status', 'project']
         }),
         agent: httpsAgent
     }).then(res => res.json());
 }
 
-exports.searchIssuesWithWorkLogs = function(req, start, end) {
-    return withRetry(searchIssuesWithWorkLogsInternal, req, start, end);
+exports.searchIssuesWithWorkLogs = async function(req, start, end) {
+    const url = getCallURL(req);
+    let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
+    
+    // Get project from query params and apply filter
+    const projectKey = req.query.project;
+    jql = appendProjectFilter(jql, projectKey);
+    
+    return fetch(url + '/rest/api/2/search', {
+        method: 'POST',
+        headers: getDefaultHeaders(req),
+        body: JSON.stringify({
+            jql,
+            expand: ['renderedFields', 'worklog'],
+            fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype', 'status', 'project']
+        }),
+        agent: httpsAgent
+    }).then(res => res.json());
 };
+
+exports.getProjects = async function(req) {
+    const url = getCallURL(req);
+    const response = await fetch(url + '/rest/api/3/project/search', {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent: httpsAgent
+    });
+    return response.json();
+};
+
+exports.getSprints = async function(req) {
+    const url = getCallURL(req);
+    const response = await fetch(url + '/rest/agile/1.0/sprint/search', {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent: httpsAgent
+    });
+    return response.json();
+};
+
+exports.getSprintIssues = async function(req, sprintId) {
+    const url = getCallURL(req);
+    const jql = `sprint = ${sprintId}`;
+    return fetch(url + '/rest/api/2/search', {
+        method: 'POST',
+        headers: getDefaultHeaders(req),
+        body: JSON.stringify({
+            jql,
+            expand: ['renderedFields', 'worklog'],
+            fields: ['worklog', 'summary', 'issuetype', 'status']
+        }),
+        agent: httpsAgent
+    }).then(res => res.json());
+};
+
+function appendProjectFilter(jql, projectKey) {
+    if (projectKey && projectKey !== 'all') {
+        return jql ? `project = "${projectKey}" AND (${jql})` : `project = "${projectKey}"`;
+    }
+    return jql;
+}
 
 function formatDateToJira(date) {
     const dayJsDate = dayjs(date);

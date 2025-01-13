@@ -1,6 +1,16 @@
-
 exports.logout = function(req, res){
-    req.logout();
-    req.session.destroy();
-    res.redirect('/');
+    if (req.session) {
+        req.session.destroy((err) => {
+            if (err) {
+                console.error('Session destruction error:', err);
+            }
+            req.logout(() => {
+                res.redirect('/');
+            });
+        });
+    } else {
+        req.logout(() => {
+            res.redirect('/');
+        });
+    }
 };

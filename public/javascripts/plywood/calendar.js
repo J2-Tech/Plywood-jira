@@ -1,4 +1,4 @@
-import { showLoading, hideLoading } from './ui.js';
+import { showLoading, hideLoading, getCurrentProject } from './ui.js';
 import { showUpdateModal, showCreateModal } from './modal.js';
 
 window.calendar = null;
@@ -123,6 +123,11 @@ export function initializeCalendar() {
         events: {
             url: "/events",
             method: "GET",
+            extraParams: function() {
+                return {
+                    project: getCurrentProject()
+                };
+            },
             failure: function (error) {
                 if (error && error.response && error.response.headers && error.response.headers.location && error.response.headers.location == "/auth/login") {
                     window.location.href = "/auth/login";

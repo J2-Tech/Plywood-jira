@@ -1,4 +1,47 @@
 import { refreshEverything } from "./calendar.js";
+import { loadProjects } from './config.js';
+
+let currentProject = 'all';
+
+export function getCurrentProject() {
+    return currentProject;
+}
+
+export async function changeProject(projectKey) {
+    currentProject = projectKey;
+    
+    // Save to localStorage for persistence
+    localStorage.setItem('currentProject', projectKey);
+    
+    // Save to config
+    await fetch('/config/saveConfig', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            selectedProject: projectKey
+        }),
+    });
+
+    // Sync both dropdowns
+    const headerProjectSelect = document.getElementById('headerProjectSelection');
+    const configProjectSelect = document.getElementById('projectSelection');
+    
+    if (headerProjectSelect) {
+        headerProjectSelect.value = projectKey;
+    }
+    if (configProjectSelect) {
+        configProjectSelect.value = projectKey;
+    }
+
+    // Refresh calendar or stats based on current page
+    if (window.location.pathname === '/stats') {
+        loadStats(); // Make sure loadStats is available globally
+    } else {
+        window.calendar?.refetchEvents();
+    }
+}
 
 /**
  * Show loading spinner.
@@ -19,7 +62,38 @@ export function hideLoading() {
 /**
  * Initialize other UI elements.
  */
-export function initializeUI() {
+function initializeMenu() {
+    const menuButton = document.getElementById('menuButton');
+    const menuContent = document.getElementById('menuContent');
+
+    if (!menuButton || !menuContent) return;
+
+    menuButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menuContent.classList.toggle('show');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (menuContent.classList.contains('show') && 
+            !menuContent.contains(e.target) && 
+            !menuButton.contains(e.target)) {
+            menuContent.classList.remove('show');
+        }
+    });
+}
+
+// Ensure initialization happens after DOM is loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeMenu);
+} else {
+    initializeMenu();
+}
+
+export async function initializeUI() {
+    // Existing initialization code...
+    
+    initializeMenu();
+    
     var slider = document.getElementById("zoom-range");
     slider.oninput = function () {
         var timeVal = this.value;
@@ -55,7 +129,21 @@ export function initializeUI() {
         refreshEverything();
     });
 
+    // Initialize project selector
+    const headerProjectSelect = document.getElementById('headerProjectSelection');
+    if (headerProjectSelect) {
+        // Load saved project from localStorage or default to 'all'
+        currentProject = localStorage.getItem('currentProject') || 'all';
+        
+        await loadProjects(headerProjectSelect, currentProject);
+        
+        headerProjectSelect.addEventListener('change', (event) => {
+            changeProject(event.target.value);
+        });
+    }
+
     hideLoading();
+    initializeMenu();
 }
 
 /**
@@ -129,9 +217,10 @@ function searchDebounce(func, delay) {
 function searchIssues(query) {
     const startDate = encodeURIComponent(new Date(window.calendar.view.activeStart).toISOString());
     const endDate = encodeURIComponent(new Date(window.calendar.view.activeEnd).toISOString());
+    const project = encodeURIComponent(getCurrentProject());
 
     showLoading();
-    return fetch(`/issues/user?start=${startDate}&end=${endDate}&query=${query}`)
+    return fetch(`/issues/user?start=${startDate}&end=${endDate}&query=${query}&project=${project}`)
         .then((res) => res.json())
         .then((data) => {
             const options = data.map((issue) => ({
@@ -152,11 +241,13 @@ export function applyTheme(theme) {
     const body = document.body;
     body.classList.remove('light-theme', 'dark-theme');
 
+    // Store theme selection in localStorage for persistence across pages
+    localStorage.setItem('themeSelection', theme);
+
     if (theme === 'auto') {
         const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
         theme = prefersDarkScheme.matches ? 'dark' : 'light';
 
-        // Listen for changes in the system theme
         prefersDarkScheme.addEventListener('change', (e) => {
             const newTheme = e.matches ? 'dark' : 'light';
             body.classList.remove('light-theme', 'dark-theme');

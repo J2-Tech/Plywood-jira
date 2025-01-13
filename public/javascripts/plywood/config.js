@@ -1,5 +1,5 @@
 import { hideModal } from './modal.js';
-import { applyTheme } from './ui.js';
+import { applyTheme, getCurrentProject, changeProject } from './ui.js';
 import { showLoading, hideLoading } from './ui.js';
 
 /**
@@ -11,6 +11,7 @@ export function saveConfig() {
         themeSelection: document.getElementById('themeSelection').value,
         roundingInterval: parseInt(document.getElementById('rounding-interval').value, 10),
         saveTimerOnIssueSwitch: document.getElementById('save-timer-on-issue-switch').checked,
+        selectedProject: document.getElementById('projectSelection').value,
         issueColors: {}
     };
 
@@ -24,11 +25,7 @@ export function saveConfig() {
         }
     }
 
-    // Detect removed colors
-    const previousConfig = window.previousConfig || {};
-    const removedColors = Object.keys(previousConfig.issueColors || {}).filter(issueType => !(issueType in config.issueColors));
-
-    fetch('/config/saveConfig', {
+    return fetch('/config/saveConfig', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -36,21 +33,23 @@ export function saveConfig() {
         body: JSON.stringify(config),
     }).then(response => {
         if (response.ok) {
+            window.previousConfig = config;
+            
+            // Store settings in localStorage
+            localStorage.setItem('themeSelection', config.themeSelection);
+            localStorage.setItem('currentProject', config.selectedProject);
+            
             hideModal('#configModal');
-            if (config.themeSelection !== document.body.className) {
-                applyTheme(config.themeSelection);
-            }
-            if (config.showIssueTypeIcons !== window.showIssueTypeIcons) {
-                window.showIssueTypeIcons = config.showIssueTypeIcons;
+            
+            // Apply settings
+            applyTheme(config.themeSelection);
+            window.showIssueTypeIcons = config.showIssueTypeIcons;
+            window.roundingInterval = config.roundingInterval;
+            window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
+            
+            if (window.calendar) {
                 window.calendar.refetchEvents();
             }
-            window.roundingInterval = config.roundingInterval;
-            syncRoundingInterval();
-
-            // Refresh relevant issues
-            removedColors.forEach(issueType => {
-                refreshAllWorklogsOfIssueType(issueType);
-            });
         } else {
             console.error('Failed to save configuration.');
         }
@@ -63,25 +62,39 @@ export function saveConfig() {
 export function loadConfig() {
     return fetch('/config/getConfig')
         .then(response => response.json())
-        .then(config => {
-            document.getElementById('showIssueTypeIcons').checked = config.showIssueTypeIcons;
-            document.getElementById('themeSelection').value = config.themeSelection || 'light';
-            document.getElementById('rounding-interval').value = config.roundingInterval || 15;
-            document.getElementById('timer-rounding-interval').value = config.roundingInterval || 15;
-            document.getElementById('save-timer-on-issue-switch').checked = config.saveTimerOnIssueSwitch;
+        .then(async config => {
+            // Set default values if undefined
+            config = {
+                showIssueTypeIcons: true,
+                themeSelection: localStorage.getItem('themeSelection') || 'auto',
+                roundingInterval: 15,
+                issueColors: {},
+                selectedProject: localStorage.getItem('currentProject') || 'all',
+                ...config  // Merge with saved config
+            };
+
+            // Store config globally
+            window.previousConfig = config;
+
+            // Update form inputs if they exist
+            const showIssueTypeIconsInput = document.getElementById('showIssueTypeIcons');
+            const themeSelectionInput = document.getElementById('themeSelection');
+            const roundingIntervalInput = document.getElementById('rounding-interval');
+            const timerRoundingIntervalInput = document.getElementById('timer-rounding-interval');
+            const saveTimerOnIssueSwitchInput = document.getElementById('save-timer-on-issue-switch');
+
+            if (showIssueTypeIconsInput) showIssueTypeIconsInput.checked = config.showIssueTypeIcons;
+            if (themeSelectionInput) themeSelectionInput.value = config.themeSelection;
+            if (roundingIntervalInput) roundingIntervalInput.value = config.roundingInterval || 15;
+            if (timerRoundingIntervalInput) timerRoundingIntervalInput.value = config.roundingInterval || 15;
+            if (saveTimerOnIssueSwitchInput) saveTimerOnIssueSwitchInput.checked = config.saveTimerOnIssueSwitch;
+
+            // Set global variables
             window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
             window.roundingInterval = config.roundingInterval || 15;
-            syncRoundingInterval();
-
-            const issueTypeColors = document.getElementById('issueTypeColors');
-            issueTypeColors.innerHTML = '';
-
-            for (const [issueType, color] of Object.entries(config.issueColors)) {
-                addIssueType(issueType, color);
-            }
-
-            applyTheme(config.themeSelection);
-            window.previousConfig = config;
+            window.showIssueTypeIcons = config.showIssueTypeIcons;
+            
+            return config;
         });
 }
 
@@ -168,6 +181,43 @@ function refreshAllWorklogsOfIssueType(issueType) {
             refreshWorklog(event.extendedProps.issueId, event.extendedProps.worklogId);
         }
     });
+}
+
+export async function loadProjects(targetElement, selectedValue = 'all') {
+    const response = await fetch('/projects');
+    const data = await response.json();
+    targetElement.innerHTML = '<option value="all">All Projects</option>';
+    
+    data.values.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.key;
+        option.textContent = `${project.key} - ${project.name}`;
+        targetElement.appendChild(option);
+    });
+
+    targetElement.value = selectedValue;
+}
+
+export async function initializeProjectSelectors() {
+    const headerProjectSelect = document.getElementById('headerProjectSelection');
+    const configProjectSelect = document.getElementById('projectSelection');
+    
+    // Get current project using the getter from ui.js
+    const savedProject = localStorage.getItem('currentProject') || 'all';
+    
+    if (headerProjectSelect) {
+        await loadProjects(headerProjectSelect, savedProject);
+        headerProjectSelect.addEventListener('change', (event) => {
+            changeProject(event.target.value);
+        });
+    }
+    
+    if (configProjectSelect) {
+        await loadProjects(configProjectSelect, savedProject);
+        configProjectSelect.addEventListener('change', (event) => {
+            changeProject(event.target.value);
+        });
+    }
 }
 
 window.saveConfig = saveConfig;
