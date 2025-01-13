@@ -1,84 +1,37 @@
-{% import "modals.njk" as modals %}
-<!DOCTYPE html>
-<html>
-    <head>  
-        <title>Plywood - Jira Worklog Management</title>
-        <link href='/stylesheets/style.css' rel='stylesheet' />
-        <link href='/stylesheets/dark.css' rel='stylesheet' />
-        <meta http-equiv='Content-Security-Policy' content="font-src data:" />
-        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-        <meta name="jira-url" content="{{ jiraUrl }}">
-        <meta charset='utf-8' />
-        <link
-        rel="stylesheet"
-        href="/stylesheets/choices.min.css"
-        />
+{% extends "layout.njk" %}
 
-        <link type="image/png" sizes="96x96" rel="icon" href="/images/icons8-plywood-96.png">
+{% block head %}
+    <script src="/javascripts/fullcalendar.min.js"></script>
+{% endblock %}
 
-        <script src="/javascripts/choices.min.js"></script>
-        <script src="/javascripts/moment.min.js" ></script>
-        <script src="/javascripts/fullcalendar.min.js" ></script>
-        <script src="/javascripts/moment-duration-format.js"></script>
+{% block content %}
+    <div id='calendar'></div>
+{% endblock %}
 
-    </head>
+{% block footer_left %}
+    <div class="footer-controls">
+        <div class="control-group">
+            <input type="range" min="1" max="4" step="1" value="2" id="zoom-range" name="zoom-range">
+            <output for="zoom-range" id="zoom-output">15 minutes / slot</output>
+        </div>
+        <div class="control-group">
+            <input type="checkbox" id="include-weekends" name="include-weekends">
+            <label for="include-weekends">Weekends</label>
+        </div>
+    </div>
+{% endblock %}
 
-    <body>
-        {{ modals.modals() }}
-        <div id='calendar'></div>
+{% block footer_center %}
+    <div id="total-time" class="footer-center">
+        <h3>Total time:</h3>
+        <div id="total-time-value"></div>
+    </div>
+{% endblock %}
 
-        <footer class="app-footer">
-            <div class="footer-left">
-                <div class="hamburger-menu">
-                    <button id="menuButton" class="hamburger-button">☰</button>
-                    <div id="menuContent" class="menu-content">
-                        <div class="menu-item">
-                            <select id="headerProjectSelection" class="project-selector">
-                                <option value="all">All Projects</option>
-                            </select>
-                        </div>
-                        <div class="menu-item" onclick="window.location.href='/'">
-                            <span>📅 Calendar</span>
-                        </div>
-                        <div class="menu-item" onclick="window.location.href='/stats'">
-                            <span>📊 Statistics</span>
-                        </div>
-                        <div class="menu-item" onclick="toggleConfigModal()">
-                            <span>⚙️ Settings</span>
-                        </div>
-                        <div class="menu-item" onclick="showAboutModal()">
-                            <span>ℹ️ About</span>
-                        </div>
-                        <div class="menu-item" onclick="window.location.href='/auth/logout'">
-                            <span>🚪 Logout</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="footer-controls">
-                    <div class="control-group">
-                        <input type="range" min="1" max="4" step="1" value="2" id="zoom-range" name="zoom-range">
-                        <output for="zoom-range" id="zoom-output">15 minutes / slot</output>
-                    </div>
-                    <div class="control-group">
-                        <input type="checkbox" id="include-weekends" name="include-weekends">
-                        <label for="include-weekends">Weekends</label>
-                    </div>
-                </div>
-            </div>
-            <div id="total-time" class="footer-center">
-                <h3>Total time:</h3>
-                <div id="total-time-value"></div>
-            </div>
-            <div class="footer-right">
-                <div id="loading-container">
-                    <img id="loading" src="/images/icons8-dots-loading.gif" style="background-color:transparent"/>
-                </div>
-                <button id="open-timer-modal-btn" title="Timer" onclick="toggleTimerModal()">⏱️</button>
-            </div>
-        </footer>
+{% block footer_right %}
+    <button id="open-timer-modal-btn" title="Timer" onclick="toggleTimerModal()">⏱️</button>
+{% endblock %}
 
-        <script src="/javascripts/plywood/main.js" type="module" ></script>
-        <script src="https://unpkg.com/@popperjs/core@2"></script>
-        <script src="https://unpkg.com/tippy.js@6"></script>
-    </body>
-</html>
+{% block scripts %}
+    <script src="/javascripts/plywood/main.js" type="module"></script>
+{% endblock %}

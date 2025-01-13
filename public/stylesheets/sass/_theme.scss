@@ -1,0 +1,139 @@
+// Theme CSS variables
+:root {
+    // General
+    --text-color: #{$text-color};
+    --text-muted: #666;
+    --border-color: #{$border-color};
+    
+    // Backgrounds
+    --primary-bg: #fff;
+    --secondary-bg: #eee;
+    --hover-bg: rgba(0, 0, 0, 0.05);
+    
+    // Buttons
+    --button-bg: var(--fc-event-bg-color, #{$secondary-color});
+    --button-text: #fff;
+}
+
+// Dark theme variables
+.dark-theme {
+    --text-color: #{$dark-text};
+    --text-muted: #aaa;
+    --border-color: #{$dark-border};
+    
+    // Backgrounds
+    --primary-bg: #{$dark-bg};
+    --secondary-bg: #{$dark-secondary};
+    --hover-bg: rgba(255, 255, 255, 0.1);
+    
+    // Calendar specific
+    --fc-page-bg-color: #{$dark-secondary};
+    --fc-neutral-bg-color: rgba(44, 0, 6, 0.19);
+    --fc-neutral-text-color: #808080;
+    --fc-border-color: #{$dark-border};
+    --fc-button-text-color: #fff;
+    --fc-button-bg-color: #{$secondary-color};
+    --fc-button-border-color: #{$dark-border};
+    --fc-button-hover-bg-color: darken($secondary-color, 10%);
+    --fc-button-hover-border-color: #{$dark-border};
+    --fc-button-active-bg-color: darken($secondary-color, 20%);
+    --fc-button-active-border-color: #{$dark-border};
+    
+    // Today highlighting
+    --fc-today-bg-color: rgba(163, 37, 37, 0.18);
+    --fc-now-indicator-color: red;
+    
+    // Event colors
+    --fc-event-text-color: #fff;
+    --fc-event-selected-overlay-color: rgba(0, 0, 0, 0.25);
+    --fc-event-bg-color: #{$secondary-color};
+    --fc-event-border-color: darken($secondary-color, 10%);
+    
+    // Link colors
+    --fc-more-link-bg-color: #{$dark-secondary};
+    --fc-more-link-text-color: #{$dark-text};
+    
+    // Event resizing
+    --fc-event-resizer-thickness: 8px;
+    --fc-event-resizer-dot-total-width: 8px;
+    --fc-event-resizer-dot-border-width: 1px;
+    
+    // Font sizes
+    --fc-small-font-size: 0.85em;
+}
+
+// Theme transitions
+body {
+    transition: background-color $transition-normal, color $transition-normal;
+}
+
+// Theme-specific element styles
+.dark-theme {
+    // Links
+    a {
+        color: lighten($primary-color, 10%);
+        
+        &:hover {
+            color: lighten($primary-color, 20%);
+        }
+    }
+    
+    // Inputs
+    input, select, textarea {
+        background-color: $dark-secondary;
+        color: $dark-text;
+        border-color: $dark-border;
+    }
+    
+    // Buttons
+    button {
+        background-color: $dark-secondary;
+        color: $dark-text;
+        border-color: $dark-border;
+        
+        &:hover {
+            background-color: lighten($dark-secondary, 5%);
+        }
+        
+        &.primary {
+            background-color: $secondary-color;
+            color: #fff;
+        }
+        
+        &.destructive {
+            background-color: darkred;
+            color: #fff;
+        }
+        
+        &.success {
+            background-color: darkgreen;
+            color: #fff;
+        }
+    }
+    
+    // Choices.js customization
+    .choices {
+        &__inner {
+            background-color: $dark-secondary;
+            border-color: $dark-border;
+        }
+        
+        &__input {
+            background-color: $dark-secondary !important;
+            color: $dark-text;
+        }
+        
+        &__list {
+            background-color: $dark-secondary;
+            color: $dark-text;
+            
+            &--dropdown {
+                .choices__item--selectable {
+                    &.is-highlighted {
+                        background-color: lighten($dark-secondary, 5%);
+                    }
+                }
+            }
+        }
+    }
+}

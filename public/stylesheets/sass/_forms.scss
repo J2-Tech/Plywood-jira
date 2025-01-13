@@ -1,0 +1,200 @@
+// Form groups and labels
+.form-group {
+    margin-bottom: $spacing-md;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: $spacing-md;
+
+    label {
+        min-width: 120px;
+        text-align: right;
+        color: $text-color;
+
+        @include dark-theme {
+            color: $dark-text;
+        }
+    }
+}
+
+// Inputs
+input {
+    padding: $spacing-sm;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    background: #fff;
+    color: $text-color;
+    transition: border-color $transition-quick;
+
+    &:focus {
+        outline: none;
+        border-color: $secondary-color;
+    }
+
+    @include dark-theme {
+        background: $dark-secondary;
+        border-color: $dark-border;
+        color: $dark-text;
+    }
+
+    // Range input styling
+    &[type="range"] {
+        -webkit-appearance: none;
+        height: 4px;
+        background: #ddd;
+        border-radius: 2px;
+        width: 120px;
+        vertical-align: middle;
+        margin: 0;
+        padding: 0;
+
+        &::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--button-bg);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform $transition-quick;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+
+            &:hover {
+                transform: scale(1.2);
+            }
+        }
+
+        @include dark-theme {
+            background: $dark-border;
+            
+            &::-webkit-slider-thumb {
+                background: var(--button-bg);
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+            }
+        }
+    }
+
+    // Color input styling
+    &[type="color"] {
+        width: 40px;
+        padding: 2px;
+        cursor: pointer;
+    }
+}
+
+// Textareas
+textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: $spacing-sm;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    resize: vertical;
+    background: #fff;
+    color: $text-color;
+
+    @include dark-theme {
+        background: $dark-secondary;
+        border-color: $dark-border;
+        color: $dark-text;
+    }
+}
+
+// Selects
+select {
+    padding: $spacing-sm;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    background: #fff;
+    color: $text-color;
+    width: 100%;
+    cursor: pointer;
+
+    @include dark-theme {
+        background: $dark-secondary;
+        border-color: $dark-border;
+        color: $dark-text;
+    }
+}
+
+// Choices.js customization
+.choices {
+    min-width: 300px;
+    width: 70%;
+    display: inline-block;
+
+    &__inner {
+        width: calc(100% - 17px);
+        background: #fff;
+        border-color: $border-color;
+
+        @include dark-theme {
+            background: $dark-secondary;
+            border-color: $dark-border;
+        }
+    }
+
+    &__list {
+        background: #fff;
+        color: $text-color;
+
+        @include dark-theme {
+            background: $dark-secondary;
+            color: $dark-text;
+        }
+
+        &--dropdown {
+            .choices__item--selectable {
+                &.is-highlighted {
+                    background-color: rgba(0, 0, 0, 0.05);
+
+                    @include dark-theme {
+                        background-color: lighten($dark-secondary, 10%);
+                        color: #fff;
+                    }
+                }
+            }
+        }
+    }
+
+    &__input {
+        background: #fff !important;
+        color: $text-color;
+
+        @include dark-theme {
+            background: $dark-secondary !important;
+            color: $dark-text;
+        }
+    }
+
+    &.is-disabled {
+        .choices__inner {
+            background: #eaeaea;
+
+            @include dark-theme {
+                background: $dark-secondary;
+            }
+        }
+
+        .choices__list {
+            color: grey;
+        }
+    }
+}
+
+// Project selector
+.project-selector {
+    padding: $spacing-xs $spacing-sm;
+    border-radius: 4px;
+    border: 1px solid $border-color;
+    background: #fff;
+    font-size: 14px;
+    min-width: 200px;
+    width: 100% !important;
+    min-width: 100% !important;
+
+    @include dark-theme {
+        background: $dark-secondary;
+        border-color: $dark-border;
+        color: $dark-text;
+    }
+}

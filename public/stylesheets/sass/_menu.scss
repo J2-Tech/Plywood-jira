@@ -1,0 +1,81 @@
+// Menu container
+.hamburger-menu {
+    position: relative;
+    z-index: 1000;
+}
+
+// Menu button
+.hamburger-button {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    padding: $spacing-xs $spacing-sm;
+    transition: all $transition-quick;
+
+    &:hover {
+        background-color: rgba(0, 0, 0, 0.1);
+    }
+}
+
+// Menu content
+.menu-content {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background-color: #fff;
+    min-width: 250px;
+    width: max-content;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    z-index: 1001;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity $transition-quick, visibility $transition-quick;
+    margin-bottom: $spacing-xs;
+
+    @include dark-theme {
+        background-color: $dark-secondary;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+    }
+
+    &.show {
+        display: block;
+        opacity: 1;
+        visibility: visible;
+    }
+}
+
+// Menu items
+.menu-item {
+    padding: $spacing-sm $spacing-md;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    transition: all $transition-quick;
+
+    &:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+        padding-left: $spacing-lg;
+    }
+
+    @include dark-theme {
+        &:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+    }
+}
+
+// Project selector in menu
+.menu-item.project-item {
+    .project-selector {
+        flex: 1;
+    }
+
+    .choices {
+        width: calc(100% - $spacing-lg);
+        overflow: visible;
+    }
+}

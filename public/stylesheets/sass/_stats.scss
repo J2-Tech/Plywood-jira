@@ -1,0 +1,218 @@
+// Statistics page layout
+.stats-page {
+    padding: 20px 20px 80px 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+// Header controls
+.stats-header {
+    margin-bottom: $spacing-md;
+    display: flex;
+    flex-direction: column;
+    gap: $spacing-md;
+}
+
+.date-controls {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+}
+
+.date-input {
+    padding: $spacing-sm;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+
+    @include dark-theme {
+        background: $dark-secondary;
+        border-color: $dark-border;
+        color: $dark-text;
+    }
+}
+
+.refresh-button {
+    padding: $spacing-sm $spacing-md;
+    background: var(--button-bg);
+    color: var(--button-text);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+// Main container layout
+.stats-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: $spacing-md;
+}
+
+.stats-section {
+    background: var(--primary-bg);
+    border-radius: 8px;
+    padding: $spacing-md;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+    @include dark-theme {
+        background: $dark-secondary;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+
+    h2 {
+        display: flex;
+        align-items: center;
+    }
+}
+
+// Issue list styles
+.stats-list {
+    margin-top: $spacing-md;
+}
+
+.issue-stats-container {
+    margin-bottom: $spacing-sm;
+    border: 1px solid $border-color;
+    border-radius: 6px;
+    overflow: hidden;
+
+    @include dark-theme {
+        border-color: $dark-border;
+    }
+}
+
+.issue-header {
+    padding: $spacing-md;
+    cursor: pointer;
+    background: $background-color;
+    transition: background-color $transition-quick;
+
+    &:hover {
+        background: darken($background-color, 3%);
+    }
+
+    @include dark-theme {
+        background: $dark-secondary;
+        
+        &:hover {
+            background: lighten($dark-secondary, 3%);
+        }
+    }
+}
+
+.issue-header-content {
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    margin-bottom: $spacing-sm;
+}
+
+.expand-button {
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: transform $transition-quick;
+}
+
+.time-info {
+    margin-left: auto;
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+// Progress bar
+.progress-bar {
+    height: 4px;
+    background: var(--secondary-bg);
+    border-radius: 2px;
+    overflow: hidden;
+
+    @include dark-theme {
+        background: $dark-border;
+    }
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--button-bg);
+    transition: width $transition-normal;
+}
+
+// Comments section
+.issue-content {
+    padding: 0 $spacing-md;
+    max-height: 1000px;
+    transition: all $transition-normal;
+
+    &.hidden {
+        padding: 0;
+        max-height: 0;
+    }
+}
+
+.comment-item {
+    padding: $spacing-sm;
+    margin: $spacing-sm 0;
+    background: var(--primary-bg);
+    border: 1px solid $border-color;
+    border-radius: 4px;
+
+    @include dark-theme {
+        background: $dark-secondary;
+        border-color: $dark-border;
+    }
+}
+
+.comment-author {
+    color: var(--text-muted);
+    font-size: 0.9em;
+    margin-bottom: $spacing-xs;
+}
+
+.comment-text {
+    margin: $spacing-xs 0;
+    white-space: pre-wrap;
+}
+
+.comment-time {
+    color: var(--text-muted);
+    font-size: 0.8em;
+    text-align: right;
+}
+
+// No comments message
+.no-comments {
+    padding: $spacing-sm;
+    color: var(--text-muted);
+    text-align: center;
+    font-style: italic;
+    background: var(--secondary-bg);
+    border-radius: 4px;
+    margin: $spacing-sm 0;
+
+    @include dark-theme {
+        background: $dark-secondary;
+    }
+}
+
+// Back button
+.back-button {
+    padding: $spacing-sm $spacing-md;
+    background: var(--button-bg);
+    color: var(--button-text);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-bottom: $spacing-md;
+    display: flex;
+    align-items: center;
+    gap: $spacing-xs;
+    transition: all $transition-quick;
+
+    &:hover {
+        transform: translateX(-2px);
+    }
+
+    @include dark-theme {
+        background: #444;
+        color: #fff;
+    }
+}

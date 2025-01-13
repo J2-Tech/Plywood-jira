@@ -161,3 +161,7 @@ dist
 
 # Plywood specific
 /config/*
+
+# CSS compiled from SASS
+public/stylesheets/*.css
+public/stylesheets/*.css.map

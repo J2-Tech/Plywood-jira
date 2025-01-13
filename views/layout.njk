@@ -4,7 +4,6 @@
     <head>
         <title>{% block title %}Plywood - Jira Worklog Management{% endblock %}</title>
         <link href='/stylesheets/style.css' rel='stylesheet' />
-        <link href='/stylesheets/dark.css' rel='stylesheet' />
         <meta http-equiv='Content-Security-Policy' content="font-src data:" />
         <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
         <meta name="jira-url" content="{{ jiraUrl }}">
@@ -16,19 +15,19 @@
         <script src="/javascripts/moment.min.js"></script>
         <script src="/javascripts/moment-duration-format.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script src="/javascripts/plywood/timer.js" type="module"></script>
-
         {% block head %}{% endblock %}
     </head>
     <body>
-        {{ modals.modals() }}  <!-- Add modals here so they're available on all pages -->
+        {{ modals.modals() }}
+
+        {% block content %}{% endblock %}
         
         <footer class="app-footer">
             <div class="footer-left">
                 <div class="hamburger-menu">
                     <button id="menuButton" class="hamburger-button">☰</button>
                     <div id="menuContent" class="menu-content">
-                        <div class="menu-item">
+                        <div class="menu-item project-item">
                             <select id="headerProjectSelection" class="project-selector">
                                 <option value="all">All Projects</option>
                             </select>
@@ -50,13 +49,22 @@
                         </div>
                     </div>
                 </div>
+                {% block footer_left %}{% endblock %}
             </div>
-            <div id="loading-container">
-                <img id="loading" src="/images/icons8-dots-loading.gif" style="background-color:transparent"/>
+
+            <div class="footer-center">
+                <div id="total-time">
+                    {% block footer_center %}{% endblock %}
+                </div>
+            </div>
+
+            <div class="footer-right">
+                <div id="loading-container">
+                    <img id="loading" src="/images/icons8-dots-loading.gif" style="background-color:transparent"/>
+                </div>
+                {% block footer_right %}{% endblock %}
             </div>
         </footer>
-
-        {% block content %}{% endblock %}
 
         <script src="https://unpkg.com/@popperjs/core@2"></script>
         <script src="https://unpkg.com/tippy.js@6"></script>

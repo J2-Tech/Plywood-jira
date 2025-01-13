@@ -1,0 +1,254 @@
+// Base modal styles
+.modal {
+    display: none;
+    position: fixed;
+    background: #fff;
+    z-index: 100;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    resize: both;
+    overflow: auto;
+    min-width: 30%;
+    max-height: 90vh;
+    box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.2);
+    padding-bottom: 35px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity $transition-normal, visibility $transition-normal;
+    display: block !important; // Keep in DOM for animations
+    pointer-events: none;
+
+    @include dark-theme {
+        background: $dark-secondary;
+        box-shadow: 5px 5px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    &[style*="display: block"] {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: all;
+    }
+}
+
+// Modal content
+.modal-content {
+    h2 {
+        width: 100%;
+        display: inline-block;
+        text-align: center;
+    }
+}
+
+// Modal form
+.modal-form {
+    width: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: $spacing-md;
+
+    .comment {
+        min-width: 300px;
+        width: 70%;
+        min-height: 60px;
+        resize: vertical;
+        margin-bottom: $spacing-md;
+    }
+
+    label {
+        width: 100%;
+        text-align: center;
+        margin-bottom: $spacing-md;
+    }
+
+    // Search options
+    .search-options {
+        display: flex;
+        width: fit-content;
+        align-items: center;
+
+        input {
+            flex-grow: 0;
+        }
+
+        label {
+            word-break: keep-all;
+            white-space: nowrap;
+        }
+    }
+
+    // Time fields
+    .time-fields {
+        display: flex;
+        justify-content: space-between;
+        width: 70%;
+        margin-bottom: $spacing-md;
+    }
+
+    .time-field {
+        display: flex;
+        flex-direction: column;
+        width: 48%;
+
+        label {
+            text-align: center;
+            margin-bottom: $spacing-xs;
+        }
+
+        input {
+            width: 100%;
+        }
+    }
+}
+
+// Modal buttons
+.modal .buttons {
+    margin-top: $spacing-xl;
+    display: flex;
+    justify-content: space-between;
+    width: 70%;
+
+    button:last-of-type {
+        margin-left: auto;
+    }
+}
+
+// Timer modal specific styles
+.modal.modal-timer {
+    top: unset;
+    left: unset;
+    position: fixed;
+    bottom: 70px;
+    right: 80px;
+    transform: unset;
+    box-shadow: none;
+    resize: none;
+    min-height: 450px;
+    min-width: 350px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity $transition-normal, visibility $transition-normal;
+    padding-bottom: 0;
+
+    &[style*="display: block"] {
+        opacity: 0.95;
+        visibility: visible;
+        pointer-events: all;
+    }
+    .choices__list--dropdown .choices__item--selectable.is-highlighted, .choices__list[aria-expanded] .choices__item--selectable.is-highlighted {
+        background-color: $dark-bg;
+    }
+}
+
+// Color picker modal
+#colorPickerModal {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    padding: $spacing-sm;
+    flex-grow: 1;
+
+    @include dark-theme {
+        background: $dark-secondary;
+    }
+
+    #colorPickerInput {
+        flex-grow: 1;
+        width: auto;
+        margin: $spacing-sm 0;
+    }
+
+    .buttons {
+        width: auto;
+        flex-grow: 1;
+        display: flex;
+        justify-content: center;
+
+        button {
+            margin: 0 $spacing-xs;
+        }
+    }
+}
+
+// Config form styles
+#configForm {
+    overflow: hidden scroll;
+    max-height: calc(90vh - 120px);
+    padding: $spacing-md $spacing-xl;
+
+    .buttons {
+        width: 100%;
+    }
+}
+
+#configModal {
+    resize: none;
+    overflow: hidden;
+}
+
+// Issue colors section
+#issueTypeColors {
+    width: auto;
+    padding: $spacing-md;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+}
+
+.issue-type-color {
+    display: flex;
+    width: 100%;
+
+    input[type="color"] {
+        width: 40px;
+    }
+
+    input {
+        flex-grow: 1;
+        width: 100%;
+        margin: 2px;
+    }
+
+    button {
+        margin: 2px;
+        display: inline-block;
+        padding: 0 $spacing-sm;
+    }
+}
+
+// Config sections
+.modal-config {
+    .config-section {
+        min-width: 420px;
+
+        .form-group {
+            width: 100%;
+            display: flex;
+
+            label {
+                text-align: left;
+            }
+        }
+    }
+}
+
+// Arrow animation
+.arrow {
+    display: inline-block;
+    transition: transform $transition-normal;
+
+    &.expanded {
+        transform: rotate(-90deg);
+    }
+}
+
+// Issue key display
+#issue-key-color {
+    margin-bottom: $spacing-md;
+}
+
+#issueKeyDisplay {
+    margin-bottom: $spacing-sm;
+    text-align: center;
+}

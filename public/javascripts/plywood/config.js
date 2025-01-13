@@ -189,18 +189,44 @@ function refreshAllWorklogsOfIssueType(issueType) {
 }
 
 export async function loadProjects(targetElement, selectedValue = 'all') {
-    const response = await fetch('/projects');
-    const data = await response.json();
-    targetElement.innerHTML = '<option value="all">All Projects</option>';
-    
-    data.values.forEach(project => {
-        const option = document.createElement('option');
-        option.value = project.key;
-        option.textContent = `${project.key} - ${project.name}`;
-        targetElement.appendChild(option);
+    let allProjects = [];
+    let startAt = 0;
+    const maxResults = 50;
+    let hasMore = true;
+
+    while (hasMore) {
+        const response = await fetch(`/projects?startAt=${startAt}&maxResults=${maxResults}`);
+        const data = await response.json();
+        allProjects = allProjects.concat(data.values);
+        
+        hasMore = startAt + maxResults < data.total;
+        startAt += maxResults;
+    }
+
+    // Convert projects to Choices.js format
+    const choices = [
+        { value: 'all', label: 'All Projects' },
+        ...allProjects.map(project => ({
+            value: project.key,
+            label: `${project.key} - ${project.name}`
+        }))
+    ];
+
+    // Initialize Choices.js
+    const choicesInstance = new Choices(targetElement, {
+        choices,
+        searchEnabled: true,
+        searchFields: ['label'],
+        itemSelectText: '',
+        shouldSort: true,
+        shouldSortItems: true,
+        position: 'bottom'
     });
 
-    targetElement.value = selectedValue;
+    // Set selected value
+    choicesInstance.setChoiceByValue(selectedValue);
+
+    return choicesInstance;
 }
 
 export async function initializeProjectSelectors() {

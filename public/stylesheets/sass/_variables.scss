@@ -1,0 +1,49 @@
+// Colors
+$primary-color: #2a75fe;
+$secondary-color: #3788d8;
+$text-color: #333;
+$border-color: #dee2e6;
+$background-color: #f8f9fa;
+
+// Dark theme colors
+$dark-bg: #121212;
+$dark-secondary: #1e1e1e;
+$dark-border: #444;
+$dark-text: #cacaca;
+
+// Spacing
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+
+// Transitions
+$transition-quick: 0.2s ease;
+$transition-normal: 0.3s ease;
+
+// Breakpoints
+$mobile: 768px;
+$tablet: 1024px;
+$desktop: 1200px;
+
+// Mixins
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin dark-theme {
+  .dark-theme & {
+    @content;
+  }
+}
+
+@mixin hover-effect {
+  transition: transform $transition-quick;
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+}

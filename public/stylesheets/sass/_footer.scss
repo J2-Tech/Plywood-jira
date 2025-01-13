@@ -1,0 +1,162 @@
+// Footer base
+.app-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    padding: $spacing-xs $spacing-md;
+    background: var(--secondary-bg);
+    border-top: 1px solid var(--border-color);
+    height: 60px;
+    z-index: 1000;
+
+    @include dark-theme {
+        background: $dark-bg;
+        border-color: $dark-border;
+    }
+}
+
+// Footer sections
+.footer {
+    &-left {
+        justify-self: start;
+        display: flex;
+        align-items: center;
+        gap: $spacing-md;
+    }
+
+    &-center {
+        @include flex-center;
+        gap: $spacing-sm;
+        position: relative;
+    }
+
+    &-right {
+        justify-self: end;
+        display: flex;
+        align-items: center;
+    }
+
+    &-controls {
+        display: flex;
+        align-items: center;
+        gap: $spacing-lg;
+        padding: 0 $spacing-md;
+        color: var(--text-color);
+
+        @include dark-theme {
+            color: $dark-text;
+        }
+    }
+}
+
+// Loading spinner
+#loading-container {
+    position: absolute;
+    left: -30px;
+    width: 20px;
+    height: 20px;
+    z-index: 1001;
+}
+
+#loading {
+    background-color: transparent !important;
+    mix-blend-mode: multiply;
+    opacity: 0.8;
+
+    @include dark-theme {
+        mix-blend-mode: screen;
+    }
+}
+
+// Timer button
+#open-timer-modal-btn {
+    padding: $spacing-xs $spacing-md;
+    font-size: 18px;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all $transition-quick;
+    width: auto;
+
+    &:hover {
+        @include hover-effect;
+    }
+}
+
+// Total time display
+#total-time {
+    @include flex-center;
+    gap: $spacing-sm;
+
+    h3 {
+        margin: 0;
+        margin-right: $spacing-xs;
+        display: inline-block;
+    }
+
+    &-value {
+        display: inline-block;
+    }
+}
+
+// Zoom controls
+#zoom {
+    &-container {
+        line-height: 34px;
+        display: flex;
+        flex-direction: column;
+        text-align: center;
+    }
+
+    &-range {
+        width: 120px;
+        vertical-align: middle;
+        -webkit-appearance: auto;
+        appearance: auto;
+    }
+
+    &-output {
+        min-width: 110px;
+    }
+}
+
+// Weekend toggle
+#weekend-container {
+    display: flex;
+    flex-direction: column;
+    margin: 0 $spacing-md;
+
+    #include-weekends {
+        margin: $spacing-sm 0 6px;
+    }
+}
+
+// Loading states
+.loading {
+    #loading {
+        animation: pulse 1.5s infinite;
+    }
+
+    .app-footer {
+        opacity: 0.7;
+        pointer-events: none;
+        transition: opacity $transition-normal;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.6;
+    }
+}

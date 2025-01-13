@@ -1,0 +1,124 @@
+// Calendar container
+#calendar {
+    height: calc(100vh - 80px) !important;
+    padding: $spacing-sm;
+  }
+  
+  // Calendar events
+  .fc-event {
+    color: #fff !important;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+  
+    @include dark-theme {
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+  }
+  
+  // Event titles and content
+  .plywood-event-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: middle;
+    width: calc(100% - 24px);
+    padding: $spacing-xs $spacing-xs;
+    background-color: inherit;
+    color: inherit;
+    filter: contrast(1.3) brightness(0.60) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999);
+  }
+  
+  .fc-dayGridMonth-view .plywood-event-title {
+    filter: none !important;
+  }
+  
+  // Event comments
+  .fc-event-main {
+    filter: none;
+  
+    .comment {
+      filter: contrast(1.3) brightness(0.60) contrast(9999) invert(100) contrast(9999) grayscale(1) contrast(9999);
+    }
+  }
+  
+  // Issue type icons
+  .issue-type-icon {
+    display: inline-block;
+    vertical-align: middle;
+    height: 16px;
+    width: 16px;
+    margin-right: $spacing-xs;
+    background-color: transparent !important;
+  }
+  
+  // Event overflow handling
+  .fc-timegrid-event-harness-inset .fc-timegrid-event,
+  .fc-timegrid-event.fc-event-mirror,
+  .fc-timegrid-more-link {
+    overflow: hidden;
+  }
+  
+  // Total time display
+  #total-time {
+    text-align: center;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    gap: $spacing-sm;
+    justify-content: center;
+  
+    h3 {
+      margin: 0 $spacing-xs 0 0;
+      display: inline-block;
+    }
+  
+    &-value {
+      display: inline-block;
+    }
+  }
+  
+  // Zoom controls
+  #zoom {
+    &-container {
+      line-height: 34px;
+      display: flex;
+      flex-direction: column;
+      text-align: center;
+    }
+  
+    &-range {
+      height: 100%;
+      margin: 0 $spacing-md;
+      width: 120px;
+      vertical-align: middle;
+    }
+  
+    &-output {
+      line-height: 25px;
+      min-width: 110px;
+    }
+  }
+  
+  // Weekend toggle
+  #weekend-container {
+    display: flex;
+    flex-direction: column;
+    margin: 0 $spacing-md;
+  
+    #include-weekends {
+      margin: $spacing-sm 0 6px;
+    }
+  }
+  
+  // Calendar loading state
+  .loading {
+    #loading {
+      animation: pulse 1.5s infinite;
+    }
+  
+    .fc-view-harness {
+      opacity: 0.7;
+      pointer-events: none;
+      transition: opacity $transition-quick;
+    }
+  }

@@ -324,7 +324,10 @@ exports.searchIssuesWithWorkLogs = async function(req, start, end) {
 
 exports.getProjects = async function(req) {
     const url = getCallURL(req);
-    const response = await fetch(url + '/rest/api/3/project/search', {
+    const startAt = req.query.startAt || 0;
+    const maxResults = req.query.maxResults || 50;
+    
+    const response = await fetch(url + `/rest/api/3/project/search?startAt=${startAt}&maxResults=${maxResults}`, {
         method: 'GET',
         headers: getDefaultHeaders(req),
         agent: httpsAgent

@@ -3,7 +3,10 @@
   "version": "0.2.4",
   "private": true,
   "scripts": {
-    "start": "node ./bin/www"
+    "start": "npm run sass && node ./bin/www",
+    "dev": "npm run sass:watch & nodemon ./bin/www",
+    "sass": "sass public/stylesheets/sass/style.scss public/stylesheets/style.css",
+    "sass:watch": "sass --watch public/stylesheets/sass/style.scss public/stylesheets/style.css"
   },
   "dependencies": {
     "async-mutex": "^0.5.0",
@@ -23,5 +26,9 @@
     "passport-oauth2": "^1.8.0",
     "selfsigned": "^2.4.1",
     "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "sass": "^1.69.5",
+    "nodemon": "^3.0.1"
   }
 }

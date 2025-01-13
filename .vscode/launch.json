@@ -11,7 +11,11 @@
             "skipFiles": [
                 "<node_internals>/**"
             ],
-            "program": "${workspaceFolder}\\bin\\www"
+            "program": "${workspaceFolder}\\bin\\www",
+            "preLaunchTask": "sass-compile",
+            "outFiles": [
+                "${workspaceFolder}/public/stylesheets/*.css"
+            ]
         }
     ]
 }
