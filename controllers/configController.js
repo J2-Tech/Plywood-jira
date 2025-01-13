@@ -2,6 +2,9 @@ const settingsService = require('./settingsService');
 const jiraAPIController = require('./jiraAPIController');
 const { JSDOM } = require('jsdom');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fs = require('fs').promises;
+const fsSync = require('fs');
+const path = require('path');
 
 // Store colors to update per user
 const issueColorsToUpdate = new Map();
@@ -91,43 +94,97 @@ exports.findColorFieldName = async function (req) {
 }
 
 exports.getMainColorFromIcon = async function (imageUrl) {
+    if (!imageUrl) {
+        return '#2684FF'; // Default Jira blue
+    }
+
     try {
         const response = await fetch(imageUrl);
         const svgText = await response.text();
+        
         const dom = new JSDOM(svgText);
         const svg = dom.window.document.querySelector('svg');
-
-        // Return default color if SVG parsing failed
+        
         if (!svg) {
-            console.warn(`Failed to parse SVG from ${imageUrl}`);
-            return '#2684FF'; // Default Jira blue
+            console.warn(`No SVG found in ${imageUrl}`);
+            return '#2684FF';
         }
 
         const colorCount = {};
-        let maxCount = 0;
-        let mainColor = '#2684FF'; // Default color if no fills found
+        const mainColor = '#2684FF'; // Default color
 
-        function countColor(color) {
-            if (color && color !== 'none') {
-                colorCount[color] = (colorCount[color] || 0) + 1;
-                if (colorCount[color] > maxCount) {
-                    maxCount = colorCount[color];
-                    mainColor = color;
-                }
+        // Count fill colors
+        svg.querySelectorAll('[fill]').forEach(el => {
+            const fill = el.getAttribute('fill');
+            if (fill && fill !== 'none') {
+                countColor(fill);
             }
-        }
-
-        // Try to get colors from both fill and stroke attributes
-        svg.querySelectorAll('*').forEach(element => {
-            const fill = element.getAttribute('fill');
-            const stroke = element.getAttribute('stroke');
-            countColor(fill);
-            countColor(stroke);
         });
 
-        return mainColor;
+        // Count stroke colors
+        svg.querySelectorAll('[stroke]').forEach(el => {
+            const stroke = el.getAttribute('stroke');
+            if (stroke && stroke !== 'none') {
+                countColor(stroke);
+            }
+        });
+
+        function countColor(color) {
+            colorCount[color] = (colorCount[color] || 0) + 1;
+        }
+
+        // Find most used color
+        let maxCount = 0;
+        let dominantColor = mainColor;
+        
+        Object.entries(colorCount).forEach(([color, count]) => {
+            if (count > maxCount) {
+                maxCount = count;
+                dominantColor = color;
+            }
+        });
+
+        return dominantColor;
     } catch (error) {
         console.error(`Error getting icon color from ${imageUrl}:`, error);
-        return '#2684FF'; // Default Jira blue
+        return '#2684FF';
     }
-}
+};
+
+exports.migrateToDefaults = async function() {
+    const configDir = path.join(__dirname, '..', 'config');
+    const settingsPath = path.join(configDir, 'settings.json');
+    const defaultsPath = path.join(configDir, 'defaults.json');
+
+    try {
+        // Check if settings.json exists
+        if (fsSync.existsSync(settingsPath)) {
+            const settingsData = await fs.readFile(settingsPath, 'utf8');
+            const settings = JSON.parse(settingsData);
+
+            // Create defaults.json if it doesn't exist
+            if (!fsSync.existsSync(defaultsPath)) {
+                await fs.writeFile(defaultsPath, JSON.stringify({
+                    ...settings,
+                    issueColors: {
+                        story: '#63ba3c',
+                        bug: '#e5493a',
+                        task: '#4bade8',
+                        epic: '#904ee2',
+                        subtask: '#4baee8',
+                        ...settings.issueColors
+                    }
+                }, null, 2));
+
+                // Create backup of settings.json
+                const backupPath = settingsPath + '.bak';
+                await fs.rename(settingsPath, backupPath);
+            }
+        }
+    } catch (error) {
+        console.error('Error migrating to defaults:', error);
+    }
+};
+
+// Call migration during module initialization
+exports.migrateToDefaults().catch(console.error);
