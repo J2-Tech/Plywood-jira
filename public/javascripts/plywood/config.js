@@ -171,18 +171,6 @@ function syncRoundingInterval() {
     }
 }
 
-/**
- * Refresh all worklogs of a specific issue type.
- * @param {string} issueType - The issue type to refresh.
- */
-function refreshAllWorklogsOfIssueType(issueType) {
-    const events = window.calendar.getEvents();
-    events.forEach(event => {
-        if (event.extendedProps.issueType.toLowerCase() === issueType.toLowerCase()) {
-            refreshWorklog(event.extendedProps.issueId, event.extendedProps.worklogId);
-        }
-    });
-}
 
 export async function loadProjects(targetElement, selectedValue = 'all') {
     let allProjects = [];

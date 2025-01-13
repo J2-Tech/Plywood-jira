@@ -126,15 +126,6 @@ router.get('/stats', function(req, res) {
   });
 });
 
-router.get('/sprint-stats/data', async function(req, res, next) {
-    try {
-        const sprintData = await jiraController.getSprintStats(req, req.query.sprintId);
-        res.json(sprintData);
-    } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: 'Failed to fetch sprint statistics' });
-    }
-});
 
 router.get('/stats/data', async function(req, res, next) {
     try {

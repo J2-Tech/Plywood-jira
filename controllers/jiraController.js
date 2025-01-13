@@ -307,38 +307,6 @@ exports.getSingleEvent = async function(req, issueId, worklogId) {
     return formattedEvent;
 };
 
-exports.getSprintStats = async function(req, sprintId) {
-    const issues = await jiraAPIController.getSprintIssues(req, sprintId);
-    
-    let stats = issues.issues.map(issue => {
-        const totalTime = issue.fields.worklog.worklogs.reduce((acc, worklog) => 
-            acc + worklog.timeSpentSeconds, 0);
-            
-        const comments = issue.fields.worklog.worklogs
-            .filter(worklog => worklog.comment)
-            .map(worklog => ({
-                author: worklog.author.displayName,
-                comment: worklog.comment,
-                created: worklog.created,
-                timeSpent: worklog.timeSpentSeconds
-            }));
-
-        return {
-            key: issue.key,
-            summary: issue.fields.summary,
-            totalTimeSpent: totalTime,
-            status: issue.fields.status.name,
-            type: issue.fields.issuetype.name,
-            comments: comments
-        };
-    });
-
-    // Sort by time spent descending
-    stats.sort((a, b) => b.totalTimeSpent - a.totalTimeSpent);
-
-    return stats;
-};
-
 exports.getWorklogStats = async function(req, start, end, project) {
     // Pass project filter through req.query
     req.query.project = project;

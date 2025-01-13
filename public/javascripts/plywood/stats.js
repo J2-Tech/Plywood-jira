@@ -1,41 +1,10 @@
-import { showLoading, hideLoading, getCurrentProject, changeProject, initializeProject, initializeTheme } from './ui.js';
+import { showLoading, hideLoading, getCurrentProject, changeProject, initializeProject, applyTheme } from './ui.js';
 import { loadProjects } from './config.js';
 
 let currentChartType = 'issueTypes'; // 'issueTypes', 'issues', or 'projects'
 let currentChartStyle = 'pie'; // Start with pie charts
 let currentChart = null;
 let lastData = null; // Store the last data to rerender chart
-
-let charts = {
-    timeDistribution: null,
-    issueTypes: null,
-    commentedTasks: null
-};
-
-async function loadSprints() {
-    const response = await fetch('/projects/sprints');
-    const data = await response.json();
-    const selector = document.getElementById('sprintSelector');
-    
-    data.values.forEach(sprint => {
-        const option = document.createElement('option');
-        option.value = sprint.id;
-        option.textContent = sprint.name;
-        selector.appendChild(option);
-    });
-    
-    selector.addEventListener('change', loadSprintStats);
-}
-
-async function loadSprintStats() {
-    const sprintId = document.getElementById('sprintSelector').value;
-    if (!sprintId) return;
-    
-    const response = await fetch(`/sprint-stats/data?sprintId=${sprintId}`);
-    const data = await response.json();
-    
-    renderTimeSpentList(data);
-}
 
 function renderTimeSpentList(data) {
     const container = document.getElementById('timeSpentList');
@@ -151,71 +120,6 @@ async function loadStats() {
     }
 }
 
-function renderCharts(data) {
-    // Time Distribution Pie Chart
-    const timeDistributionCtx = document.getElementById('timeDistributionChart');
-    if (charts.timeDistribution) charts.timeDistribution.destroy();
-    
-    const timeByIssue = data.reduce((acc, issue) => {
-        acc[`${issue.key} - ${issue.summary}`] = issue.totalTimeSpent;
-        return acc;
-    }, {});
-
-    charts.timeDistribution = new Chart(timeDistributionCtx, {
-        type: 'pie',
-        data: {
-            labels: Object.keys(timeByIssue),
-            datasets: [{
-                data: Object.values(timeByIssue).map(time => time / 3600), // Convert to hours
-                backgroundColor: generateColors(Object.keys(timeByIssue).length)
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'right'
-                },
-                title: {
-                    display: true,
-                    text: 'Time Distribution (hours)'
-                }
-            }
-        }
-    });
-
-    // Issue Types Bar Chart
-    renderIssueTypesChart(data);
-
-    // Commented Tasks Horizontal Bar Chart
-    const commentedTasksCtx = document.getElementById('commentedTasksChart');
-    if (charts.commentedTasks) charts.commentedTasks.destroy();
-    
-    const tasksWithComments = data
-        .filter(issue => issue.comments.length > 0)
-        .sort((a, b) => b.totalTimeSpent - a.totalTimeSpent)
-        .slice(0, 10);
-
-    charts.commentedTasks = new Chart(commentedTasksCtx, {
-        type: 'bar',
-        data: {
-            labels: tasksWithComments.map(issue => `${issue.key} - ${issue.summary}`),
-            datasets: [{
-                label: 'Hours Spent',
-                data: tasksWithComments.map(issue => issue.totalTimeSpent / 3600),
-                backgroundColor: generateColors(tasksWithComments.length),
-                borderWidth: 1
-            }]
-        },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
-}
-
 function generateColors(count) {
     const colors = [];
     for (let i = 0; i < count; i++) {
@@ -224,21 +128,6 @@ function generateColors(count) {
     return colors;
 }
 
-// Add tab switching functionality
-function initializeTabs() {
-    const tabs = document.querySelectorAll('.tab-button');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            document.querySelectorAll('.stats-content').forEach(content => {
-                content.classList.add('hidden');
-            });
-            document.getElementById(`${tab.dataset.tab}-content`).classList.remove('hidden');
-        });
-    });
-}
 
 function toggleChartStyle() {
     currentChartStyle = currentChartStyle === 'bar' ? 'pie' : 'bar';
@@ -390,10 +279,13 @@ function initializeChartControls() {
 }
 
 async function initializeStats() {
-    // Initialize theme and project
-    initializeTheme();
-    await initializeProject();
+    // Apply theme first from localStorage
+    const savedTheme = localStorage.getItem('themeSelection');
+    if (savedTheme) {
+        applyTheme(savedTheme);
+    }
     
+    await initializeProject();
     initializeDateInputs();
     initializeChartControls();
     
@@ -409,6 +301,7 @@ async function initializeStats() {
     document.getElementById('refreshStats').addEventListener('click', loadStats);
     document.getElementById('toggleChart').addEventListener('click', toggleChartStyle);
     
+    // Initial load
     await loadStats();
 }
 

@@ -202,10 +202,6 @@ export function hideAboutModal() {
 }
 
 // Make functions available globally
-window.showModal = showModal;
-window.hideModal = hideModal;
-window.showUpdateModal = showUpdateModal;
-window.showCreateModal = showCreateModal;
 window.toggleConfigModal = toggleConfigModal;
 window.showColorPicker = showColorPicker;
 window.hideColorPickerModal = hideColorPickerModal;

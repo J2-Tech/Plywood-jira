@@ -335,16 +335,6 @@ exports.getProjects = async function(req) {
     return response.json();
 };
 
-exports.getSprints = async function(req) {
-    const url = getCallURL(req);
-    const response = await fetch(url + '/rest/agile/1.0/sprint/search', {
-        method: 'GET',
-        headers: getDefaultHeaders(req),
-        agent: httpsAgent
-    });
-    return response.json();
-};
-
 exports.getSprintIssues = async function(req, sprintId) {
     const url = getCallURL(req);
     const jql = `sprint = ${sprintId}`;
