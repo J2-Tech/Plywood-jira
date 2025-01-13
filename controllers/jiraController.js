@@ -54,11 +54,34 @@ exports.determineIssueColor = async function(settings, req, issue) {
     let color = settings.issueColors[issue.issueKey.toLowerCase()];
     if (color) return color;
 
-    // Try to get color from issue type
+    // Try to get color from parent issues recursively
+    try {
+        const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
+        if (issueDetails.fields.parent) {
+            const parentColor = await exports.getParentIssueColor(settings, req, issueDetails, settings.issueColors);
+            if (parentColor) return parentColor;
+        }
+    } catch (error) {
+        console.error('Error getting parent issue color:', error);
+    }
+
+    // If no parent color found, try issue type colors
     if (issue.issueType) {
         const issueTypeLower = issue.issueType.toLowerCase();
         color = settings.issueColors[issueTypeLower];
         if (color) return color;
+
+        // Try to get parent issue type color recursively
+        try {
+            const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
+            if (issueDetails.fields.parent) {
+                const parentType = issueDetails.fields.parent.fields.issuetype.name.toLowerCase();
+                color = settings.issueColors[parentType];
+                if (color) return color;
+            }
+        } catch (error) {
+            console.error('Error getting parent issue type color:', error);
+        }
     }
 
     return defaultColor;
