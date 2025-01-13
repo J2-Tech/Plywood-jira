@@ -11,6 +11,7 @@ IF %ERRORLEVEL% NEQ 0 ( ECHO npm wasn't found, skipping update  && GOTO :start )
 
 
 cd /D "%~dp0"
+git fetch --all
 git reset --hard github/main
 
 npm install & npm run start 
