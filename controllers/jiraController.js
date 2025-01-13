@@ -50,63 +50,71 @@ exports.getParentIssueColor = async function(settings, req, issue, issueColors) 
 exports.determineIssueColor = async function(settings, req, issue) {
     const defaultColor = process.env.DEFAULT_ISSUE_COLOR || '#2a75fe';
 
+    // Try to get color for specific issue key
     let color = settings.issueColors[issue.issueKey.toLowerCase()];
+    if (color) return color;
+
+    // Try to get color from parent issue
     if (!color) {
-        const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
-        color = await exports.getParentIssueColor(settings, req, issueDetails, settings.issueColors);
-        if (!color && issue.issueType) {
-            const issueTypeLower = issue.issueType.toLowerCase();
-            color = settings.issueColors[issueTypeLower] || defaultColor;
+        try {
+            const issueDetails = await jiraAPIController.getIssue(req, issue.issueId);
+            color = await exports.getParentIssueColor(settings, req, issueDetails, settings.issueColors);
+            if (color) return color;
+        } catch (error) {
+            console.error('Error getting parent issue color:', error);
         }
     }
-    return color;
-}
+
+    // Try to get color from issue type
+    if (issue.issueType) {
+        const issueTypeLower = issue.issueType.toLowerCase();
+        color = settings.issueColors[issueTypeLower];
+        if (color) return color;
+    }
+
+    return defaultColor;
+};
 
 exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
-    const settings = await configController.loadConfig();
+    const settings = await configController.loadConfig(req);
     const filterStartTime = new Date(start);
     const filterEndTime = new Date(end);
 
-    const formattedStart = filterStartTime.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
-    const formattedEnd = filterEndTime.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+    const formattedStart = filterStartTime.toISOString().split('T')[0];
+    const formattedEnd = filterEndTime.toISOString().split('T')[0];
 
-    // Fetch all issues with worklogs for the user within the specified period
-    const issuesPromise = jiraAPIController.searchIssuesWithWorkLogs(req, formattedStart, formattedEnd);
+    const result = await jiraAPIController.searchIssuesWithWorkLogs(req, formattedStart, formattedEnd);
+    const events = [];
 
-    return issuesPromise.then(async result => {
-        const issues = result.issues;
+    for (const issue of result.issues) {
+        const issueData = {
+            issueId: issue.id,
+            issueKey: issue.key,
+            summary: issue.fields.summary,
+            issueType: issue.fields.issuetype.name,
+            issueTypeIcon: issue.fields.issuetype.iconUrl
+        };
 
-        // each issue has a fields.worklog.worklogs array
-        const worklogs = issues.reduce((acc, issue) => {
-            const issueWorklogs = issue.fields.worklog.worklogs.map(worklog => {
-                return {
-                    id: worklog.id,
-                    issueId: issue.id,
-                    started: worklog.started,
-                    timeSpentSeconds: worklog.timeSpentSeconds,
-                    comment: worklog.comment,
-                    author: worklog.author.emailAddress
-                };
-            }).filter(worklog => filterWorklog(req, worklog, filterStartTime, filterEndTime));
-            return acc.concat(issueWorklogs);
-        }, []);
+        const worklogs = issue.fields.worklog.worklogs
+            .filter(worklog => {
+                if (process.env.JIRA_BASIC_AUTH_USERNAME) {
+                    return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
+                }
+                if (process.env.JIRA_AUTH_TYPE === "OAUTH") {
+                    return worklog.author.emailAddress === req.user.email;
+                }
+                return true;
+            });
 
-        // Map issues to a dictionary for quick lookup
-        const formattedIssues = extractIssues(issues);
-        const issueMap = formattedIssues.reduce((map, issue) => {
-            map[issue.issueId] = issue;
-            return map;
-        }, {});
+        // Format each worklog using the common formatter
+        const formattedWorklogs = await Promise.all(
+            worklogs.map(worklog => exports.formatWorklog(settings, req, worklog, issueData))
+        );
+        
+        events.push(...formattedWorklogs);
+    }
 
-        // Format worklogs with issue details
-        const formattedWorklogs = await Promise.all(worklogs.map(async worklog => {
-            const issue = issueMap[worklog.issueId];
-            return await exports.formatWorklog(settings, req, worklog, issue);
-        }));
-
-        await configController.saveAccumulatedIssueColors();
-        return formattedWorklogs;
-    });
+    return events;
 };
 
 function extractIssues(issues) {

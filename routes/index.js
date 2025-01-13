@@ -118,14 +118,6 @@ router.delete('/worklog/:worklogId', function(req, res, next) {
   }
 });
 
-/*router.get('/sprint-stats', function(req, res) {
-    res.render('sprintStats', { 
-        title: 'Sprint Statistics',
-        jiraUrl: process.env.JIRA_URL,
-        user: req.user  // Pass user data if needed
-    });
-});*/
-
 router.get('/stats', function(req, res) {
   res.render('sprintStats', { 
       title: 'Sprint Statistics',

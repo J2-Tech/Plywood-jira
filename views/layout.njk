@@ -1,3 +1,4 @@
+{% import "modals.njk" as modals %}
 <!DOCTYPE html>
 <html>
     <head>
@@ -19,6 +20,8 @@
         {% block head %}{% endblock %}
     </head>
     <body>
+        {{ modals.modals() }}  <!-- Add modals here so they're available on all pages -->
+        
         <footer class="app-footer">
             <div class="footer-left">
                 <div class="hamburger-menu">
@@ -57,6 +60,7 @@
         <script src="https://unpkg.com/@popperjs/core@2"></script>
         <script src="https://unpkg.com/tippy.js@6"></script>
         <script src="/javascripts/plywood/ui.js" type="module"></script>
+        <script src="/javascripts/plywood/modal.js" type="module"></script>
         {% block scripts %}{% endblock %}
     </body>
 </html>

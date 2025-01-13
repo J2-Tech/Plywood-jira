@@ -1,82 +1,48 @@
-const fs = require('fs');
-const path = require('path');
-const { Mutex } = require('async-mutex');
-const jiraAPIController = require('../controllers/jiraAPIController');
+const settingsService = require('./settingsService');
+const jiraAPIController = require('./jiraAPIController');
 const { JSDOM } = require('jsdom');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-const configPath = path.join(__dirname, '..', 'config', 'settings.json');
-const configDir = path.dirname(configPath);
 
-// Default configuration
-const defaultConfig = {
-    showIssueTypeIcons: true,
-    themeSelection: 'auto',
-    roundingInterval: 15,
-    issueColors: {},
-    selectedProject: 'all'
+// Store colors to update per user
+const issueColorsToUpdate = new Map();
+
+exports.loadConfig = async function (req) {
+    return await settingsService.getSettings(req);
 };
 
-// Create a mutex
-const mutex = new Mutex();
+exports.setSetting = async function (req, key, value) {
+    return await settingsService.setSetting(req, key, value);
+};
 
-const issueColorsToUpdate = {};
-
-exports.loadConfig = async function () {
-    return await mutex.runExclusive( async () => {
-      return readSettingsInternal();
-    });
-}
-
-function readSettingsInternal() {
-    if (!fs.existsSync(configPath)) {
-        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf8');
+exports.accumulateIssueColor = async function(req, issueKey, color) {
+    const userId = settingsService._getUserId(req);
+    if (!issueColorsToUpdate.has(userId)) {
+        issueColorsToUpdate.set(userId, {});
     }
-    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
-}
-
-exports.setSetting = async function (key, value) {
-    return await mutex.runExclusive(async () => {
-        const config = readSettingsInternal();
-        config[key] = value;
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-    });
-}
-
-/**
- * Accumulate issue colors to update.
- * @param {string} issueKey - The issue key.
- * @param {string} color - The color to update.
- */
-exports.accumulateIssueColor = async function(issueKey, color) {
-    await mutex.runExclusive(async () => {
-        issueColorsToUpdate[issueKey.toLowerCase()] = color;
-    });
+    if (color) {
+        issueColorsToUpdate.get(userId)[issueKey.toLowerCase()] = color;
+    }
 };
 
-/**
- * Save accumulated issue colors.
- */
-exports.saveAccumulatedIssueColors = async function() {
-    await mutex.runExclusive(async () => {
-        const config = readSettingsInternal();
-        config.issueColors = { ...config.issueColors, ...issueColorsToUpdate };
-        fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-        // Clear the accumulated colors after saving
-        for (const key in issueColorsToUpdate) {
-            delete issueColorsToUpdate[key];
-        }
-    });
+exports.saveAccumulatedIssueColors = async function(req) {
+    const userId = settingsService._getUserId(req);
+    const userColors = issueColorsToUpdate.get(userId);
+    if (userColors && Object.keys(userColors).length > 0) {
+        const config = await settingsService.getSettings(req);
+        config.issueColors = { 
+            ...config.issueColors, 
+            ...userColors 
+        };
+        await settingsService.updateSettings(req, config);
+        issueColorsToUpdate.delete(userId);
+    }
 };
 
 exports.ensureConfigDirExists = async function(req) {
-    if (!fs.existsSync(configDir)) {
-        fs.mkdirSync(configDir);
-    }
-
-    if (!fs.existsSync(configPath)) {
+    const config = await settingsService.getSettings(req);
+    if (!config.issueColorField) {
         const customFields = await jiraAPIController.getCustomFields(req);
         const issueTypes = await jiraAPIController.getIssueTypes(req);
-
         const issueColorField = await exports.findColorFieldName(req);
 
         const issueColors = {};
@@ -86,15 +52,12 @@ exports.ensureConfigDirExists = async function(req) {
             issueColors[issueType.name.toLowerCase()] = color;
         }
 
-        const initialConfig = {
-            ...defaultConfig,
+        await settingsService.updateSettings(req, {
             issueColorField,
             issueColors
-        };
-
-        fs.writeFileSync(configPath, JSON.stringify(initialConfig, null, 2), 'utf8');
+        });
     }
-}
+};
 
 exports.findColorFieldName = async function (req) {
     const fields = await jiraAPIController.getCustomFields(req);

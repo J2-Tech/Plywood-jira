@@ -241,11 +241,13 @@ export function applyTheme(theme) {
     const body = document.body;
     body.classList.remove('light-theme', 'dark-theme');
 
+    // Store theme selection in localStorage for persistence across pages
+    localStorage.setItem('themeSelection', theme);
+
     if (theme === 'auto') {
         const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
         theme = prefersDarkScheme.matches ? 'dark' : 'light';
 
-        // Listen for changes in the system theme
         prefersDarkScheme.addEventListener('change', (e) => {
             const newTheme = e.matches ? 'dark' : 'light';
             body.classList.remove('light-theme', 'dark-theme');

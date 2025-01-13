@@ -3,34 +3,35 @@ const https = require('https');
 const dayjs = require('dayjs');
 const configController = require('./configController');
 
-// Add this to store the current project
-global.selectedProject = 'all';
+// Remove global state
+// global.selectedProject = 'all';
 
 function getDefaultHeaders(req) {
-    let defaultHeaders;
+    if (!req.user && process.env.JIRA_AUTH_TYPE === "OAUTH") {
+        throw new Error('No user session found');
+    }
 
     switch (process.env.JIRA_AUTH_TYPE) {
         case "OAUTH":
-            defaultHeaders = {
+            return {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'Authorization': 'Bearer ' + req.user.accessToken
             };
-        break;
         
         case "BASIC":
         default:
-            const bearerToken = 'Basic ' + Buffer.from(process.env.JIRA_BASIC_AUTH_USERNAME + ':' + process.env.JIRA_BASIC_AUTH_API_TOKEN).toString('base64');
+            const bearerToken = 'Basic ' + Buffer.from(
+                process.env.JIRA_BASIC_AUTH_USERNAME + ':' + 
+                process.env.JIRA_BASIC_AUTH_API_TOKEN
+            ).toString('base64');
 
-            defaultHeaders = {
+            return {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
                 'Authorization': bearerToken
             };
-            break;
     }
-
-    return defaultHeaders;
 }
 
 function getCallURL(req) {
@@ -59,16 +60,20 @@ if (process.env.JIRA_API_DISABLE_HTTPS_VALIDATION || process.env.JIRA_API_DISABL
 }
 
 async function withRetry(fetchFn, req, ...args) {
-    const data = await fetchFn(req, ...args);
-    if (data.code === 401 && process.env.JIRA_AUTH_TYPE === "OAUTH") {
-        console.log('Token expired. Refreshing token...');
-        await refreshToken(req);
-        // Retry the API call with the new token
-        return fetchFn(req, ...args);
-    } else if (data.code === 401) {
-        console.log('Error - unauthorized. Check your credentials.');
-    } else {
+    try {
+        const data = await fetchFn(req, ...args);
+        if (data.code === 401 && process.env.JIRA_AUTH_TYPE === "OAUTH") {
+            console.log('Token expired. Refreshing token...');
+            await refreshToken(req);
+            return await fetchFn(req, ...args);
+        } else if (data.code === 401) {
+            console.log('Error - unauthorized. Check your credentials.');
+            throw new Error('Unauthorized');
+        }
         return data;
+    } catch (error) {
+        console.error('API call failed:', error);
+        throw error;
     }
 }
 

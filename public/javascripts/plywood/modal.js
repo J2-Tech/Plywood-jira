@@ -1,21 +1,15 @@
 import { showLoading, hideLoading } from './ui.js';
 import { refreshWorklog } from './calendar.js';
+
 /**
  * General function to show a modal.
  * @param {string} modalClass - The class of the modal to show.
- * @param {Date} [start] - The start date/time.
- * @param {Date} [end] - The end date/time.
  */
-export function showModal(modalClass, start, end) {
+export function showModal(modalClass) {
     const modal = document.querySelector(modalClass);
-    if (start && end) {
-        const startInput = modal.querySelector('input[name*="start"]');
-        startInput.value = start.toISOString();
-
-        const durationInput = modal.querySelector('input[name*="duration"]');
-        durationInput.value = (end - start) / 1000;
+    if (modal) {
+        modal.style.display = 'block';
     }
-    modal.style.display = "block";
 }
 
 /**
@@ -23,9 +17,10 @@ export function showModal(modalClass, start, end) {
  * @param {string} modalClass - The class of the modal to hide.
  */
 export function hideModal(modalClass) {
-    
     const modal = document.querySelector(modalClass);
-    modal.style.display = "none";
+    if (modal) {
+        modal.style.display = 'none';
+    }
 }
 
 /**
@@ -90,10 +85,11 @@ export function toggleConfigModal() {
         window.loadConfig().then(() => {
             modal.style.display = 'block';
         });
-
     } else {
         modal.style.display = 'none';
-        window.calendar.refetchEvents();
+        if (window.calendar) {
+            window.calendar.refetchEvents();
+        }
     }
 }
 
@@ -194,6 +190,16 @@ function syncRoundingInterval() {
     }
 }
 
+export function showAboutModal() {
+    const modal = document.querySelector('.modal-about');
+    modal.style.display = 'block';
+}
+
+export function hideAboutModal() {
+    const modal = document.querySelector('.modal-about');
+    modal.style.display = 'none';
+}
+
 window.hideModal = hideModal;
 window.showModal = showModal;
 window.showUpdateModal = showUpdateModal;
@@ -203,3 +209,5 @@ window.showColorPicker = showColorPicker;
 window.hideColorPickerModal = hideColorPickerModal;
 window.saveColor = saveColor;
 window.saveColorForIssue = saveColorForIssue;
+window.showAboutModal = showAboutModal;
+window.hideAboutModal = hideAboutModal;

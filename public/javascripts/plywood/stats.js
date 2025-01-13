@@ -382,30 +382,32 @@ function initializeChartControls() {
 }
 
 async function initializeStats() {
+    // First load config to ensure we have proper settings
+    const config = await loadConfig();
+    
     initializeDateInputs();
-    initializeTabs();
     initializeChartControls();
     
-    // Initialize project selector with saved value first
+    // Initialize project selector with saved value from config
     const headerProjectSelect = document.getElementById('headerProjectSelection');
     if (headerProjectSelect) {
-        // Get project from localStorage or config
-        const savedProject = localStorage.getItem('currentProject') || 'all';
-        await loadProjects(headerProjectSelect, savedProject);
-        headerProjectSelect.value = savedProject;
+        await loadProjects(headerProjectSelect, config.selectedProject);
         
         headerProjectSelect.addEventListener('change', (event) => {
             changeProject(event.target.value);
         });
-        
-        // Initial sync with saved project
-        await changeProject(savedProject);
     }
     
     document.getElementById('refreshStats').addEventListener('click', loadStats);
     document.getElementById('toggleChart').addEventListener('click', toggleChartStyle);
     
-    // Initial load
+    // Apply theme from config
+    applyTheme(config.themeSelection);
+    
+    // Store config globally
+    window.previousConfig = config;
+    
+    // Initial load with config's project
     loadStats();
 }
 

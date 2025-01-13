@@ -41,7 +41,18 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
   
-  app.use(session({ secret: 'plywoods-amazing-session-secret', resave: false, saveUninitialized: true }));
+  app.use(session({ 
+    secret: 'plywoods-amazing-session-secret', 
+    resave: false, 
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  }));
+
+  app.use(passport.initialize());
+  app.use(passport.session());
 
   const authStrategy = new AtlassianOAuth2Strategy({
       clientID: process.env.JIRA_OAUTH_CLIENT_ID,
@@ -50,12 +61,22 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
       scope: 'offline_access read:jira-work read:jira-user write:jira-work',
   },
   function(accessToken, refreshToken, profile, cb) {
-      profile.accessToken = accessToken;
-      profile.refreshToken = refreshToken;
-      // for each site, check if url matches process.env.JIRA_URL
-      const cloudId = profile.accessibleResources.find(site => site.url.includes(process.env.JIRA_URL)).id;
-      profile.cloudId = cloudId;
-      cb(null, profile);
+      try {
+          profile.accessToken = accessToken;
+          profile.refreshToken = refreshToken;
+          const cloudId = profile.accessibleResources.find(
+              site => site.url.includes(process.env.JIRA_URL)
+          )?.id;
+          
+          if (!cloudId) {
+              return cb(new Error('No matching Jira site found'));
+          }
+          
+          profile.cloudId = cloudId;
+          cb(null, profile);
+      } catch (error) {
+          cb(error);
+      }
   });
 
   authStrategy._oauth2.setAgent(new https.Agent({

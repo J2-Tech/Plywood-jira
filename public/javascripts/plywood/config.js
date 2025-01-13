@@ -15,14 +15,6 @@ export function saveConfig() {
         issueColors: {}
     };
 
-    // Add event listener for project selection in config
-    const configProjectSelect = document.getElementById('projectSelection');
-    if (configProjectSelect) {
-        configProjectSelect.addEventListener('change', (event) => {
-            changeProject(event.target.value);
-        });
-    }
-
     // Gather issue colors from the DOM
     const issueTypeColors = document.getElementById('issueTypeColors').children;
     for (const issueTypeColor of issueTypeColors) {
@@ -33,11 +25,7 @@ export function saveConfig() {
         }
     }
 
-    // Detect removed colors
-    const previousConfig = window.previousConfig || {};
-    const removedColors = Object.keys(previousConfig.issueColors || {}).filter(issueType => !(issueType in config.issueColors));
-
-    fetch('/config/saveConfig', {
+    return fetch('/config/saveConfig', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -45,21 +33,23 @@ export function saveConfig() {
         body: JSON.stringify(config),
     }).then(response => {
         if (response.ok) {
+            window.previousConfig = config;
+            
+            // Store settings in localStorage
+            localStorage.setItem('themeSelection', config.themeSelection);
+            localStorage.setItem('currentProject', config.selectedProject);
+            
             hideModal('#configModal');
-            if (config.themeSelection !== document.body.className) {
-                applyTheme(config.themeSelection);
-            }
-            if (config.showIssueTypeIcons !== window.showIssueTypeIcons) {
-                window.showIssueTypeIcons = config.showIssueTypeIcons;
+            
+            // Apply settings
+            applyTheme(config.themeSelection);
+            window.showIssueTypeIcons = config.showIssueTypeIcons;
+            window.roundingInterval = config.roundingInterval;
+            window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
+            
+            if (window.calendar) {
                 window.calendar.refetchEvents();
             }
-            window.roundingInterval = config.roundingInterval;
-            syncRoundingInterval();
-
-            // Refresh relevant issues
-            removedColors.forEach(issueType => {
-                refreshAllWorklogsOfIssueType(issueType);
-            });
         } else {
             console.error('Failed to save configuration.');
         }
@@ -76,37 +66,34 @@ export function loadConfig() {
             // Set default values if undefined
             config = {
                 showIssueTypeIcons: true,
-                themeSelection: 'auto',
+                themeSelection: localStorage.getItem('themeSelection') || 'auto',
                 roundingInterval: 15,
                 issueColors: {},
-                selectedProject: 'all',
-                ...config
+                selectedProject: localStorage.getItem('currentProject') || 'all',
+                ...config  // Merge with saved config
             };
 
-            document.getElementById('showIssueTypeIcons').checked = config.showIssueTypeIcons;
-            document.getElementById('themeSelection').value = config.themeSelection || 'light';
-            document.getElementById('rounding-interval').value = config.roundingInterval || 15;
-            document.getElementById('timer-rounding-interval').value = config.roundingInterval || 15;
-            document.getElementById('save-timer-on-issue-switch').checked = config.saveTimerOnIssueSwitch;
+            // Store config globally
+            window.previousConfig = config;
+
+            // Update form inputs if they exist
+            const showIssueTypeIconsInput = document.getElementById('showIssueTypeIcons');
+            const themeSelectionInput = document.getElementById('themeSelection');
+            const roundingIntervalInput = document.getElementById('rounding-interval');
+            const timerRoundingIntervalInput = document.getElementById('timer-rounding-interval');
+            const saveTimerOnIssueSwitchInput = document.getElementById('save-timer-on-issue-switch');
+
+            if (showIssueTypeIconsInput) showIssueTypeIconsInput.checked = config.showIssueTypeIcons;
+            if (themeSelectionInput) themeSelectionInput.value = config.themeSelection;
+            if (roundingIntervalInput) roundingIntervalInput.value = config.roundingInterval || 15;
+            if (timerRoundingIntervalInput) timerRoundingIntervalInput.value = config.roundingInterval || 15;
+            if (saveTimerOnIssueSwitchInput) saveTimerOnIssueSwitchInput.checked = config.saveTimerOnIssueSwitch;
+
+            // Set global variables
             window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
             window.roundingInterval = config.roundingInterval || 15;
-            syncRoundingInterval();
-
-            const issueTypeColors = document.getElementById('issueTypeColors');
-            issueTypeColors.innerHTML = '';
-
-            for (const [issueType, color] of Object.entries(config.issueColors)) {
-                addIssueType(issueType, color);
-            }
-
-            applyTheme(config.themeSelection);
+            window.showIssueTypeIcons = config.showIssueTypeIcons;
             
-            const configProjectSelect = document.getElementById('projectSelection');
-            if (configProjectSelect) {
-                await loadProjects(configProjectSelect, config.selectedProject);
-            }
-
-            window.previousConfig = config;
             return config;
         });
 }
