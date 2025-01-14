@@ -122,10 +122,17 @@ exports.getAvailableSites= function(req) {
 function searchIssuesInternal(req, jql) {
     const headers = getDefaultHeaders(req);
     const url = getCallURL(req);
+    
+    // If it's a query (not a specific issue key), use contains search
+    if (!jql.startsWith('key = ')) {
+        jql = `summary ~ "${jql}*" OR description ~ "${jql}*"`;
+    }
+    
+    // Apply project filter
     jql = appendProjectFilter(jql, req.query.project);
     
     const fields = ['summary', 'issuetype', 'parent', 'customfield_10017'];
-    return fetch(url + '/rest/api/3/search?maxResults=' + process.env.JIRA_MAX_SEARCH_RESULTS + '&jql=' + jql + '&fields=' + fields.join(','), {
+    return fetch(url + '/rest/api/3/search?maxResults=' + process.env.JIRA_MAX_SEARCH_RESULTS + '&jql=' + encodeURIComponent(jql) + '&fields=' + fields.join(','), {
         method: 'GET',
         headers,
         agent: httpsAgent
@@ -142,13 +149,14 @@ exports.suggestIssues = function(req, query) {
 
 function suggestIssuesInternal(req, query) {
     const url = getCallURL(req);
-    const projectFilter = appendProjectFilter('', req.query.project);
     
-    if (projectFilter) {
-        query += '&currentJQL=' + projectFilter;
-    }
+    // Add JQL for text search
+    let searchJql = `summary ~ "${query}*" OR description ~ "${query}*"`;
     
-    return fetch(url + '/rest/api/3/issue/picker?query=' + query, {
+    // Apply project filter
+    searchJql = appendProjectFilter(searchJql, req.query.project);
+    
+    return fetch(url + '/rest/api/3/issue/picker?query=' + encodeURIComponent(query) + '&currentJQL=' + encodeURIComponent(searchJql), {
         method: 'GET',
         headers: getDefaultHeaders(req),
         agent: httpsAgent
@@ -368,6 +376,131 @@ exports.getSprintIssues = async function(req, sprintId) {
     }).then(res => res.json());
 };
 
+exports.getProjectAvatar = async function(req, projectKey) {
+    console.log(`Fetching avatar for project ${projectKey}`);
+    const url = getCallURL(req);
+    try {
+        // First try to get project details to get avatar URLs
+        const projectResponse = await fetch(url + `/rest/api/3/project/${projectKey}`, {
+            method: 'GET',
+            headers: getDefaultHeaders(req),
+            agent: httpsAgent
+        });
+        
+        if (!projectResponse.ok) {
+            console.error(`Failed to fetch project details: ${projectResponse.status}`);
+            throw new Error('Failed to fetch project details');
+        }
+        
+        const projectData = await projectResponse.json();
+        console.log('Project avatar URLs:', projectData.avatarUrls);
+        
+        // Try to get the largest avatar available
+        const avatarUrl = projectData.avatarUrls['48x48'] || 
+                         projectData.avatarUrls['32x32'] || 
+                         projectData.avatarUrls['24x24'] || 
+                         projectData.avatarUrls['16x16'];
+                         
+        if (!avatarUrl) {
+            console.error('No avatar URLs found in project data');
+            return '#2684FF'; // Default color
+        }
+
+        // Get color from avatar
+        const color = await exports.getMainColorFromIcon(avatarUrl);
+        console.log(`Extracted color for project ${projectKey}:`, color);
+        return color;
+        
+    } catch (error) {
+        console.error('Error fetching project avatar:', error);
+        return '#2684FF'; // Default color
+    }
+};
+
+exports.getIssueColor = async function(req, issueId) {
+    const url = getCallURL(req);
+    const response = await fetch(url + `/rest/api/3/issue/${issueId}`, {
+        method: 'GET',
+        headers: getDefaultHeaders(req),
+        agent: httpsAgent
+    });
+    const issue = await response.json();
+    
+    // Use jiraController's determineIssueColor instead
+    const jiraController = require('./jiraController');
+    const settings = await configController.loadConfig(req);
+    const color = await jiraController.determineIssueColor(settings, req, {
+        issueId: issue.id,
+        issueKey: issue.key,
+        issueType: issue.fields.issuetype.name
+    });
+    
+    return color;
+};
+
+exports.getMainColorFromIcon = async function (imageUrl) {
+    if (!imageUrl) return '#2684FF';
+
+    try {
+        const response = await fetch(imageUrl, { agent: httpsAgent });
+        const contentType = response.headers.get('content-type');
+        
+        if (contentType.includes('svg')) {
+            const svgText = await response.text();
+            
+            // Look for Rectangle use element
+            const useRegex = /<use[^>]*id="Rectangle"[^>]*fill="([^"]+)"[^>]*>/;
+            const useMatch = svgText.match(useRegex);
+            
+            if (useMatch && useMatch[1]) {
+                const color = useMatch[1];
+                if (color !== 'none' && 
+                    color.toLowerCase() !== '#fff' && 
+                    color.toLowerCase() !== '#ffffff' &&
+                    color.toLowerCase() !== 'white') {
+                    return color;
+                }
+            }
+
+            // Fallback to largest rectangle
+            const rectRegex = /<rect[^>]*width="([^"]+)"[^>]*height="([^"]+)"[^>]*fill="([^"]+)"[^>]*>/g;
+            let largestArea = 0;
+            let backgroundColor = '#2684FF';
+            let match;
+
+            while ((match = rectRegex.exec(svgText)) !== null) {
+                const [_, width, height, color] = match;
+                if (color === 'none' || 
+                    color.toLowerCase() === '#fff' || 
+                    color.toLowerCase() === '#ffffff' ||
+                    color.toLowerCase() === 'white') {
+                    continue;
+                }
+
+                const area = parseFloat(width) * parseFloat(height);
+                if (area > largestArea) {
+                    largestArea = area;
+                    backgroundColor = color;
+                }
+            }
+
+            return backgroundColor;
+        } else {
+            let hash = 0;
+            for (let i = 0; i < imageUrl.length; i++) {
+                hash = ((hash << 5) - hash) + imageUrl.charCodeAt(i);
+                hash = hash & hash;
+            }
+            const hue = Math.abs(hash % 360);
+            return `hsl(${hue}, 70%, 50%)`;
+        }
+    } catch (error) {
+        return '#2684FF';
+    }
+    
+    return '#2684FF';
+};
+
 function appendProjectFilter(jql, projectKey) {
     if (projectKey && projectKey !== 'all') {
         return jql ? `project = "${projectKey}" AND (${jql})` : `project = "${projectKey}"`;
@@ -379,20 +512,3 @@ function formatDateToJira(date) {
     const dayJsDate = dayjs(date);
     return dayJsDate.format('YYYY-MM-DDTHH:mm:ss.SSSZZ');
 }
-
-exports.getMainColorFromIcon = async function (imageUrl) {
-    if (!imageUrl) {
-        return '#2684FF'; // Default Jira blue
-    }
-
-    try {
-        const response = await fetch(imageUrl, {
-            agent: httpsAgent // Use the same HTTPS validation settings as other API calls
-        });
-        const svgText = await response.text();
-        // ... rest of the function
-    } catch (error) {
-        console.error('Error fetching icon:', error);
-        return '#2684FF'; // Default Jira blue
-    }
-};

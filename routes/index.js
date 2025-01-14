@@ -58,6 +58,16 @@ router.get('/issues/:issueId', function(req, res, next) {
   }
 });
 
+router.get('/issues/:issueId/color', async function(req, res) {
+    try {
+        const color = await jiraAPIController.getIssueColor(req, req.params.issueId);
+        res.json({ color });
+    } catch (error) {
+        console.error('Error getting issue color:', error);
+        res.status(500).json({ error: 'Failed to get issue color' });
+    }
+});
+
 router.get('/worklog/:worklogId', function(req, res, next) {
   try {
     jiraAPIController.getWorkLog(req, req.query.issueId, req.params.worklogId).then(result => {
@@ -85,6 +95,16 @@ router.get('/projects/sprints', async function(req, res, next) {
     } catch (error) {
         console.log(error);
         res.status(500).json({ error: 'Failed to fetch sprints' });
+    }
+});
+
+router.get('/projects/:projectKey/avatar', async function(req, res) {
+    try {
+        const color = await jiraAPIController.getProjectAvatar(req, req.params.projectKey);
+        res.json({ color });
+    } catch (error) {
+        console.error('Error fetching project avatar:', error);
+        res.status(500).json({ error: 'Failed to fetch project avatar' });
     }
 });
 

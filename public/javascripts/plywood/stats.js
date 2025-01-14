@@ -143,14 +143,85 @@ async function loadStats() {
     }
 }
 
-function generateColors(count) {
-    const colors = [];
-    for (let i = 0; i < count; i++) {
-        colors.push(`hsl(${(i * 360) / count}, 70%, 50%)`);
-    }
-    return colors;
+// Add color cache
+const colorCache = {
+    issues: new Map(),
+    types: new Map(),
+    projects: new Map(),
+    lastSettingsUpdate: 0
+};
+
+// Function to check if cache is valid
+function isColorCacheValid() {
+    const settings = window.previousConfig;
+    return settings && colorCache.lastSettingsUpdate === settings.lastUpdate;
 }
 
+async function getCachedColor(key, type) {
+    // Invalidate cache if settings changed
+    if (!isColorCacheValid()) {
+        colorCache.issues.clear();
+        colorCache.types.clear();
+        colorCache.projects.clear();
+        colorCache.lastSettingsUpdate = window.previousConfig?.lastUpdate || Date.now();
+    }
+
+    const cache = colorCache[type];
+    if (cache.has(key)) {
+        return cache.get(key);
+    }
+
+    // Fetch color based on type
+    let color;
+    switch(type) {
+        case 'issues':
+            color = await fetch(`/issues/${key}/color`).then(r => r.json()).then(d => d.color);
+            break;
+        case 'types':
+            const settings = window.previousConfig || {};
+            color = settings.issueColors?.[key.toLowerCase()] || 
+                   `hsl(${Math.random() * 360}, 70%, 50%)`;
+            break;
+        case 'projects':
+            try {
+                const response = await fetch(`/projects/${key}/avatar`);
+                if (!response.ok) throw new Error();
+                color = (await response.json()).color;
+            } catch {
+                const hue = Array.from(key).reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360;
+                color = `hsl(${hue}, 70%, 50%)`;
+            }
+            break;
+    }
+
+    cache.set(key, color);
+    return color;
+}
+
+async function generateColors(count, data, type) {
+    switch(type) {
+        case 'issueTypes':
+            return Promise.all(Object.keys(data).map(type => 
+                getCachedColor(type, 'types')
+            ));
+            
+        case 'issues':
+            return Promise.all(Object.entries(data).map(async ([key]) => {
+                const issueKey = key.split(' - ')[0];
+                return getCachedColor(issueKey, 'issues');
+            }));
+            
+        case 'projects':
+            return Promise.all(Object.keys(data).map(project => 
+                getCachedColor(project, 'projects')
+            ));
+            
+        default:
+            return Array(count).fill(0).map(() => 
+                `hsl(${Math.random() * 360}, 70%, 50%)`
+            );
+    }
+}
 
 function toggleChartStyle() {
     currentChartStyle = currentChartStyle === 'bar' ? 'pie' : 'bar';
@@ -194,7 +265,7 @@ function renderIssueTypesChart(data) {
     });
 }
 
-function renderAnalysisChart(data) {
+async function renderAnalysisChart(data) {
     const ctx = document.getElementById('analysisChart');
     if (currentChart) currentChart.destroy();
     
@@ -215,51 +286,61 @@ function renderAnalysisChart(data) {
     };
 
     switch (currentChartType) {
-        case 'issueTypes':
+        case 'issueTypes': {
             const timeByType = data.reduce((acc, issue) => {
                 acc[issue.type] = (acc[issue.type] || 0) + issue.totalTimeSpent;
                 return acc;
             }, {});
+            const typeColors = await generateColors(Object.keys(timeByType).length, timeByType, 'issueTypes');
             chartData = {
                 labels: Object.keys(timeByType),
                 datasets: [{
                     label: 'Hours Spent',
                     data: Object.values(timeByType).map(time => time / 3600),
-                    backgroundColor: generateColors(Object.keys(timeByType).length)
+                    backgroundColor: typeColors
                 }]
             };
             break;
+        }
 
-        case 'issues':
+        case 'issues': {
             const timeByIssue = data.reduce((acc, issue) => {
-                acc[`${issue.key} - ${issue.summary}`] = issue.totalTimeSpent;
+                const key = `${issue.key} - ${issue.summary}`;
+                acc[key] = {
+                    time: issue.totalTimeSpent,
+                    type: issue.type
+                };
                 return acc;
             }, {});
+            const colors = await generateColors(Object.keys(timeByIssue).length, timeByIssue, 'issues');
             chartData = {
                 labels: Object.keys(timeByIssue),
                 datasets: [{
                     label: 'Hours Spent',
-                    data: Object.values(timeByIssue).map(time => time / 3600),
-                    backgroundColor: generateColors(Object.keys(timeByIssue).length)
+                    data: Object.values(timeByIssue).map(v => v.time / 3600),
+                    backgroundColor: colors
                 }]
             };
             break;
+        }
 
-        case 'projects':
+        case 'projects': {
             const timeByProject = data.reduce((acc, issue) => {
                 const project = issue.key.split('-')[0];
                 acc[project] = (acc[project] || 0) + issue.totalTimeSpent;
                 return acc;
             }, {});
+            const colors = await generateColors(Object.keys(timeByProject).length, timeByProject, 'projects');
             chartData = {
                 labels: Object.keys(timeByProject),
                 datasets: [{
                     label: 'Hours Spent',
                     data: Object.values(timeByProject).map(time => time / 3600),
-                    backgroundColor: generateColors(Object.keys(timeByProject).length)
+                    backgroundColor: colors
                 }]
             };
             break;
+        }
     }
 
     currentChart = new Chart(ctx, {

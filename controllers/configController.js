@@ -43,24 +43,7 @@ exports.saveAccumulatedIssueColors = async function(req) {
 
 exports.ensureConfigDirExists = async function(req) {
     const config = await settingsService.getSettings(req);
-    /*if (!config.issueColorField) {
-        const customFields = await jiraAPIController.getCustomFields(req);
-        const issueColorField = await exports.findColorFieldName(req);
 
-        // Get default colors
-        const defaultColors = {
-            'story': '#63ba3c',
-            'bug': '#e5493a',
-            'task': '#4bade8',
-            'epic': '#904ee2',
-            'subtask': '#4baee8'
-        };
-
-        await settingsService.updateSettings(req, {
-            issueColorField,
-            issueColors: defaultColors
-        });
-    }*/
 };
 
 exports.findColorFieldName = async function (req) {
@@ -69,64 +52,6 @@ exports.findColorFieldName = async function (req) {
     return colorField ? colorField.id : null;
 
 }
-
-exports.getMainColorFromIcon = async function (imageUrl) {
-    if (!imageUrl) {
-        return '#2684FF'; // Default Jira blue
-    }
-
-    try {
-        const response = await fetch(imageUrl);
-        const svgText = await response.text();
-        
-        const dom = new JSDOM(svgText);
-        const svg = dom.window.document.querySelector('svg');
-        
-        if (!svg) {
-            console.warn(`No SVG found in ${imageUrl}`);
-            return '#2684FF';
-        }
-
-        const colorCount = {};
-        const mainColor = '#2684FF'; // Default color
-
-        // Count fill colors
-        svg.querySelectorAll('[fill]').forEach(el => {
-            const fill = el.getAttribute('fill');
-            if (fill && fill !== 'none') {
-                countColor(fill);
-            }
-        });
-
-        // Count stroke colors
-        svg.querySelectorAll('[stroke]').forEach(el => {
-            const stroke = el.getAttribute('stroke');
-            if (stroke && stroke !== 'none') {
-                countColor(stroke);
-            }
-        });
-
-        function countColor(color) {
-            colorCount[color] = (colorCount[color] || 0) + 1;
-        }
-
-        // Find most used color
-        let maxCount = 0;
-        let dominantColor = mainColor;
-        
-        Object.entries(colorCount).forEach(([color, count]) => {
-            if (count > maxCount) {
-                maxCount = count;
-                dominantColor = color;
-            }
-        });
-
-        return dominantColor;
-    } catch (error) {
-        console.error(`Error getting icon color from ${imageUrl}:`, error);
-        return '#2684FF';
-    }
-};
 
 // Update determineIssueColor to not try fetching colors automatically
 exports.determineIssueColor = async function(settings, req, issue) {

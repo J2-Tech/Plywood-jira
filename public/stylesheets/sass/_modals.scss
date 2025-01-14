@@ -82,7 +82,7 @@
     .time-fields {
         display: flex;
         justify-content: space-between;
-        width: 70%;
+        width: 80%;
         margin-bottom: $spacing-md;
     }
 
@@ -94,10 +94,11 @@
         label {
             text-align: center;
             margin-bottom: $spacing-xs;
+            width:100%;
         }
 
         input {
-            width: 100%;
+            width: calc(100% - 16px);
         }
     }
 }

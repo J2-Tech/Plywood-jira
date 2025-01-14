@@ -7,10 +7,10 @@
   // Calendar events
   .fc-event {
     color: #fff !important;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
+    //text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
   
     @include dark-theme {
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      //text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     }
   }
   

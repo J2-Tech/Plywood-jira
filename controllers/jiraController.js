@@ -277,39 +277,41 @@ exports.deleteWorkLog = function(req, issueId, worklogId) {
 
 exports.suggestIssues = function(req, start, end, query) {
     var query = req.query.query;
-
     var promises = [];
 
-    var keyJQL = 'key = ' + query
-
-
+    // Try exact key match first
+    var keyJQL = 'key = ' + query;
     promises.push(jiraAPIController.searchIssues(req, keyJQL));
+
+    // Then try text search
     promises.push(jiraAPIController.suggestIssues(req, query));
 
-    
-
     return Promise.all(promises).then(results => {
-        // results[0] = Key search
-        // results[1] = Suggestion search
-        
-        var issues = []
+        var issues = [];
 
-        if (results[1] && results[1].sections && results[1].sections.length > 0) {
-            for (var i = 0; i < results[1].sections.length; i++) {
-                if (results[1].sections[i].id == "cs") {
-                    //console.log(JSON.stringify(results[0].sections[i]));
-                    // add issues from the suggestion results to the issues array
-                    var mappedIssues = results[1].sections[i].issues.map(mapIssuesFunction);
-                    issues = issues.concat(mappedIssues);
-                }
-            }
-        }
+        // Add exact matches first
         if (results[0] && results[0].issues) {
             issues = issues.concat(results[0].issues.map(mapIssuesFunction));
         }
+
+        // Then add suggestions
+        if (results[1] && results[1].sections) {
+            results[1].sections.forEach(section => {
+                if (section.issues) {
+                    const mappedIssues = section.issues.map(mapIssuesFunction);
+                    // Filter out duplicates
+                    mappedIssues.forEach(issue => {
+                        if (!issues.some(existing => existing.key === issue.key)) {
+                            issues.push(issue);
+                        }
+                    });
+                }
+            });
+        }
+
         return issues;
     });
-}
+};
 
 function mapIssuesFunction(issue) {
     return {
