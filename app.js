@@ -80,7 +80,7 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
       clientID: process.env.JIRA_OAUTH_CLIENT_ID,
       clientSecret: process.env.JIRA_OAUTH_CLIENT_SECRET,
       callbackURL: process.env.JIRA_OAUTH_CALLBACK_URL,
-      scope: 'offline_access read:jira-work read:jira-user write:jira-work',
+      scope: 'offline_access read:jira-work read:jira-user write:jira-work read:avatar:jira read:project:jira',
   },
   function(accessToken, refreshToken, profile, cb) {
       try {
