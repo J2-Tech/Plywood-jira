@@ -11,8 +11,32 @@ WHERE npm >nul 2>nul
 IF %ERRORLEVEL% NEQ 0 ( ECHO npm wasn't found, skipping update  && GOTO :start ) 
 
 cd /D "%~dp0"
-git fetch --all
-git reset --hard github/main
+
+REM Create a backup of this script before updating
+copy "%~f0" "%~dp0\start_backup.bat" >nul 2>&1
+
+REM Check if we need to use origin/main instead of github/main
+git remote -v | findstr "github" >nul
+if %ERRORLEVEL% NEQ 0 (
+    echo Using origin/main instead of github/main
+    git fetch --all
+    git reset --hard origin/main
+) else (
+    git fetch --all
+    git reset --hard github/main
+)
+
+REM If the script was modified during git reset, restart with the backup
+if exist "%~dp0\start_backup.bat" (
+    fc "%~f0" "%~dp0\start_backup.bat" >nul 2>&1
+    if %ERRORLEVEL% NEQ 0 (
+        echo Script was updated, restarting with new version...
+        del "%~dp0\start_backup.bat" >nul 2>&1
+        start "" "%~f0"
+        exit /b 0
+    )
+    del "%~dp0\start_backup.bat" >nul 2>&1
+)
 
 npm install & GOTO :start_with_restart
 
