@@ -715,3 +715,54 @@ export function handleWorklogUpdateSuccess(updatedData, worklogId) {
 
 // Make the function available globally
 window.handleWorklogUpdateSuccess = handleWorklogUpdateSuccess;
+
+/**
+ * Load issue type avatar with fallback
+ * @param {string} issueTypeId - The issue type ID
+ * @param {string} size - The size (xsmall, small, medium, large)
+ * @returns {string} - The avatar URL or fallback
+ */
+function getIssueTypeAvatarUrl(issueTypeId, size = 'medium') {
+    if (!issueTypeId) {
+        return `/avatars/issuetype/default?size=${size}`;
+    }
+    
+    return `/avatars/issuetype/${issueTypeId}?size=${size}`;
+}
+
+/**
+ * Update issue display with avatar
+ * @param {HTMLElement} element - The element to update
+ * @param {Object} issueData - Issue data containing type information
+ */
+function updateIssueDisplayWithAvatar(element, issueData) {
+    if (!element || !issueData) return;
+    
+    const issueTypeId = issueData.fields?.issuetype?.id;
+    const issueTypeName = issueData.fields?.issuetype?.name || 'Unknown';
+    
+    // Find or create avatar element
+    let avatarElement = element.querySelector('.issue-type-avatar');
+    if (!avatarElement) {
+        avatarElement = document.createElement('img');
+        avatarElement.className = 'issue-type-avatar';
+        avatarElement.style.cssText = 'width: 16px; height: 16px; margin-right: 4px; vertical-align: middle;';
+        element.insertBefore(avatarElement, element.firstChild);
+    }
+    
+    // Set avatar with fallback handling
+    const avatarUrl = getIssueTypeAvatarUrl(issueTypeId, 'small');
+    avatarElement.src = avatarUrl;
+    avatarElement.alt = issueTypeName;
+    avatarElement.title = issueTypeName;
+    
+    // Handle avatar load errors
+    avatarElement.onerror = function() {
+        // Try fallback URL or hide the avatar
+        if (!this.src.includes('fallback=true')) {
+            this.src = `${avatarUrl}&fallback=true`;
+        } else {
+            this.style.display = 'none';
+        }
+    };
+}

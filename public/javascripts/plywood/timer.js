@@ -73,16 +73,33 @@ function stopTimer() {
     };
 
     createWorkLog(workLogData).then(response => {
-        if (response.errors) {
-            document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + response.errors.join(', ');
+        if (response.errors || !response.success) {
+            const errorMessage = response.errors ? response.errors.join(', ') : (response.error || 'Unknown error occurred');
+            document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + errorMessage;
         } else {
             document.getElementById('confirmation-message').textContent = 'Worklog created successfully!';
             // Use the same simplified refresh logic as the modal
             refreshWorklog(response.issueId, response.id);
+            
+            // Close the timer modal after successful creation
+            setTimeout(() => {
+                hideTimerModal();
+                console.log('Timer modal closed after successful worklog creation');
+            }, 1500); // Wait a bit to show the success message
         }
         hideLoading();
     }).catch(error => {
-        document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + error.message;
+        console.error('Error creating worklog via timer:', error);
+        let errorMessage = error.message;
+        
+        // Handle specific error cases
+        if (error.message.includes('permission') || error.message.includes('403')) {
+            errorMessage = 'You do not have permission to create worklogs for this issue.';
+        } else if (error.message.includes('404')) {
+            errorMessage = 'The issue could not be found.';
+        }
+        
+        document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + errorMessage;
         hideLoading();
     });
 

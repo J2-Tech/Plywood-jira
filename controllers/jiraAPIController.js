@@ -9,6 +9,10 @@ const worklogCache = new Map();
 const ISSUE_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 const WORKLOG_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
+// Add avatar cache
+const avatarCache = new Map();
+const AVATAR_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
 // Remove global state
 // global.selectedProject = 'all';
 
@@ -792,6 +796,238 @@ function cleanWorklogComment(comment) {
     
     return cleanedComment;
 }
+
+/**
+ * Get issue type avatar using universal avatar API
+ */
+exports.getIssueTypeAvatar = async function(req, issueTypeId) {
+    const cacheKey = `issuetype-avatar-${issueTypeId}`;
+    const cached = avatarCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < AVATAR_CACHE_TTL) {
+        return cached.data;
+    }
+    
+    const url = getCallURL(req);
+    
+    try {
+        // First get the issue type to get avatar ID
+        const issueTypeResponse = await fetch(`${url}/rest/api/3/issuetype/${issueTypeId}`, {
+            method: 'GET',
+            headers: getDefaultHeaders(req),
+            agent: httpsAgent
+        });
+        
+        if (!issueTypeResponse.ok) {
+            console.error(`Failed to fetch issue type: ${issueTypeResponse.status}`);
+            throw new Error('Failed to fetch issue type');
+        }
+        
+        const issueType = await issueTypeResponse.json();
+        console.log('Issue type data:', issueType);
+        
+        // Extract avatar ID from iconUrl if available
+        let avatarId = null;
+        if (issueType.iconUrl) {
+            const avatarIdMatch = issueType.iconUrl.match(/avatar\/(\d+)/);
+            if (avatarIdMatch) {
+                avatarId = avatarIdMatch[1];
+            }
+        }
+        
+        const result = {
+            issueTypeId: issueTypeId,
+            name: issueType.name,
+            iconUrl: issueType.iconUrl,
+            avatarId: avatarId,
+            // Provide fallback URLs for different sizes
+            avatarUrls: {
+                '16x16': `/avatars/issuetype/${issueTypeId}?size=xsmall`,
+                '24x24': `/avatars/issuetype/${issueTypeId}?size=small`,
+                '32x32': `/avatars/issuetype/${issueTypeId}?size=medium`,
+                '48x48': `/avatars/issuetype/${issueTypeId}?size=large`
+            }
+        };
+        
+        // Cache the result
+        avatarCache.set(cacheKey, {
+            data: result,
+            timestamp: Date.now()
+        });
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Error fetching issue type avatar:', error);
+        
+        // Return fallback data
+        return {
+            issueTypeId: issueTypeId,
+            name: 'Unknown',
+            iconUrl: null,
+            avatarId: null,
+            avatarUrls: {
+                '16x16': `/avatars/issuetype/${issueTypeId}?size=xsmall`,
+                '24x24': `/avatars/issuetype/${issueTypeId}?size=small`,
+                '32x32': `/avatars/issuetype/${issueTypeId}?size=medium`,
+                '48x48': `/avatars/issuetype/${issueTypeId}?size=large`
+            }
+        };
+    }
+};
+
+/**
+ * Get issue type avatar image using universal avatar API
+ */
+exports.getIssueTypeAvatarImage = async function(req, issueTypeId, size = 'medium') {
+    const sizeMap = {
+        'xsmall': '16',
+        'small': '24', 
+        'medium': '32',
+        'large': '48'
+    };
+    
+    const pixelSize = sizeMap[size] || '32';
+    const cacheKey = `issuetype-avatar-image-${issueTypeId}-${size}`;
+    const cached = avatarCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < AVATAR_CACHE_TTL) {
+        return cached.data;
+    }
+    
+    const url = getCallURL(req);
+    
+    try {
+        // First try to get the issue type to extract avatar ID
+        const issueTypeResponse = await fetch(`${url}/rest/api/3/issuetype/${issueTypeId}`, {
+            method: 'GET',
+            headers: getDefaultHeaders(req),
+            agent: httpsAgent
+        });
+        
+        if (!issueTypeResponse.ok) {
+            console.error(`Failed to fetch issue type: ${issueTypeResponse.status}`);
+            return null;
+        }
+        
+        const issueType = await issueTypeResponse.json();
+        
+        // Try multiple approaches to get the avatar
+        let avatarBuffer = null;
+        
+        // Approach 1: Use universal avatar API with extracted avatar ID
+        if (issueType.iconUrl) {
+            const avatarIdMatch = issueType.iconUrl.match(/avatar\/(\d+)/);
+            if (avatarIdMatch) {
+                const avatarId = avatarIdMatch[1];
+                console.log(`Trying universal avatar API with ID ${avatarId}`);
+                
+                try {
+                    const avatarResponse = await fetch(`${url}/rest/api/3/universal_avatar/view/type/issuetype/avatar/${avatarId}?size=${size}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': getDefaultHeaders(req).Authorization,
+                            'Accept': 'image/*'
+                        },
+                        agent: httpsAgent
+                    });
+                    
+                    if (avatarResponse.ok) {
+                        avatarBuffer = await avatarResponse.buffer();
+                        console.log(`Successfully fetched avatar via universal API for issue type ${issueTypeId}`);
+                    }
+                } catch (error) {
+                    console.warn(`Universal avatar API failed for issue type ${issueTypeId}:`, error.message);
+                }
+            }
+        }
+        
+        // Approach 2: Try direct iconUrl if universal API failed
+        if (!avatarBuffer && issueType.iconUrl) {
+            console.log(`Trying direct iconUrl for issue type ${issueTypeId}`);
+            try {
+                const directResponse = await fetch(issueType.iconUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': getDefaultHeaders(req).Authorization,
+                        'Accept': 'image/*'
+                    },
+                    agent: httpsAgent
+                });
+                
+                if (directResponse.ok) {
+                    avatarBuffer = await directResponse.buffer();
+                    console.log(`Successfully fetched avatar via direct URL for issue type ${issueTypeId}`);
+                }
+            } catch (error) {
+                console.warn(`Direct iconUrl failed for issue type ${issueTypeId}:`, error.message);
+            }
+        }
+        
+        // Approach 3: Try alternative universal avatar endpoint
+        if (!avatarBuffer) {
+            console.log(`Trying alternative universal avatar endpoint for issue type ${issueTypeId}`);
+            try {
+                const altResponse = await fetch(`${url}/rest/api/3/universal_avatar/view/type/issuetype/owner/${issueTypeId}?size=${size}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': getDefaultHeaders(req).Authorization,
+                        'Accept': 'image/*'
+                    },
+                    agent: httpsAgent
+                });
+                
+                if (altResponse.ok) {
+                    avatarBuffer = await altResponse.buffer();
+                    console.log(`Successfully fetched avatar via alternative universal API for issue type ${issueTypeId}`);
+                }
+            } catch (error) {
+                console.warn(`Alternative universal avatar API failed for issue type ${issueTypeId}:`, error.message);
+            }
+        }
+        
+        // Cache the result (even if null)
+        if (avatarBuffer) {
+            avatarCache.set(cacheKey, {
+                data: avatarBuffer,
+                timestamp: Date.now()
+            });
+        }
+        
+        return avatarBuffer;
+        
+    } catch (error) {
+        console.error(`Error fetching issue type avatar image for ${issueTypeId}:`, error);
+        return null;
+    }
+};
+
+/**
+ * Generate a fallback icon for issue types when avatar is not available
+ */
+exports.generateFallbackIssueTypeIcon = function(issueTypeName, size = 32) {
+    // Generate a simple colored circle with the first letter of the issue type
+    const firstLetter = (issueTypeName || 'T').charAt(0).toUpperCase();
+    
+    // Generate a color based on the issue type name
+    let hash = 0;
+    for (let i = 0; i < issueTypeName.length; i++) {
+        hash = ((hash << 5) - hash) + issueTypeName.charCodeAt(i);
+        hash = hash & hash;
+    }
+    const hue = Math.abs(hash % 360);
+    const color = `hsl(${hue}, 60%, 50%)`;
+    
+    // Create SVG
+    const svg = `
+        <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="${size/2}" cy="${size/2}" r="${size/2-1}" fill="${color}" stroke="#fff" stroke-width="1"/>
+            <text x="${size/2}" y="${size/2}" text-anchor="middle" dy="0.35em" fill="white" font-family="Arial, sans-serif" font-size="${size/2}" font-weight="bold">${firstLetter}</text>
+        </svg>
+    `;
+    
+    return Buffer.from(svg, 'utf8');
+};
 
 // Add wrapper functions for all exports to ensure error handling
 const wrapWithErrorHandling = (fn) => {

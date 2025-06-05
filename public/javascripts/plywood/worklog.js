@@ -302,11 +302,13 @@ async function submitWorklog(url, method, data, issueKey, selectedColor) {
             body: JSON.stringify(data),
         });
         
+        const result = await response.json();
+        
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            // Handle API errors properly
+            throw new Error(result.error || `HTTP error! status: ${response.status}`);
         }
         
-        const result = await response.json();
         console.log('Worklog submitted successfully:', result);
         
         // Handle calendar updates based on method
@@ -318,6 +320,11 @@ async function submitWorklog(url, method, data, issueKey, selectedColor) {
                 // Fallback to full refresh
                 window.calendar?.refetchEvents();
             }
+            
+            // Close create modal
+            hideModal('.modal-create');
+            console.log('Create modal closed after successful creation');
+            
         } else if (method === 'PUT') {
             // For updates, use the calendar modal update handler from calendar.js
             if (window.handleModalWorklogUpdate && data.worklogId) {
@@ -333,6 +340,10 @@ async function submitWorklog(url, method, data, issueKey, selectedColor) {
             } else {
                 // Fallback to refreshing the specific worklog
                 await refreshWorklog(result.issueId || data.issueId, data.worklogId);
+                
+                // Close update modal
+                hideModal('.modal-update');
+                console.log('Update modal closed after successful update');
             }
         }
         
@@ -340,52 +351,24 @@ async function submitWorklog(url, method, data, issueKey, selectedColor) {
         
     } catch (error) {
         console.error('Error submitting worklog:', error);
-        alert(`Error submitting worklog: ${error.message}`);
+        
+        // Show user-friendly error message
+        let errorMessage = error.message;
+        
+        // Handle specific error cases
+        if (error.message.includes('permission') || error.message.includes('403')) {
+            errorMessage = 'You do not have permission to perform this operation on this issue.';
+        } else if (error.message.includes('404')) {
+            errorMessage = 'The worklog or issue could not be found.';
+        } else if (error.message.includes('400')) {
+            // For 400 errors, the message from the server should be descriptive enough
+            errorMessage = error.message.replace('HTTP error! status: 400', '').trim() || 'Bad request - please check your input.';
+        }
+        
+        alert(`Error: ${errorMessage}`);
     } finally {
         hideLoading();
     }
-}
-
-// Helper function to get issue summary from current selection
-function getIssueSummaryFromSelection(issueId) {
-    try {
-        if (window.choicesCreate && window.choicesCreate._currentState && window.choicesCreate._currentState.choices) {
-            const choice = window.choicesCreate._currentState.choices.find(choice => 
-                choice.value === issueId
-            );
-            
-            if (choice && choice.label) {
-                // Extract summary from label format "KEY-123 - Summary"
-                const parts = choice.label.split(' - ');
-                return parts.length > 1 ? parts.slice(1).join(' - ') : choice.label;
-            }
-        }
-    } catch (error) {
-        console.warn('Error getting issue summary:', error);
-    }
-    return 'Unknown Summary';
-}
-
-// Helper function to calculate time spent display
-function calculateTimeSpent(startTime, endTime) {
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    const diffMs = end - start;
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (diffHours > 0) {
-        return `${diffHours}h ${diffMinutes}m`;
-    } else {
-        return `${diffMinutes}m`;
-    }
-}
-
-// Helper function to calculate time spent in seconds
-function calculateTimeSpentSeconds(startTime, endTime) {
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    return Math.floor((end - start) / 1000);
 }
 
 /**
@@ -405,14 +388,29 @@ export function handleDelete(event, url) {
     fetch(url, {
         method: 'DELETE'
     }).then(async response => {
+        const result = await response.json();
+        
         if (!response.ok) {
-            const result = await response.json();
-            throw new Error(result.error || `Server error: ${response.status}`);
+            // Handle API errors properly
+            let errorMessage = result.error || `Server error: ${response.status}`;
+            
+            // Handle specific error cases
+            if (response.status === 403 || errorMessage.includes('permission')) {
+                errorMessage = 'You do not have permission to delete this worklog.';
+            } else if (response.status === 404) {
+                errorMessage = 'The worklog could not be found.';
+            }
+            
+            throw new Error(errorMessage);
         }
         
         console.log('Worklog deleted successfully');
-        hideModal('.modal-update');
         
+        // Close the modal first
+        hideModal('.modal-update');
+        console.log('Update modal closed after successful deletion');
+        
+        // Refresh the calendar
         if (window.calendar) {
             window.calendar.refetchEvents();
         }
@@ -422,7 +420,7 @@ export function handleDelete(event, url) {
     }).catch(error => {
         console.error('Error deleting worklog:', error);
         hideLoading();
-        alert(`Error deleting worklog: ${error.message}`);
+        alert(`Error: ${error.message}`);
     });
 }
 

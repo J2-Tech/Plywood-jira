@@ -1,0 +1,16 @@
+{% macro modal() %}
+<!-- Issue Type Modal -->
+<div id="issueTypeModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="close" onclick="hideModal('#issueTypeModal')">&times;</span>
+            <h2>Issue Type Information</h2>
+        </div>
+        <div class="modal-body">
+            <div id="issueTypeContent">
+                <p>Loading issue type information...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endmacro %}

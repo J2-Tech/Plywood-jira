@@ -165,10 +165,63 @@ router.get('/projects/:projectKey/avatar', async function(req, res) {
     }
 });
 
+router.get('/issuetypes/:issueTypeId/avatar', async function(req, res) {
+    try {
+        const avatarData = await jiraAPIController.getIssueTypeAvatar(req, req.params.issueTypeId);
+        res.json(avatarData);
+    } catch (error) {
+        console.error('Error fetching issue type avatar:', error);
+        res.status(500).json({ error: 'Failed to fetch issue type avatar' });
+    }
+});
+
+router.get('/avatars/issuetype/:issueTypeId', async function(req, res) {
+    try {
+        const size = req.query.size || 'medium';
+        const fallback = req.query.fallback === 'true';
+        let avatarBuffer = null;
+        
+        if (!fallback) {
+            avatarBuffer = await jiraAPIController.getIssueTypeAvatarImage(req, req.params.issueTypeId, size);
+        }
+        
+        // If no avatar found or fallback requested, generate fallback
+        if (!avatarBuffer || fallback) {
+            // Try to get issue type name for fallback
+            try {
+                const avatarData = await jiraAPIController.getIssueTypeAvatar(req, req.params.issueTypeId);
+                const issueTypeName = avatarData.name || 'Unknown';
+                const sizeMap = { 'xsmall': 16, 'small': 24, 'medium': 32, 'large': 48 };
+                const pixelSize = sizeMap[size] || 32;
+                
+                avatarBuffer = jiraAPIController.generateFallbackIssueTypeIcon(issueTypeName, pixelSize);
+            } catch (error) {
+                // Generate generic fallback
+                const sizeMap = { 'xsmall': 16, 'small': 24, 'medium': 32, 'large': 48 };
+                const pixelSize = sizeMap[size] || 32;
+                avatarBuffer = jiraAPIController.generateFallbackIssueTypeIcon('T', pixelSize);
+            }
+        }
+        
+        if (!avatarBuffer) {
+            return res.status(404).json({ error: 'Avatar not found' });
+        }
+        
+        // Determine content type based on the buffer content
+        const contentType = avatarBuffer.toString().startsWith('<svg') ? 'image/svg+xml' : 'image/png';
+        
+        // Set appropriate headers for image response
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+        res.send(avatarBuffer);
+    } catch (error) {
+        console.error('Error fetching issue type avatar image:', error);
+        res.status(500).json({ error: 'Failed to fetch avatar image' });
+    }
+});
+
 router.put('/worklog/:worklogId', async function(req, res, next) {
   try {
-    
-    // Validate required fields
     if (!req.body.issueId || !req.body.startTime || !req.body.endTime) {
       return res.status(400).json({ 
         error: 'Missing required fields: issueId, startTime, or endTime' 
@@ -197,6 +250,21 @@ router.put('/worklog/:worklogId', async function(req, res, next) {
       req.body.issueKeyColor
     );
     
+    // Check if the result contains JIRA API errors
+    if (result.errorMessages && result.errorMessages.length > 0) {
+      return res.status(400).json({ 
+        error: result.errorMessages.join(', '),
+        jiraError: true 
+      });
+    }
+    
+    if (result.errors && Object.keys(result.errors).length > 0) {
+      return res.status(400).json({ 
+        error: Object.values(result.errors).join(', '),
+        jiraError: true 
+      });
+    }
+    
     console.log('Worklog updated successfully:', result);
     
     // Clear cache but don't force full color refresh
@@ -210,14 +278,34 @@ router.put('/worklog/:worklogId', async function(req, res, next) {
       startTime: req.body.startTime,
       endTime: req.body.endTime,
       comment: req.body.comment,
-      issueKeyColor: req.body.issueKeyColor
+      issueKeyColor: req.body.issueKeyColor,
+      success: true
     };
     
     res.json(responseData);
     
   } catch (error) {
     console.error('Error updating worklog:', error);
-    res.status(500).json({ error: error.message });
+    
+    // Forward JIRA API errors properly
+    if (error.message && (error.message.includes('403') || error.message.includes('Forbidden'))) {
+      return res.status(403).json({ 
+        error: 'You do not have permission to update worklogs for this issue',
+        jiraError: true 
+      });
+    }
+    
+    if (error.message && error.message.includes('404')) {
+      return res.status(404).json({ 
+        error: 'Worklog or issue not found',
+        jiraError: true 
+      });
+    }
+    
+    res.status(500).json({ 
+      error: error.message || 'Internal server error',
+      jiraError: error.jiraError || false
+    });
   }
 });
 
@@ -246,76 +334,130 @@ router.post('/worklog', async function(req, res, next) {
       return res.status(400).json({ error: 'End time must be after start time' });
     }
     
-    const comment = req.body.comment || '';
-    
     const result = await jiraController.createWorkLog(
-      req, 
-      req.body.issueId, 
-      req.body.startTime, 
-      req.body.endTime, 
-      comment,
+      req,
+      req.body.issueId,
+      req.body.startTime,
+      req.body.endTime,
+      req.body.comment,
       req.body.issueKeyColor
     );
     
-    console.log('Worklog created successfully:', result);
-    
-    // Clear cache to ensure fresh data
-    clearWorklogCache();
-    
-    // Get complete issue details for the response
-    let issueDetails = null;
-    try {
-      issueDetails = await jiraAPIController.getIssue(req, req.body.issueId);
-    } catch (error) {
-      console.warn('Could not fetch issue details:', error);
+    // Check if the result contains JIRA API errors
+    if (result.errorMessages && result.errorMessages.length > 0) {
+      return res.status(400).json({ 
+        error: result.errorMessages.join(', '),
+        jiraError: true 
+      });
     }
     
-    // Return complete worklog data for client-side use
-    res.json({
-      success: true,
-      id: result.id,
-      worklogId: result.id,
+    if (result.errors && Object.keys(result.errors).length > 0) {
+      return res.status(400).json({ 
+        error: Object.values(result.errors).join(', '),
+        jiraError: true 
+      });
+    }
+    
+    console.log('Worklog created successfully:', result);
+    
+    // Clear cache
+    clearWorklogCache();
+    
+    const responseData = {
+      ...result,
       issueId: req.body.issueId,
-      issueKey: req.body.issueKey || (issueDetails ? issueDetails.key : null),
       startTime: req.body.startTime,
       endTime: req.body.endTime,
-      comment: comment,
-      issueKeyColor: result.issueKeyColor,
-      timeSpent: result.timeSpent,
-      timeSpentSeconds: result.timeSpentSeconds,
-      author: result.author,
-      // Include server response data
-      ...result
-    });
+      comment: req.body.comment,
+      issueKeyColor: req.body.issueKeyColor,
+      success: true
+    };
+    
+    res.json(responseData);
+    
   } catch (error) {
     console.error('Error creating worklog:', error);
+    
+    // Forward JIRA API errors properly
+    if (error.message && (error.message.includes('403') || error.message.includes('Forbidden'))) {
+      return res.status(403).json({ 
+        error: 'You do not have permission to create worklogs for this issue',
+        jiraError: true 
+      });
+    }
+    
+    if (error.message && error.message.includes('404')) {
+      return res.status(404).json({ 
+        error: 'Issue not found',
+        jiraError: true 
+      });
+    }
+    
     res.status(500).json({ 
-      error: error.message || 'Failed to create worklog',
-      details: error.stack
+      error: error.message || 'Internal server error',
+      jiraError: error.jiraError || false
     });
   }
 });
 
 router.delete('/worklog/:worklogId', async function(req, res, next) {
   try {
-    const { issueId } = req.query;
+    const issueId = req.query.issueId;
     
     if (!issueId) {
-      return res.status(400).json({ error: 'Missing issueId parameter' });
+      return res.status(400).json({ error: 'Missing required parameter: issueId' });
     }
     
-    await jiraController.deleteWorkLog(req, issueId, req.params.worklogId);
+    console.log(`Deleting worklog ${req.params.worklogId} for issue ${issueId}`);
     
-    console.log(`Worklog ${req.params.worklogId} deleted successfully`);
+    const result = await jiraController.deleteWorkLog(req, issueId, req.params.worklogId);
     
-    // Clear cache to ensure fresh data
+    // Check if the result contains JIRA API errors
+    if (result && result.errorMessages && result.errorMessages.length > 0) {
+      return res.status(400).json({ 
+        error: result.errorMessages.join(', '),
+        jiraError: true 
+      });
+    }
+    
+    if (result && result.errors && Object.keys(result.errors).length > 0) {
+      return res.status(400).json({ 
+        error: Object.values(result.errors).join(', '),
+        jiraError: true 
+      });
+    }
+    
+    console.log('Worklog deleted successfully');
+    
+    // Clear cache
     clearWorklogCache();
     
-    res.json({ success: true });
+    res.json({ 
+      success: true,
+      message: 'Worklog deleted successfully'
+    });
+    
   } catch (error) {
     console.error('Error deleting worklog:', error);
+    
+    // Forward JIRA API errors properly
+    if (error.message && (error.message.includes('403') || error.message.includes('Forbidden'))) {
+      return res.status(403).json({ 
+        error: 'You do not have permission to delete this worklog',
+        jiraError: true 
+      });
+    }
+    
+    if (error.message && error.message.includes('404')) {
+      return res.status(404).json({ 
+        error: 'Worklog not found',
+        jiraError: true 
+      });
+    }
+    
     res.status(500).json({ 
-      error: error.message || 'Failed to delete worklog' 
+      error: error.message || 'Internal server error',
+      jiraError: error.jiraError || false
     });
   }
 });
