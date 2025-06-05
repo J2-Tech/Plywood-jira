@@ -35,7 +35,7 @@ $desktop: 1200px;
 }
 
 @mixin dark-theme {
-  .dark-theme & {
+  @at-root .dark-theme & {
     @content;
   }
 }

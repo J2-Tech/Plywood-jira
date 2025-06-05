@@ -175,6 +175,7 @@ async function getCachedColor(key, type) {
     let color;
     switch(type) {
         case 'issues':
+            // Fetch color from issue configuration, not individual worklogs
             color = await fetch(`/issues/${key}/color`).then(r => r.json()).then(d => d.color);
             break;
         case 'types':
@@ -198,29 +199,201 @@ async function getCachedColor(key, type) {
     return color;
 }
 
+/**
+ * Calculate color similarity using RGB distance
+ * @param {string} color1 - First color (hex or hsl)
+ * @param {string} color2 - Second color (hex or hsl)
+ * @returns {number} - Distance between colors (0-441, lower means more similar)
+ */
+function calculateColorSimilarity(color1, color2) {
+    const rgb1 = colorToRgb(color1);
+    const rgb2 = colorToRgb(color2);
+    
+    if (!rgb1 || !rgb2) return 441; // Maximum distance if conversion fails
+    
+    // Calculate Euclidean distance in RGB space
+    const rDiff = rgb1.r - rgb2.r;
+    const gDiff = rgb1.g - rgb2.g;
+    const bDiff = rgb1.b - rgb2.b;
+    
+    return Math.sqrt(rDiff * rDiff + gDiff * gDiff + bDiff * bDiff);
+}
+
+/**
+ * Convert color string to RGB object
+ * @param {string} color - Color in hex or hsl format
+ * @returns {Object} - RGB object with r, g, b properties
+ */
+function colorToRgb(color) {
+    if (!color) return null;
+    
+    // Handle hex colors
+    if (color.startsWith('#')) {
+        const hex = color.slice(1);
+        if (hex.length === 6) {
+            return {
+                r: parseInt(hex.slice(0, 2), 16),
+                g: parseInt(hex.slice(2, 4), 16),
+                b: parseInt(hex.slice(4, 6), 16)
+            };
+        }
+    }
+    
+    // Handle HSL colors
+    if (color.startsWith('hsl')) {
+        const match = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+        if (match) {
+            const h = parseInt(match[1]) / 360;
+            const s = parseInt(match[2]) / 100;
+            const l = parseInt(match[3]) / 100;
+            
+            return hslToRgb(h, s, l);
+        }
+    }
+    
+    // Handle RGB colors
+    if (color.startsWith('rgb')) {
+        const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+        if (match) {
+            return {
+                r: parseInt(match[1]),
+                g: parseInt(match[2]),
+                b: parseInt(match[3])
+            };
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Convert HSL to RGB
+ * @param {number} h - Hue (0-1)
+ * @param {number} s - Saturation (0-1)
+ * @param {number} l - Lightness (0-1)
+ * @returns {Object} - RGB object
+ */
+function hslToRgb(h, s, l) {
+    let r, g, b;
+    
+    if (s === 0) {
+        r = g = b = l; // achromatic
+    } else {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        };
+        
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+    }
+    
+    return {
+        r: Math.round(r * 255),
+        g: Math.round(g * 255),
+        b: Math.round(b * 255)
+    };
+}
+
+/**
+ * Generate alternative color that's sufficiently different
+ * @param {string} originalColor - The original color
+ * @param {Array} existingColors - Array of existing colors to avoid
+ * @returns {string} - New color that's different enough
+ */
+function generateAlternativeColor(originalColor, existingColors) {
+    const maxAttempts = 20;
+    const minDistance = 80; // Minimum color distance to consider "different enough"
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        // Generate a new color by adjusting hue
+        const hue = (Math.random() * 360);
+        const saturation = 60 + Math.random() * 30; // 60-90%
+        const lightness = 40 + Math.random() * 20;  // 40-60%
+        
+        const newColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+        
+        // Check if this color is different enough from all existing colors
+        const isSufficientlyDifferent = existingColors.every(existingColor => 
+            calculateColorSimilarity(newColor, existingColor) >= minDistance
+        );
+        
+        if (isSufficientlyDifferent) {
+            return newColor;
+        }
+    }
+    
+    // Fallback: return a color based on attempt number if we can't find a good one
+    const fallbackHue = (Math.random() * 360);
+    return `hsl(${fallbackHue}, 70%, 50%)`;
+}
+
+/**
+ * Remove similar colors from array and replace with different ones
+ * @param {Array} colors - Array of colors to check
+ * @returns {Array} - Array with similar colors replaced
+ */
+function removeSimilarColors(colors) {
+    const minDistance = 80; // Minimum acceptable distance between colors
+    const processedColors = [...colors];
+    
+    for (let i = 0; i < processedColors.length; i++) {
+        for (let j = i + 1; j < processedColors.length; j++) {
+            const similarity = calculateColorSimilarity(processedColors[i], processedColors[j]);
+            
+            if (similarity < minDistance) {
+                console.log(`Colors too similar (distance: ${similarity}): ${processedColors[i]} and ${processedColors[j]}`);
+                
+                // Replace the second color with a different one
+                const existingColors = processedColors.filter((_, index) => index !== j);
+                processedColors[j] = generateAlternativeColor(processedColors[j], existingColors);
+                
+                console.log(`Replaced similar color with: ${processedColors[j]}`);
+            }
+        }
+    }
+    
+    return processedColors;
+}
+
 async function generateColors(count, data, type) {
+    let colors;
+    
     switch(type) {
         case 'issueTypes':
-            return Promise.all(Object.keys(data).map(type => 
+            colors = await Promise.all(Object.keys(data).map(type => 
                 getCachedColor(type, 'types')
             ));
+            break;
             
         case 'issues':
-            return Promise.all(Object.entries(data).map(async ([key]) => {
+            colors = await Promise.all(Object.entries(data).map(async ([key]) => {
                 const issueKey = key.split(' - ')[0];
                 return getCachedColor(issueKey, 'issues');
             }));
+            break;
             
         case 'projects':
-            return Promise.all(Object.keys(data).map(project => 
+            colors = await Promise.all(Object.keys(data).map(project => 
                 getCachedColor(project, 'projects')
             ));
+            break;
             
         default:
-            return Array(count).fill(0).map(() => 
+            colors = Array(count).fill(0).map(() => 
                 `hsl(${Math.random() * 360}, 70%, 50%)`
             );
     }
+    
+    // Remove similar colors and replace with different ones
+    return removeSimilarColors(colors);
 }
 
 function toggleChartStyle() {

@@ -1,0 +1,190 @@
+// Sprint-related styles
+.sprint-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    
+    h3 {
+        margin: 0;
+        font-size: 1.4rem;
+    }
+}
+
+.sprint-badge {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    
+    &.active {
+        background-color: #36B37E;
+        color: white;
+    }
+    
+    &.future {
+        background-color: #6554C0;
+        color: white;
+    }
+    
+    &.closed {
+        background-color: #6B778C;
+        color: white;
+    }
+}
+
+.sprint-dates {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+}
+
+.sprint-goal {
+    margin-top: 15px;
+    padding: 10px;
+    background-color: var(--bg-light);
+    border-radius: 5px;
+    
+    h4 {
+        margin-top: 0;
+        margin-bottom: 5px;
+        font-size: 1rem;
+    }
+    
+    p {
+        margin: 0;
+        font-style: italic;
+    }
+}
+
+.sprint-notes {
+    margin-top: 30px;
+    
+    h3 {
+        font-size: 1.2rem;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 5px;
+    }
+}
+
+.notes-container {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+}
+
+.notes-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.note-item {
+    padding: 10px;
+    margin-bottom: 10px;
+    background-color: var(--bg-light);
+    border-radius: 5px;
+    border-left: 3px solid var(--primary-color);
+    
+    .note-text {
+        white-space: pre-wrap;
+        margin-bottom: 5px;
+    }
+    
+    .note-metadata {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        
+        .note-author {
+            font-weight: bold;
+        }
+    }
+    
+    .note-actions {
+        margin-top: 5px;
+        display: flex;
+        gap: 10px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    
+    &:hover .note-actions {
+        opacity: 1;
+    }
+    
+    .note-action-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-secondary);
+        padding: 2px 5px;
+        font-size: 0.8rem;
+        
+        &:hover {
+            color: var(--primary-color);
+        }
+    }
+}
+
+.add-note-container {
+    textarea {
+        width: 100%;
+        min-height: 80px;
+        padding: 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 5px;
+        margin-bottom: 10px;
+        resize: vertical;
+        font-family: inherit;
+    }
+    
+    button {
+        padding: 8px 15px;
+    }
+}
+
+.loading-indicator {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-secondary);
+}
+
+.hidden {
+    display: none;
+}
+
+.sprint-info {
+    margin-bottom: 20px;
+}
+
+.current-sprint-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 10px;
+    background-color: var(--bg-light);
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    
+    &:hover {
+        background-color: var(--bg-hover);
+    }
+    
+    .sprint-name {
+        font-weight: bold;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 150px;
+    }
+    
+    .days-remaining {
+        color: var(--text-secondary);
+        font-size: 0.8rem;
+    }
+}

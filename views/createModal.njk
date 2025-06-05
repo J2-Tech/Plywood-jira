@@ -1,28 +1,34 @@
 {% macro modal() %}
-  <!-- HTML structure for the modal form -->
+  <!-- HTML structure for the create modal form -->
   <div class="modal unselectable modal-create">
     <div class="modal-content">
       <h2>Create work log</h2>
-      <form class="modal-form" id="modal-form-create" method="POST" action="/worklog/">
+      <form class="modal-form" id="modal-form-create" method="POST" action="/worklog" onsubmit="convertFormDates(this)">
         <label for="issue-create">Issue:</label>
-        <select id="issue-create" name="issueId" required></select>
+        <select id="issue-create" name="issueId" required>
+          <option value="">Select an issue...</option>
+        </select>
+        
+        <label for="issue-key-color-create">Issue Color:</label>
+        <input type="color" id="issue-key-color-create" name="issueKeyColor" class="issue-key-color-create" value="#2a75fe">
+        
         <label for="comment-create">Comment:</label>
         <textarea class="comment" id="comment-create" name="comment"></textarea>
         
         <div class="time-fields">
           <div class="time-field">
             <label for="start-time-create">Start Time:</label>
-            <input type="datetime-local" id="start-time-create" name="startTime">
+            <input type="datetime-local" id="start-time-create" name="startTime" required>
           </div>
           <div class="time-field">
             <label for="end-time-create">End Time:</label>
-            <input type="datetime-local" id="end-time-create" name="endTime">
+            <input type="datetime-local" id="end-time-create" name="endTime" required>
           </div>
         </div>
-        
+
         <div class="buttons">
-          <button id="cancel-btn-create" title="Cancel" class="close-btn" type="button" onclick="hideModal('.modal-create');window.calendar.unselect();">✖️</button>
-          <button class="primary" id="submit-btn-create" title="Submit" type="submit" onclick="handleSubmit(event, '/worklog/', 'POST')">☑️</button>
+          <button id="cancel-btn-create" title="Cancel" class="close-btn" type="button" onclick="hideModal('.modal-create')">✖️</button>
+          <button class="primary" id="submit-btn-create" title="Submit" type="submit" onclick="handleSubmit(event, '/worklog', 'POST')">☑️</button>
         </div>
       </form>
     </div>

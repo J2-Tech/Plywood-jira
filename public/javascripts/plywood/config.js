@@ -41,6 +41,8 @@ export function saveConfig() {
             window.roundingInterval = config.roundingInterval;
             window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
             
+            console.log('showIssueTypeIcons setting saved:', config.showIssueTypeIcons);
+            
             if (window.calendar) {
                 window.calendar.refetchEvents();
             }
@@ -90,10 +92,12 @@ export function loadConfig() {
                 });
             }
 
-            // Set global variables
+            // Set global variables - IMPORTANT: Set showIssueTypeIcons globally
             window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
             window.roundingInterval = config.roundingInterval || 15;
             window.showIssueTypeIcons = config.showIssueTypeIcons;
+            
+            console.log('showIssueTypeIcons setting loaded:', config.showIssueTypeIcons);
             
             return config;
         });

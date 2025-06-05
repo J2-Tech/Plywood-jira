@@ -20,7 +20,21 @@
     <body>
         {{ modals.modals() }}
 
-        {% block content %}{% endblock %}
+        {% block content %}{% endblock %}        <!-- Notes Side Panel -->
+        <div id="notesSidePanel" class="notes-side-panel">
+            <div class="notes-panel-header">
+                <div class="notes-header-top">
+                    <h3>Notes <span id="notesPanelContext"></span></h3>
+                    <button id="closeNotesPanel" class="close-panel-button">&times;</button>
+                </div>
+            </div>
+            
+            <div class="notes-panel-content">
+                <div id="notesLoading" class="loading-indicator">Loading notes...</div>
+                <div id="saveIndicator" class="save-indicator hidden">Saving...</div>
+                <textarea id="notesContent" class="notes-textarea" placeholder="Type your notes here..."></textarea>
+            </div>
+        </div>
         
         <footer class="app-footer">
             <div class="footer-left">
@@ -34,9 +48,11 @@
                         </div>
                         <div class="menu-item" onclick="window.location.href='/'">
                             <span>📅 Calendar</span>
-                        </div>
-                        <div class="menu-item" onclick="window.location.href='/stats'">
+                        </div>                        <div class="menu-item" onclick="window.location.href='/stats'">
                             <span>📊 Statistics</span>
+                        </div>
+                        <div class="menu-item" onclick="showNotesListModal()">
+                            <span>📝 Notes</span>
                         </div>
                         <div class="menu-item" onclick="toggleConfigModal()">
                             <span>⚙️ Settings</span>
@@ -56,18 +72,17 @@
                 <div id="total-time">
                     {% block footer_center %}{% endblock %}
                 </div>
-            </div>
-
-            <div class="footer-right">
-                <div id="loading-container">
+            </div>            <div class="footer-right">                <div id="loading-container">
                     <img id="loading" src="/images/icons8-dots-loading.gif" style="background-color:transparent"/>
                 </div>
                 {% block footer_right %}{% endblock %}
+                <button id="toggleNotesButton" title="Toggle Notes Panel" onclick="toggleNotesPanel()" class="footer-icon-button">📝</button>
             </div>
-        </footer>
-
-        <script src="https://unpkg.com/@popperjs/core@2"></script>
+        </footer>        <script src="https://unpkg.com/@popperjs/core@2"></script>
         <script src="https://unpkg.com/tippy.js@6"></script>
+        <!-- Non-module script for global functions -->
+        <script src="/javascripts/notes-global.js"></script>
+        <script src="/javascripts/notes-resizing.js"></script>
         <script src="/javascripts/plywood/ui.js" type="module"></script>
         <script src="/javascripts/plywood/modal.js" type="module"></script>
         {% block scripts %}{% endblock %}

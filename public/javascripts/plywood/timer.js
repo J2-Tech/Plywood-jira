@@ -77,10 +77,13 @@ function stopTimer() {
             document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + response.errors.join(', ');
         } else {
             document.getElementById('confirmation-message').textContent = 'Worklog created successfully!';
+            // Use the same simplified refresh logic as the modal
             refreshWorklog(response.issueId, response.id);
         }
+        hideLoading();
     }).catch(error => {
         document.getElementById('confirmation-message').textContent = 'Error creating worklog: ' + error.message;
+        hideLoading();
     });
 
     resetTimerUI();
@@ -220,7 +223,10 @@ function syncRoundingInterval() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('issue-timer').addEventListener('change', handleTimerIssueSwitch);
+    const issueTimerSelect = document.getElementById('issue-timer');
+    if (issueTimerSelect) {
+        issueTimerSelect.addEventListener('change', handleTimerIssueSwitch);
+    }
 
     const configRoundingIntervalInput = document.getElementById('rounding-interval');
     const timerRoundingIntervalInput = document.getElementById('timer-rounding-interval');

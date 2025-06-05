@@ -72,19 +72,29 @@
     }
 }
 
-// Timer button
-#open-timer-modal-btn {
-    padding: $spacing-xs $spacing-md;
-    font-size: 18px;
-    background: transparent;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all $transition-quick;
-    width: auto;
+// Footer icon buttons (timer, notes, etc.)
+.app-footer .footer-icon-button, 
+.app-footer #open-timer-modal-btn,
+.app-footer button#toggleNotesButton {
+    padding: $spacing-xs $spacing-md !important;
+    font-size: 18px !important;
+    background: transparent !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    transition: all $transition-quick !important;
+    width: auto !important;
+    margin-left: 8px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 40px !important;
+    min-height: 36px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
 
     &:hover {
         @include hover-effect;
+        background-color: var(--bg-highlight) !important;
     }
 }
 

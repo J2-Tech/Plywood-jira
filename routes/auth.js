@@ -23,4 +23,33 @@ router.get('/callback', passport.authenticate('atlassian', { failureRedirect: '/
 
 router.get('/logout', jiraAuthController.logout);
 
+/**
+ * Endpoint to refresh the token via AJAX request
+ * Returns JSON instead of redirecting
+ */
+router.get('/refresh-token', async (req, res) => {
+    console.log('Token refresh requested via AJAX');
+    
+    try {
+        // Check if the user is authenticated
+        if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+            return res.status(401).json({ success: false, message: 'Not authenticated' });
+        }
+        
+        // Attempt to refresh the token
+        const refreshed = await jiraAPIController.refreshToken(req);
+        
+        if (refreshed) {
+            console.log('Token refreshed successfully via AJAX');
+            return res.json({ success: true, message: 'Token refreshed successfully' });
+        } else {
+            console.log('Token refresh failed via AJAX');
+            return res.status(401).json({ success: false, message: 'Token refresh failed' });
+        }
+    } catch (error) {
+        console.error('Error refreshing token via AJAX:', error);
+        return res.status(500).json({ success: false, message: 'Error refreshing token' });
+    }
+});
+
 module.exports = router;

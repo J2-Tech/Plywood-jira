@@ -1,0 +1,41 @@
+{% macro modal() %}
+  <!-- HTML structure for the notes list modal -->
+  <div class="modal unselectable modal-notes-list">
+    <div class="modal-content">
+      <h2>All Notes</h2>
+      
+      <div class="notes-list-container">
+        <div id="notesListLoading" class="loading-indicator">Loading notes...</div>
+        
+        <div id="notesListContent" class="notes-list-content">          <!-- Global notes section -->
+          <div class="notes-section">
+            <h3 class="notes-section-title collapsible" onclick="toggleNotesContent('globalNotesContent')">
+              Global Notes <span class="toggle-icon">▼</span>
+            </h3>            <div id="globalNotesContentContainer" class="notes-section-content global-notes-preview collapsed">
+              <div class="notes-preview">
+                <p id="globalNotesContent" class="notes-preview-text">Loading...</p>
+              </div>
+              <button class="view-notes-btn" data-type="global" onclick="globalOpenGlobalNotes(); return false;">📝 View Note</button>
+            </div>
+          </div>
+          
+          <!-- Sprint notes section -->
+          <div class="notes-section">
+            <h3 class="notes-section-title collapsible" onclick="toggleNotesContent('sprintNotesList')">
+              Sprint Notes <span class="toggle-icon">▼</span>
+            </h3>
+            <div id="sprintNotesContainer" class="collapsed">
+              <div id="sprintNotesList" class="sprint-notes-list">
+                <!-- Sprint notes will be added here dynamically -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button id="cancel-btn-notes-list" title="Close" class="close-btn primary" type="button" onclick="hideModal('.modal-notes-list')">❌</button>
+      </div>
+    </div>
+  </div>
+{% endmacro %}

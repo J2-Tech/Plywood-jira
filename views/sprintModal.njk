@@ -1,0 +1,52 @@
+{% macro sprintModal() %}
+<div id="sprintModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="close sprint-modal-close">&times;</span>
+            <h2 id="sprintModalTitle">Sprint Information</h2>
+        </div>
+        <div class="modal-body">
+            <!-- Sprint Information Section -->
+            <div id="sprintInfo" class="sprint-info">
+                <div id="currentSprintLoading" class="loading-indicator">Loading sprint information...</div>
+                <div id="noActiveSprint" class="hidden">
+                    <p>No active sprint found.</p>
+                </div>
+                <div id="sprintDetails" class="hidden">
+                    <div class="sprint-header">
+                        <h3 id="sprintName"></h3>
+                        <span id="sprintState" class="sprint-badge"></span>
+                    </div>
+                    <div class="sprint-dates">
+                        <div><strong>Start:</strong> <span id="sprintStartDate"></span></div>
+                        <div><strong>End:</strong> <span id="sprintEndDate"></span></div>
+                    </div>
+                    <div class="sprint-goal">
+                        <h4>Sprint Goal:</h4>
+                        <p id="sprintGoal">No goal specified</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Sprint Notes Section -->
+            <div class="sprint-notes">
+                <h3>Sprint Notes</h3>
+                <div class="notes-container">
+                    <div id="sprintNotesLoading" class="loading-indicator">Loading notes...</div>
+                    <div id="noSprintNotes" class="hidden">
+                        <p>No notes for this sprint yet.</p>
+                    </div>
+                    <ul id="sprintNotesList" class="notes-list hidden"></ul>
+                </div>
+                <div class="add-note-container">
+                    <textarea id="newNoteText" placeholder="Add a new note..."></textarea>
+                    <button id="addNoteButton" class="primary-button">Add Note</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="secondary-button sprint-modal-close">Close</button>
+        </div>
+    </div>
+</div>
+{% endmacro %}

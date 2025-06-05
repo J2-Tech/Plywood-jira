@@ -42,8 +42,8 @@
 
 // Main container layout
 .stats-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    flex-direction: column;
     gap: $spacing-md;
 }
 
@@ -215,4 +215,30 @@
         background: #444;
         color: #fff;
     }
+}
+
+// Chart and issue sections layout
+.charts-section {
+    .chart-container {
+        height: 400px; // Make chart taller
+        margin-top: $spacing-md;
+        margin-bottom: $spacing-md;
+    }
+}
+
+.chart-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: $spacing-md;
+}
+
+.chart-selector {
+    display: flex;
+    gap: $spacing-sm;
+    flex-wrap: wrap;
+}
+
+.issues-section {
+    margin-top: $spacing-md;
 }

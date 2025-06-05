@@ -3,6 +3,9 @@
 import { initializeUI, initializeDropdown, applyTheme } from './ui.js';
 import { initializeCalendar } from './calendar.js';
 import { loadConfig } from './config.js';
+import { initializeSprint } from './sprint.js';
+import { initializeNotesPanel } from './notes.js';
+import './notesList.js'; // Import notes list functionality
 
 async function initializeApp() {
     try {
@@ -16,7 +19,11 @@ async function initializeApp() {
         // Initialize calendar only on main page
         if (window.location.pathname === '/') {
             initializeCalendar();
-        }
+        }        // Initialize sprint functionality
+        initializeSprint();
+        
+        // Initialize notes panel
+        initializeNotesPanel();
 
         // Apply theme after everything is initialized
         const savedTheme = localStorage.getItem('themeSelection') || config.themeSelection;

@@ -251,3 +251,90 @@
     margin-bottom: $spacing-sm;
     text-align: center;
 }
+
+// Notes List Modal styles
+.modal-notes-list {
+  .modal-content {
+    min-width: 600px;
+    max-height: 80vh;
+    
+    h2 {
+      margin-bottom: 15px;
+    }
+  }
+
+  .notes-list-container {
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-bottom: 20px;
+  }
+
+  .notes-section {
+    margin-bottom: 20px;
+
+    &-title {
+      font-size: 1rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 5px;
+    }
+  }
+
+  .notes-preview-text {
+    background-color: var(--bg-light);
+    padding: 10px;
+    border-radius: 4px;
+    max-height: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre-line;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  .view-notes-btn {
+    margin-top: 5px;
+    padding: 5px 10px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    
+    &:hover {
+      opacity: 0.9;
+    }
+  }
+
+  .sprint-notes-item {
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: var(--bg-light);
+    border-radius: 4px;
+    border-left: 3px solid var(--primary-color);
+
+    .sprint-name {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .sprint-notes-preview {
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+      font-style: italic;
+    }
+    
+    .sprint-notes-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+  }
+}

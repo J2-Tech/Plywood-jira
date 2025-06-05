@@ -3,58 +3,389 @@ import { refreshWorklog } from './calendar.js';
 import { showLoading, hideLoading } from './ui.js';
 
 /**
+ * Clean worklog comment by removing any color information
+ * @param {string} comment - The original comment
+ * @returns {string} - Comment with color information removed
+ */
+function cleanWorklogComment(comment) {
+    if (!comment) return '';
+    
+    // Remove color hex codes (e.g., #FF0000, #ff0000)
+    let cleanedComment = comment.replace(/#[0-9A-Fa-f]{6}/g, '');
+    
+    // Remove color RGB values (e.g., rgb(255,0,0), rgba(255,0,0,1))
+    cleanedComment = cleanedComment.replace(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*[\d.]+)?\s*\)/g, '');
+    
+    // Remove HSL values (e.g., hsl(0,100%,50%))
+    cleanedComment = cleanedComment.replace(/hsla?\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%\s*(?:,\s*[\d.]+)?\s*\)/g, '');
+    
+    // Remove color keywords in brackets [COLOR:red] or similar patterns
+    cleanedComment = cleanedComment.replace(/\[COLOR:[^\]]+\]/gi, '');
+    
+    // Remove any remaining color markers
+    cleanedComment = cleanedComment.replace(/\bcolor\s*[:=]\s*[^\s,;]+/gi, '');
+    
+    // Clean up extra whitespace
+    cleanedComment = cleanedComment.replace(/\s+/g, ' ').trim();
+    
+    return cleanedComment;
+}
+
+/**
  * Create a new worklog.
  * @param {Object} worklogData - The data for the new worklog.
  * @returns {Promise} - A promise that resolves when the worklog is created.
  */
 export function createWorkLog(worklogData) {
+    // Clean the comment to remove any color information
+    const cleanedData = {
+        ...worklogData,
+        comment: cleanWorklogComment(worklogData.comment)
+    };
+    
     return fetch('/worklog', {
         method: 'POST',
-        headers: {
+        headers:
+        {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify(worklogData),
+        body: JSON.stringify(cleanedData),
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
     .catch(error => {
         console.error('Error creating worklog:', error);
         throw error;
     });
 }
 
-export function handleSubmit(event, url, method) {
-    showLoading();
+/**
+ * Update an existing worklog
+ * @param {string} worklogId - The worklog ID
+ * @param {Object} worklogData - The updated worklog data
+ * @returns {Promise} - Promise that resolves when worklog is updated
+ */
+export function updateWorkLog(worklogId, worklogData) {
+    // Clean the comment to remove any color information
+    const cleanedData = {
+        ...worklogData,
+        comment: cleanWorklogComment(worklogData.comment)
+    };
+    
+    return fetch(`/worklog/${worklogId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(cleanedData)
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(result => {
+        // Don't automatically refresh the worklog here as it can corrupt data
+        // Let the calling code handle the refresh appropriately
+        console.log('Worklog update completed, result:', result);
+        return result;
+    });
+}
+
+export async function handleSubmit(event, url, method) {
     event.preventDefault();
+    showLoading();
+    
     const form = event.target.closest('form');
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
 
-    // Convert the start and end time back to UTC
+    // Validate required fields
+    if (!data.issueId) {
+        alert('Please select an issue');
+        hideLoading();
+        return;
+    }
+    
+    if (!data.startTime || !data.endTime) {
+        alert('Please set start and end times');
+        hideLoading();
+        return;
+    }
+
+    // Convert times to UTC
     const startTime = new Date(data.startTime);
     const endTime = new Date(data.endTime);
-    data.startTime = new Date(startTime.getTime()).toISOString();
-    data.endTime = new Date(endTime.getTime()).toISOString();
-
-    fetch(url, {
-        method: method,
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-    }).then(async response => {
-        if (response.ok) {
-            hideModal('.modal-create');
-            hideModal('.modal-update');
-            const result = await response.json();
-            refreshWorklog(result.issueId, result.id);
-        } else {
-            console.error('Failed to submit form');
+    
+    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+        alert('Invalid date format');
+        hideLoading();
+        return;
+    }
+    
+    if (endTime <= startTime) {
+        alert('End time must be after start time');
+        hideLoading();
+        return;
+    }
+    
+    data.startTime = startTime.toISOString();
+    data.endTime = endTime.toISOString();
+    
+    // Handle color - save to issue configuration if changed from default
+    const defaultColor = '#2a75fe';
+    const selectedColor = data.issueKeyColor || defaultColor;
+    
+    // Get the issue key to save color to issue configuration
+    let issueKey = null;
+    
+    // Enhanced issue key extraction
+    if (method === 'POST') {
+        // For create modal, get issue key from selection
+        const issueSelect = form.querySelector('#issue-create');
+        if (issueSelect && window.choicesCreate) {
+            issueKey = getIssueKeyFromChoices(window.choicesCreate, data.issueId);
         }
+    } else {
+        // For update modal, get issue key from hidden input or form data
+        const issueKeyInput = form.querySelector('input[name="issueKey"]');
+        if (issueKeyInput) {
+            issueKey = issueKeyInput.value;
+        } else {
+            // Extract from issue label
+            const issueLabel = form.querySelector('#issue-label');
+            if (issueLabel) {
+                const match = issueLabel.textContent.match(/^([A-Z]+-\d+)/);
+                if (match) {
+                    issueKey = match[1];
+                }
+            }
+        }
+    }
+    
+    console.log(`Submitting worklog for issue ${issueKey} with color: ${selectedColor}`);
+    
+    // Remove issueKeyColor from worklog data - colors are now determined by issue configuration
+    delete data.issueKeyColor;
+    
+    // Submit the worklog with issue key in the data for server-side color handling
+    if (issueKey) {
+        data.issueKey = issueKey;
+    }
+    
+    // Submit the worklog
+    submitWorklog(url, method, data, issueKey, selectedColor);
+}
+
+/**
+ * Helper function to extract issue key from Choices.js instance
+ * @param {Object} choicesInstance - The Choices.js instance
+ * @param {string} issueId - The selected issue ID
+ * @returns {string|null} The issue key or null if not found
+ */
+function getIssueKeyFromChoices(choicesInstance, issueId) {
+    try {
+        console.log('Extracting issue key for issueId:', issueId);
+        
+        // Method 1: Check current state choices
+        if (choicesInstance._currentState && choicesInstance._currentState.choices) {
+            const choice = choicesInstance._currentState.choices.find(choice => 
+                choice.value === issueId
+            );
+            
+            if (choice) {
+                console.log('Found choice:', choice);
+                
+                // Try customProperties first
+                if (choice.customProperties) {
+                    if (choice.customProperties.issueKey) {
+                        console.log('Got issueKey from customProperties:', choice.customProperties.issueKey);
+                        return choice.customProperties.issueKey;
+                    }
+                    if (choice.customProperties.key) {
+                        console.log('Got issueKey from customProperties.key:', choice.customProperties.key);
+                        return choice.customProperties.key;
+                    }
+                }
+                
+                // Try direct properties
+                if (choice.issueKey) {
+                    console.log('Got issueKey from direct property:', choice.issueKey);
+                    return choice.issueKey;
+                }
+                if (choice.key) {
+                    console.log('Got issueKey from key property:', choice.key);
+                    return choice.key;
+                }
+                
+                // Extract from label as last resort
+                if (choice.label) {
+                    const match = choice.label.match(/^([A-Z]+-\d+)/);
+                    if (match) {
+                        console.log('Extracted issueKey from label:', match[1]);
+                        return match[1];
+                    }
+                }
+            }
+        }
+        
+        // Method 2: Check the store
+        if (choicesInstance._store && choicesInstance._store.choices) {
+            const storeChoice = choicesInstance._store.choices.find(choice => 
+                choice.value === issueId
+            );
+            if (storeChoice) {
+                console.log('Found in store:', storeChoice);
+                if (storeChoice.customProperties && storeChoice.customProperties.issueKey) {
+                    return storeChoice.customProperties.issueKey;
+                }
+                if (storeChoice.label) {
+                    const match = storeChoice.label.match(/^([A-Z]+-\d+)/);
+                    if (match) return match[1];
+                }
+            }
+        }
+        
+        console.warn('Could not find issue key for issueId:', issueId);
+        return null;
+        
+    } catch (error) {
+        console.error('Error extracting issue key:', error);
+        return null;
+    }
+}
+
+/**
+ * Submit the worklog to the server
+ * @param {string} url - The API endpoint
+ * @param {string} method - HTTP method
+ * @param {Object} data - Form data
+ * @param {string} issueKey - The issue key
+ * @param {string} selectedColor - The selected color
+ */
+async function submitWorklog(url, method, data, issueKey, selectedColor) {
+    try {
+        // First, save the color to the issue configuration if it's not the default
+        const defaultColor = '#2a75fe';
+        if (selectedColor !== defaultColor && issueKey) {
+            try {
+                const colorResponse = await fetch('/config/saveIssueColor', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        issueKey: issueKey,
+                        color: selectedColor
+                    })
+                });
+                
+                if (!colorResponse.ok) {
+                    console.warn('Failed to save color to issue configuration');
+                }
+            } catch (error) {
+                console.error('Error saving color:', error);
+            }
+        }
+
+        // Now submit the worklog
+        const response = await fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log('Worklog submitted successfully:', result);
+        
+        // Handle calendar updates based on method
+        if (method === 'POST') {
+            // For new worklogs, refresh the specific worklog
+            if (result.id && result.issueId) {
+                await refreshWorklog(result.issueId, result.id);
+            } else {
+                // Fallback to full refresh
+                window.calendar?.refetchEvents();
+            }
+        } else if (method === 'PUT') {
+            // For updates, use the calendar modal update handler from calendar.js
+            if (window.handleModalWorklogUpdate && data.worklogId) {
+                // Include the color in the result data for proper update
+                result.issueKeyColor = selectedColor;
+                result.worklogId = data.worklogId;
+                result.startTime = data.startTime;
+                result.endTime = data.endTime;
+                result.comment = data.comment;
+                
+                // Call the calendar's modal update handler
+                window.handleModalWorklogUpdate(result, data.worklogId);
+            } else {
+                // Fallback to refreshing the specific worklog
+                await refreshWorklog(result.issueId || data.issueId, data.worklogId);
+            }
+        }
+        
+        console.log('Worklog operation completed successfully');
+        
+    } catch (error) {
+        console.error('Error submitting worklog:', error);
+        alert(`Error submitting worklog: ${error.message}`);
+    } finally {
         hideLoading();
-    }).catch(error => {
-        console.error('Error:', error);
-        hideLoading();
-    });
+    }
+}
+
+// Helper function to get issue summary from current selection
+function getIssueSummaryFromSelection(issueId) {
+    try {
+        if (window.choicesCreate && window.choicesCreate._currentState && window.choicesCreate._currentState.choices) {
+            const choice = window.choicesCreate._currentState.choices.find(choice => 
+                choice.value === issueId
+            );
+            
+            if (choice && choice.label) {
+                // Extract summary from label format "KEY-123 - Summary"
+                const parts = choice.label.split(' - ');
+                return parts.length > 1 ? parts.slice(1).join(' - ') : choice.label;
+            }
+        }
+    } catch (error) {
+        console.warn('Error getting issue summary:', error);
+    }
+    return 'Unknown Summary';
+}
+
+// Helper function to calculate time spent display
+function calculateTimeSpent(startTime, endTime) {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    const diffMs = end - start;
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (diffHours > 0) {
+        return `${diffHours}h ${diffMinutes}m`;
+    } else {
+        return `${diffMinutes}m`;
+    }
+}
+
+// Helper function to calculate time spent in seconds
+function calculateTimeSpentSeconds(startTime, endTime) {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    return Math.floor((end - start) / 1000);
 }
 
 /**
@@ -65,29 +396,39 @@ export function handleSubmit(event, url, method) {
 export function handleDelete(event, url) {
     event.preventDefault();
 
+    if (!confirm('Are you sure you want to delete this worklog?')) {
+        return;
+    }
+    
+    showLoading();
+    
     fetch(url, {
         method: 'DELETE'
-    }).then(response => {
-        if (response.ok) {
-            hideModal('.modal-update');
-            // url = '/worklog/:worklogId?issueId=:issueId'
-            // get last url segment as worklog id, and issueId query parameter for issue ID
-
-            const issueId = url.split('?')[1].split('=')[1];
-            const worklogId = url.split('/')[2].split('?')[0];
-            window.calendar.getEvents().find(event => {
-                if (event.extendedProps.worklogId === worklogId) {
-                    event.remove();
-                }
-            });
-        } else {
-            console.error('Failed to delete worklog');
+    }).then(async response => {
+        if (!response.ok) {
+            const result = await response.json();
+            throw new Error(result.error || `Server error: ${response.status}`);
         }
+        
+        console.log('Worklog deleted successfully');
+        hideModal('.modal-update');
+        
+        if (window.calendar) {
+            window.calendar.refetchEvents();
+        }
+        
+        hideLoading();
+        
     }).catch(error => {
-        console.error('Error:', error);
+        console.error('Error deleting worklog:', error);
+        hideLoading();
+        alert(`Error deleting worklog: ${error.message}`);
     });
 }
 
+// Make functions available globally
 window.createWorkLog = createWorkLog;
+window.updateWorkLog = updateWorkLog;
+window.cleanWorklogComment = cleanWorklogComment;
 window.handleSubmit = handleSubmit;
 window.handleDelete = handleDelete;

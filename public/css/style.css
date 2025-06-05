@@ -1,0 +1,46 @@
+/* ...existing code... */
+
+/* Notes panel resizing */
+.notes-panel {
+    position: relative;
+    min-width: 250px;
+    max-width: 600px;
+    resize: horizontal;
+    overflow: auto;
+}
+
+.notes-panel.open {
+    width: var(--notes-panel-width, 350px);
+}
+
+.notes-resize-handle {
+    position: absolute;
+    left: -5px;
+    top: 0;
+    bottom: 0;
+    width: 10px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 10;
+    user-select: none;
+}
+
+.notes-resize-handle:hover {
+    background: rgba(0, 123, 255, 0.2);
+}
+
+.notes-resize-handle:active {
+    background: rgba(0, 123, 255, 0.4);
+}
+
+/* Prevent text selection during resize */
+.resizing {
+    user-select: none;
+    pointer-events: none;
+}
+
+.resizing .notes-panel {
+    pointer-events: auto;
+}
+
+/* ...existing code... */

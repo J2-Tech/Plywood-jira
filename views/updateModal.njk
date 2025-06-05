@@ -3,17 +3,15 @@
   <div class="modal unselectable modal-update">
     <div class="modal-content">
       <h2>Update work log</h2>
-      <form class="modal-form" id="modal-form-update" method="PUT" action="/worklog/">
+      <form class="modal-form" id="modal-form-update" method="PUT" action="/worklog/" onsubmit="convertFormDates(this)">
         <input type="hidden" name="worklogId" value="">
-        <label for="issue">Issue:</label>
         <input type="hidden" id="issue-update" name="issueId">
+        <input type="hidden" id="issue-key-update" name="issueKey">
+        <label for="issue">Issue:</label>
         <a target="_blank" id="issue-label" style="text-align: center;" name="issue-label" placeholder="No issue" target="_blank"></a>
         
-        
-        
         <label for="issue-key-color">Issue Color:</label>
-        <input type="color" id="issue-key-color" disabled="true" name="issueKeyColor" class="issue-key-color-update" value="#000000">
-        
+        <input type="color" id="issue-key-color" name="issueKeyColor" class="issue-key-color-update" value="#000000">
         
         <label for="comment-update">Comment:</label>
         <textarea class="comment" id="comment-update" name="comment"></textarea>

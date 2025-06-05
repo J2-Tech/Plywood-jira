@@ -1,0 +1,397 @@
+{% extends "layout.njk" %}
+
+{% block head %}
+    <style>
+        .sprint-notes-container {
+            max-width: 1000px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        
+        .sprint-selector {
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        
+        .sprint-notes-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .sprint-notes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="sprint-notes-container">
+        <div class="sprint-notes-header">
+            <h1>Sprint Notes</h1>
+        </div>
+        
+        <div class="form-group">
+            <label for="sprintSelector">Select Sprint:</label>
+            <select id="sprintSelector" class="sprint-selector">
+                <option value="">Loading sprints...</option>
+            </select>
+        </div>
+        
+        <div id="sprintDetails" class="sprint-details">
+            <div class="sprint-info-panel">
+                <h3 id="sprintName"></h3>
+                <div class="sprint-dates">
+                    <span id="sprintDates"></span>
+                </div>
+                <div class="sprint-goal">
+                    <p id="sprintGoal"></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sprint-notes-section">
+            <h2>Notes</h2>
+            <div id="notesLoading" class="loading-indicator">Loading notes...</div>
+            <div id="noNotesMessage" class="hidden">No notes for this sprint.</div>
+            
+            <div class="add-note-container">
+                <textarea id="newSprintNote" placeholder="Add a new note for this sprint..."></textarea>
+                <button id="addNoteBtn" class="primary-button">Add Note</button>
+            </div>
+            
+            <div id="notesContainer" class="sprint-notes-grid"></div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            let sprints = [];
+            let currentSprintId = null;
+            let sprintNotes = {};
+            
+            // Elements
+            const sprintSelector = document.getElementById('sprintSelector');
+            const notesContainer = document.getElementById('notesContainer');
+            const sprintName = document.getElementById('sprintName');
+            const sprintDates = document.getElementById('sprintDates');
+            const sprintGoal = document.getElementById('sprintGoal');
+            const newNoteTextarea = document.getElementById('newSprintNote');
+            const addNoteBtn = document.getElementById('addNoteBtn');
+            const notesLoading = document.getElementById('notesLoading');
+            const noNotesMessage = document.getElementById('noNotesMessage');
+            
+            // Load sprints
+            async function loadSprints() {
+                try {
+                    const response = await fetch('/sprints');
+                    const data = await response.json();
+                    
+                    sprints = data.values || [];
+                    populateSprintSelector(sprints);
+                } catch (error) {
+                    console.error('Error loading sprints:', error);
+                    sprintSelector.innerHTML = '<option value="">Error loading sprints</option>';
+                }
+            }
+            
+            // Populate sprint selector
+            function populateSprintSelector(sprints) {
+                sprintSelector.innerHTML = '';
+                
+                if (!sprints || sprints.length === 0) {
+                    sprintSelector.innerHTML = '<option value="">No sprints available</option>';
+                    return;
+                }
+                
+                // Add options for each sprint
+                sprints.forEach(sprint => {
+                    const option = document.createElement('option');
+                    option.value = sprint.id;
+                    
+                    // Format the name with the state
+                    let sprintLabel = sprint.name;
+                    if (sprint.state === 'active') {
+                        sprintLabel += ' (Current)';
+                        // Set as default selected if it's active
+                        option.selected = true;
+                        currentSprintId = sprint.id;
+                    } else if (sprint.state === 'future') {
+                        sprintLabel += ' (Upcoming)';
+                    } else if (sprint.state === 'closed') {
+                        sprintLabel += ' (Completed)';
+                    }
+                    
+                    option.textContent = sprintLabel;
+                    sprintSelector.appendChild(option);
+                });
+                
+                // If no sprint is selected yet, select the first one
+                if (!currentSprintId && sprints.length > 0) {
+                    currentSprintId = sprints[0].id;
+                    sprintSelector.value = currentSprintId;
+                }
+                
+                // Load the selected sprint
+                if (currentSprintId) {
+                    loadSprintDetails(currentSprintId);
+                }
+            }
+            
+            // Load sprint details
+            async function loadSprintDetails(sprintId) {
+                try {
+                    const response = await fetch(`/sprints/${sprintId}`);
+                    const sprint = await response.json();
+                    
+                    // Update sprint info
+                    sprintName.textContent = sprint.name;
+                    
+                    // Format dates
+                    let datesText = '';
+                    if (sprint.startDate && sprint.endDate) {
+                        const startDate = new Date(sprint.startDate).toLocaleDateString();
+                        const endDate = new Date(sprint.endDate).toLocaleDateString();
+                        datesText = `${startDate} - ${endDate}`;
+                    } else if (sprint.startDate) {
+                        datesText = `Started: ${new Date(sprint.startDate).toLocaleDateString()}`;
+                    }
+                    sprintDates.textContent = datesText;
+                    
+                    // Set goal
+                    sprintGoal.textContent = sprint.goal || 'No goal specified for this sprint.';
+                    
+                    // Load notes for this sprint
+                    loadSprintNotes(sprintId);
+                } catch (error) {
+                    console.error('Error loading sprint details:', error);
+                }
+            }
+            
+            // Load sprint notes
+            async function loadSprintNotes(sprintId) {
+                notesLoading.style.display = 'block';
+                noNotesMessage.style.display = 'none';
+                notesContainer.innerHTML = '';
+                
+                try {
+                    const response = await fetch(`/sprints/${sprintId}/notes`);
+                    const data = await response.json();
+                    
+                    sprintNotes = data;
+                    renderSprintNotes();
+                    
+                    notesLoading.style.display = 'none';
+                    if (!data.notes || data.notes.length === 0) {
+                        noNotesMessage.style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('Error loading sprint notes:', error);
+                    notesLoading.style.display = 'none';
+                    noNotesMessage.textContent = 'Error loading notes.';
+                    noNotesMessage.style.display = 'block';
+                }
+            }
+            
+            // Render sprint notes
+            function renderSprintNotes() {
+                notesContainer.innerHTML = '';
+                
+                if (!sprintNotes.notes || sprintNotes.notes.length === 0) {
+                    return;
+                }
+                
+                // Sort notes by creation date (newest first)
+                const sortedNotes = [...sprintNotes.notes].sort((a, b) => {
+                    return new Date(b.created) - new Date(a.created);
+                });
+                
+                sortedNotes.forEach(note => {
+                    const noteElement = document.createElement('div');
+                    noteElement.className = 'note-item';
+                    noteElement.dataset.noteId = note.id;
+                    
+                    const createdDate = new Date(note.created).toLocaleString();
+                    
+                    noteElement.innerHTML = `
+                        <div class="note-text">${formatNoteText(note.text)}</div>
+                        <div class="note-metadata">
+                            <span class="note-author">${note.author || 'Anonymous'}</span>
+                            <span class="note-date">${createdDate}</span>
+                        </div>
+                        <div class="note-actions">
+                            <button class="note-action-btn note-edit-btn" data-note-id="${note.id}">Edit</button>
+                            <button class="note-action-btn note-delete-btn" data-note-id="${note.id}">Delete</button>
+                        </div>
+                    `;
+                    
+                    notesContainer.appendChild(noteElement);
+                });
+                
+                // Add event listeners for edit and delete buttons
+                setupNoteActions();
+            }
+            
+            // Format note text for display
+            function formatNoteText(text) {
+                if (!text) return '';
+                
+                // Convert URLs to links
+                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                text = text.replace(urlRegex, url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+                
+                // Convert line breaks to <br>
+                return text.replace(/\n/g, '<br>');
+            }
+            
+            // Setup note action buttons
+            function setupNoteActions() {
+                // Edit buttons
+                document.querySelectorAll('.note-edit-btn').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const noteId = button.dataset.noteId;
+                        editNote(noteId);
+                    });
+                });
+                
+                // Delete buttons
+                document.querySelectorAll('.note-delete-btn').forEach(button => {
+                    button.addEventListener('click', () => {
+                        const noteId = button.dataset.noteId;
+                        deleteNote(noteId);
+                    });
+                });
+            }
+            
+            // Add a new note
+            async function addNote() {
+                const noteText = newNoteTextarea.value.trim();
+                
+                if (!noteText || !currentSprintId) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/sprints/${currentSprintId}/notes`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ text: noteText })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to add note');
+                    }
+                    
+                    const newNote = await response.json();
+                    
+                    // Add to our local notes and re-render
+                    if (!sprintNotes.notes) {
+                        sprintNotes.notes = [];
+                    }
+                    sprintNotes.notes.push(newNote);
+                    
+                    // Clear textarea
+                    newNoteTextarea.value = '';
+                    
+                    // Hide no notes message if visible
+                    noNotesMessage.style.display = 'none';
+                    
+                    // Re-render notes
+                    renderSprintNotes();
+                } catch (error) {
+                    console.error('Error adding note:', error);
+                    alert('Failed to add note. Please try again.');
+                }
+            }
+            
+            // Edit a note
+            async function editNote(noteId) {
+                const note = sprintNotes.notes.find(n => n.id === noteId);
+                if (!note) return;
+                
+                const newText = prompt('Edit note:', note.text);
+                if (newText === null || newText.trim() === '') return;
+                
+                try {
+                    const response = await fetch(`/sprints/${currentSprintId}/notes/${noteId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ text: newText.trim() })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to update note');
+                    }
+                    
+                    // Update the note locally
+                    const updatedNote = await response.json();
+                    const index = sprintNotes.notes.findIndex(n => n.id === noteId);
+                    
+                    if (index !== -1) {
+                        sprintNotes.notes[index] = updatedNote;
+                    }
+                    
+                    // Re-render notes
+                    renderSprintNotes();
+                } catch (error) {
+                    console.error('Error updating note:', error);
+                    alert('Failed to update note. Please try again.');
+                }
+            }
+            
+            // Delete a note
+            async function deleteNote(noteId) {
+                if (!confirm('Are you sure you want to delete this note?')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`/sprints/${currentSprintId}/notes/${noteId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to delete note');
+                    }
+                    
+                    // Remove the note locally
+                    sprintNotes.notes = sprintNotes.notes.filter(n => n.id !== noteId);
+                    
+                    // Show no notes message if no notes left
+                    if (sprintNotes.notes.length === 0) {
+                        noNotesMessage.style.display = 'block';
+                    }
+                    
+                    // Re-render notes
+                    renderSprintNotes();
+                } catch (error) {
+                    console.error('Error deleting note:', error);
+                    alert('Failed to delete note. Please try again.');
+                }
+            }
+            
+            // Event Listeners
+            sprintSelector.addEventListener('change', function() {
+                currentSprintId = this.value;
+                if (currentSprintId) {
+                    loadSprintDetails(currentSprintId);
+                }
+            });
+            
+            addNoteBtn.addEventListener('click', addNote);
+            
+            // Initialize
+            loadSprints();
+        });
+    </script>
+{% endblock %}

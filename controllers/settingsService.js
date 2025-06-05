@@ -164,27 +164,30 @@ class SettingsService {
             await this.initPromise;
             this.initialized = true;
         }
-    }
-
-    async getSettings(req) {
+    }    async getSettings(req, forceRefresh = false) {
         await this.initialize();
         const userId = this._getUserId(req);
         if (!userId) {
             return minimalDefaults;
         }
 
-        // Check cache first
+        // Check cache first (unless force refresh is requested)
         const cached = this.cache.get(userId);
-        if (cached && (Date.now() - cached.timestamp < this.cacheTTL)) {
+        if (!forceRefresh && cached && (Date.now() - cached.timestamp < this.cacheTTL)) {
+            console.log(`Using cached settings for user ${userId}`);
             return cached.settings;
         }
 
-        // Get from store and cache
+        // Get fresh settings from store
+        console.log(`${forceRefresh ? 'Force refreshing' : 'Loading'} settings for user ${userId}`);
         const settings = await this.store.getSettings(userId);
+        
+        // Update the cache with new settings
         this.cache.set(userId, {
             settings,
             timestamp: Date.now()
         });
+        
         return settings;
     }
 
@@ -195,22 +198,47 @@ class SettingsService {
             throw new Error('No user identified');
         }
         return await this.store.setSetting(userId, key, value);
-    }
-
-    async updateSettings(req, settings) {
+    }    async updateSettings(req, settings) {
         await this.initialize();
         const userId = this._getUserId(req);
         if (!userId) {
             throw new Error('No user identified');
         }
-        const newSettings = await this.store.updateSettings(userId, settings);
         
-        // Update cache
+        // Make a deep copy to prevent reference issues
+        const settingsCopy = JSON.parse(JSON.stringify(settings));
+        
+        // Save to disk
+        const newSettings = await this.store.updateSettings(userId, settingsCopy);
+        
+        // Update cache with a fresh deep copy to avoid shared references
+        console.log(`Updating settings cache for user ${userId}`);
         this.cache.set(userId, {
-            settings: newSettings,
+            settings: JSON.parse(JSON.stringify(newSettings)), // Another deep copy
             timestamp: Date.now()
         });
+        
         return newSettings;
+    }
+
+    /**
+     * Clear settings cache for a specific user
+     * @param {Object} req - Express request object
+     * @returns {boolean} True if cache was cleared, false otherwise
+     */
+    clearSettingsCache(req) {
+        const userId = this._getUserId(req);
+        if (!userId) {
+            return false;
+        }
+        
+        if (this.cache.has(userId)) {
+            console.log(`Clearing settings cache for user ${userId}`);
+            this.cache.delete(userId);
+            return true;
+        }
+        
+        return false;
     }
 
     _getUserId(req) {

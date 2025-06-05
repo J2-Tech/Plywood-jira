@@ -15,35 +15,34 @@
             <button id="refreshStats" class="refresh-button">Refresh</button>
         </div>
     </div>
-
+    
     <div class="stats-container">
-        <div class="stats-section">
-            <h2>Time Spent by Issue</h2>
-            <div id="timeSpentList" class="stats-list"></div>
-        </div>
-        
-        <div class="stats-section">
-            <h2>
-                Worklog Analysis
-                
-            </h2>
+        <!-- Charts Section -->
+        <div class="stats-section charts-section">
+            <h2>Worklog Analysis</h2>
             <div class="chart-container">
                 <canvas id="analysisChart"></canvas>
             </div>
             <div class="chart-controls">
-                    <div class="chart-selector">
-                        <button class="type-button active" data-type="issueTypes">
-                            <span>📊 By Issue Type</span>
-                        </button>
-                        <button class="type-button" data-type="issues">
-                            <span>🎯 By Issue</span>
-                        </button>
-                        <button class="type-button" data-type="projects">
-                            <span>📈 By Project</span>
-                        </button>
-                    </div>
-                    <button id="toggleChart" class="chart-toggle" title="Toggle chart type">📊</button>
+                <div class="chart-selector">
+                    <button class="type-button active" data-type="issueTypes">
+                        <span>📊 By Issue Type</span>
+                    </button>
+                    <button class="type-button" data-type="issues">
+                        <span>🎫 By Issue</span>
+                    </button>
+                    <button class="type-button" data-type="projects">
+                        <span>📁 By Project</span>
+                    </button>
                 </div>
+                <button id="toggleChart" class="chart-toggle">🥧</button>
+            </div>
+        </div>
+        
+        <!-- Issue List Section -->
+        <div class="stats-section">
+            <h2>📋 Issue Details</h2>
+            <div id="timeSpentList" class="stats-list"></div>
         </div>
     </div>
 </div>

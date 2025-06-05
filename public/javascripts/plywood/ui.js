@@ -105,6 +105,9 @@ export async function initializeUI() {
     
     initializeMenu();
     
+    // Add form submission handler for worklog forms
+    setupFormSubmissionHandlers();
+    
     var slider = document.getElementById("zoom-range");
     slider.oninput = function () {
         var timeVal = this.value;
@@ -162,48 +165,71 @@ export async function initializeUI() {
  */
 export function initializeDropdown() {
     const createIssueSelect = document.getElementById('issue-create');
-    const choicesCreate = new Choices(createIssueSelect, {
-        searchEnabled: true,
-        searchFields: ['key', 'label'],
-        itemSelectText: '',
-        searchFloor: 3,
-        shouldSort: true,
-        shouldSortItems: true,
-    });
+    if (createIssueSelect) {
+        const choicesCreate = new Choices(createIssueSelect, {
+            searchEnabled: true,
+            searchFields: ['key', 'label'],
+            itemSelectText: '',
+            searchFloor: 3,
+            shouldSort: true,
+            shouldSortItems: true,
+            placeholderValue: 'Select an issue...',
+            noResultsText: 'No issues found',
+        });
 
-    const fetchCreateOptions = searchDebounce((searchTerm) => {
-        searchIssues(searchTerm)
-            .then(options => {
-                choicesCreate.setChoices(options, 'value', 'label', true);
-            });
-    }, 300);
+        // Make it globally available
+        window.choicesCreate = choicesCreate;
 
-    createIssueSelect.addEventListener('search', (event) => {
-        fetchCreateOptions(event.detail.value);
-    });
+        const fetchCreateOptions = searchDebounce((searchTerm) => {
+            searchIssues(searchTerm)
+                .then(options => {
+                    choicesCreate.setChoices(options, 'value', 'label', true);
+                })
+                .catch(error => {
+                    console.error('Error fetching issue options:', error);
+                });
+        }, 300);
+
+        createIssueSelect.addEventListener('search', (event) => {
+            fetchCreateOptions(event.detail.value);
+        });
+
+        // Add change event listener to fetch and set issue color
+        createIssueSelect.addEventListener('change', async (event) => {
+            const selectedValue = event.detail.value;
+            if (selectedValue) {
+                await fetchAndSetIssueColor(selectedValue, 'create');
+            }
+        });
+    }
 
     const timerIssueSelect = document.getElementById('issue-timer');
-    const choicesTimer = new Choices(timerIssueSelect, {
-        searchEnabled: true,
-        searchFields: ['key', 'label'],
-        itemSelectText: '',
-        searchFloor: 3,
-        shouldSort: true,
-        shouldSortItems: true,
-    });
+    if (timerIssueSelect) {
+        const choicesTimer = new Choices(timerIssueSelect, {
+            searchEnabled: true,
+            searchFields: ['key', 'label'],
+            itemSelectText: '',
+            searchFloor: 3,
+            shouldSort: true,
+            shouldSortItems: true,
+        });
 
-    window.choicesTimer = choicesTimer;
+        window.choicesTimer = choicesTimer;
 
-    const fetchTimerOptions = searchDebounce((searchTerm) => {
-        searchIssues(searchTerm)
-            .then(options => {
-                choicesTimer.setChoices(options, 'value', 'label', true);
-            });
-    }, 300);
+        const fetchTimerOptions = searchDebounce((searchTerm) => {
+            searchIssues(searchTerm)
+                .then(options => {
+                    choicesTimer.setChoices(options, 'value', 'label', true);
+                })
+                .catch(error => {
+                    console.error('Error fetching timer issue options:', error);
+                });
+        }, 300);
 
-    timerIssueSelect.addEventListener('search', (event) => {
-        fetchTimerOptions(event.detail.value);
-    });
+        timerIssueSelect.addEventListener('search', (event) => {
+            fetchTimerOptions(event.detail.value);
+        });
+    }
 }
 
 /**
@@ -213,42 +239,258 @@ export function initializeDropdown() {
  * @returns {Function} - The debounced function.
  */
 function searchDebounce(func, delay) {
-    let timeout;
-    return function(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), delay);
+    let timeoutId;
+    return function (...args) {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => func.apply(this, args), delay);
     };
 }
 
 /**
- * Search issues.
- * @param {string} query - The search query.
- * @returns {Promise<Array>} - The search results.
+ * Search for issues based on search term - simplified to use only /issues/user endpoint
+ * @param {string} searchTerm - The search term
+ * @returns {Promise} - Promise that resolves to search results
  */
-function searchIssues(query) {
-    const startDate = encodeURIComponent(new Date(window.calendar.view.activeStart).toISOString());
-    const endDate = encodeURIComponent(new Date(window.calendar.view.activeEnd).toISOString());
-    const project = encodeURIComponent(getCurrentProject());
+async function searchIssues(searchTerm) {
+    if (!searchTerm || searchTerm.length < 3) {
+        return Promise.resolve([]);
+    }
+    
+    const project = getCurrentProject();
+    
+    try {
+        showLoading();
+        
+        // Use current calendar dates if available, otherwise use a reasonable default range
+        const now = new Date();
+        const defaultStart = new Date(now.getFullYear(), now.getMonth() - 1, 1); // Start of last month
+        const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0); // End of next month
+        
+        const startDate = encodeURIComponent((window.calendar?.view?.activeStart || defaultStart).toISOString());
+        const endDate = encodeURIComponent((window.calendar?.view?.activeEnd || defaultEnd).toISOString());
+        const cacheBuster = Date.now();
 
-    showLoading();
-    return fetch(`/issues/user?start=${startDate}&end=${endDate}&query=${query}&project=${project}`)
-        .then((res) => res.json())
-        .then((data) => {
-            const options = data.map((issue) => ({
-                value: issue.id,
-                label: `${issue.key} - ${issue.summary}`,
+        const response = await fetch(`/issues/user?start=${startDate}&end=${endDate}&query=${encodeURIComponent(searchTerm)}&project=${project}&_t=${cacheBuster}`);
+        
+        if (!response.ok) {
+            console.error(`Issues API error: ${response.status}`);
+            hideLoading();
+            return [];
+        }
+        
+        const data = await response.json();
+        
+        // Check for API error responses
+        if (data.errorMessages || data.errors) {
+            console.warn('Issues API returned errors:', data.errorMessages || data.errors);
+            hideLoading();
+            return [];
+        }
+        
+        // Check if data is an array (expected format)
+        if (!Array.isArray(data)) {
+            console.warn('Issues endpoint returned unexpected format:', data);
+            hideLoading();
+            return [];
+        }
+        
+        // Transform the data for Choices.js - consistent format for all modals
+        const options = data.map((issue) => ({
+            value: issue.issueId,
+            label: `${issue.key} - ${issue.summary}`,
+            customProperties: {
                 key: issue.key,
-            }));
-            hideLoading();
-            return options;
-        })
-        .catch((error) => {
-            handleError(error);
-            hideLoading();
-        });
+                issueKey: issue.key,
+                issueId: issue.issueId,
+                summary: issue.summary
+            }
+        }));
+        
+        console.log(`Found ${options.length} issues for "${searchTerm}"`);
+        hideLoading();
+        return options;
+        
+    } catch (error) {
+        console.error('Error searching issues:', error);
+        hideLoading();
+        return [];
+    }
+}
+
+/**
+ * Fetch and set issue color for modals
+ * @param {string} issueId - The issue ID
+ * @param {string} modalType - The modal type ('create' or 'update')
+ */
+async function fetchAndSetIssueColor(issueId, modalType) {
+    try {
+        const response = await fetch(`/issues/${issueId}/color`);
+        const data = await response.json();
+        
+        const colorInputId = modalType === 'create' ? 'issue-key-color-create' : 'issue-key-color';
+        const colorInput = document.getElementById(colorInputId);
+        
+        if (colorInput && data.color) {
+            colorInput.value = data.color;
+        }
+        
+        // Store issue type icon for later use if available
+        if (data.issueTypeIcon && modalType === 'create') {
+            window.lastIssueTypeIcon = data.issueTypeIcon;
+        }
+        
+    } catch (error) {
+        console.error('Error fetching issue color:', error);
+    }
+}
+
+/**
+ * Setup form submission handlers
+ */
+function setupFormSubmissionHandlers() {
+    // Remove the automatic form submission handlers that convert dates
+    // These are now handled in the worklog.js handleSubmit function
+    console.log('Form submission handlers initialized');
+}
+
+// Make functions available globally
+window.searchIssues = searchIssues;
+window.fetchAndSetIssueColor = fetchAndSetIssueColor;
+window.setupFormSubmissionHandlers = setupFormSubmissionHandlers;
+window.searchDebounce = searchDebounce;
+
+/**
+ * Convert datetime-local inputs to ISO format before form submission
+ * @param {HTMLFormElement} form - The form element
+ */
+function convertDateTimeInputsToISO(form) {
+    const startTimeInput = form.querySelector('input[name="startTime"]');
+    const endTimeInput = form.querySelector('input[name="endTime"]');
+    
+    if (startTimeInput && startTimeInput.value) {
+        const startDate = new Date(startTimeInput.value);
+        startTimeInput.value = startDate.toISOString();
+    }
+    
+    if (endTimeInput && endTimeInput.value) {
+        const endDate = new Date(endTimeInput.value);
+        endTimeInput.value = endDate.toISOString();
+    }
+}
+
+/**
+ * Get issue key from the selected option
+ * @param {string} issueId - The selected issue ID
+ * @param {string} modalType - 'create' or 'update'
+ * @returns {string|null} The issue key or null if not found
+ */
+function getIssueKeyFromSelection(issueId, modalType) {
+    const choicesInstance = modalType === 'create' ? window.choicesCreate : window.choicesTimer;
+    if (!choicesInstance) {
+        console.warn('No choices instance found for modal type:', modalType);
+        return null;
+    }
+    
+    console.log('Looking for issueId:', issueId, 'in modalType:', modalType);
+    
+    try {
+        // Method 1: Check current state choices
+        if (choicesInstance._currentState && choicesInstance._currentState.choices) {
+            console.log('Available choices:', choicesInstance._currentState.choices);
+            
+            // Look for the choice by value (don't require selected=true since it might not be set yet)
+            const choice = choicesInstance._currentState.choices.find(choice => 
+                choice.value === issueId
+            );
+            
+            if (choice) {
+                console.log('Found choice:', choice);
+                
+                // First try direct properties
+                if (choice.issueKey) {
+                    console.log('Found issueKey directly:', choice.issueKey);
+                    return choice.issueKey;
+                }
+                if (choice.key) {
+                    console.log('Found key directly:', choice.key);
+                    return choice.key;
+                }
+                
+                // Then try customProperties if they exist
+                if (choice.customProperties) {
+                    console.log('CustomProperties:', choice.customProperties);
+                    if (choice.customProperties.issueKey) {
+                        return choice.customProperties.issueKey;
+                    }
+                    if (choice.customProperties.key) {
+                        return choice.customProperties.key;
+                    }
+                }
+                
+                // Fallback: extract from label
+                if (choice.label) {
+                    console.log('Extracting from label:', choice.label);
+                    const match = choice.label.match(/^([A-Z]+-\d+)/);
+                    if (match) {
+                        console.log('Extracted from label:', match[1]);
+                        return match[1];
+                    }
+                }
+            }
+        }
+        
+        // Method 2: Try getValue() method
+        if (typeof choicesInstance.getValue === 'function') {
+            const selectedValue = choicesInstance.getValue(true);
+            console.log('getValue(true) result:', selectedValue);
+            
+            if (selectedValue) {
+                // Handle case where getValue returns an object
+                if (typeof selectedValue === 'object') {
+                    if (selectedValue.issueKey) {
+                        return selectedValue.issueKey;
+                    }
+                    if (selectedValue.key) {
+                        return selectedValue.key;
+                    }
+                    if (selectedValue.customProperties && selectedValue.customProperties.issueKey) {
+                        return selectedValue.customProperties.issueKey;
+                    }
+                    if (selectedValue.label) {
+                        const match = selectedValue.label.match(/^([A-Z]+-\d+)/);
+                        if (match) return match[1];
+                    }
+                }
+            }
+        }
+        
+        // Method 3: Check if we can find it in the store/cache
+        if (choicesInstance._store && choicesInstance._store.choices) {
+            const storeChoice = choicesInstance._store.choices.find(choice => 
+                choice.value === issueId
+            );
+            if (storeChoice) {
+                console.log('Found in store:', storeChoice);
+                if (storeChoice.customProperties && storeChoice.customProperties.issueKey) {
+                    return storeChoice.customProperties.issueKey;
+                }
+                if (storeChoice.label) {
+                    const match = storeChoice.label.match(/^([A-Z]+-\d+)/);
+                    if (match) return match[1];
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.warn('Error accessing Choices.js instance:', error);
+    }
+    
+    console.warn('Could not find issue key for issueId:', issueId);
+    return null;
 }
 
 window.applyTheme = applyTheme;
 window.initializeUI = initializeUI;
 window.initializeDropdown = initializeDropdown;
 window.searchIssues = searchIssues;
+window.fetchAndSetIssueColor = fetchAndSetIssueColor;

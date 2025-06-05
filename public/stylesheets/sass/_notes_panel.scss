@@ -1,0 +1,221 @@
+// Notes Side Panel
+.notes-side-panel {
+    position: fixed;
+    top: 0;
+    right: -100%; // Completely hide when closed
+    width: 400px;
+    min-width: 250px;
+    max-width: 1200px; // Increased max width
+    height: calc(100vh - 70px);
+    background: var(--secondary-bg); // Use footer background color
+    border-left: 1px solid var(--border-color);
+    transition: right 0.3s ease;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+
+    &.open {
+        right: 0;
+    }
+
+    // Resize handle on the left side
+    &::before {
+        content: '';
+        position: absolute;
+        left: -3px;
+        top: 0;
+        bottom: 0;
+        width: 6px;
+        cursor: col-resize;
+        background: transparent;
+        z-index: 1001;
+    }
+
+    &:hover::before,
+    &.resizing::before {
+        background: rgba(var(--primary-color-rgb, 0, 123, 255), 0.3);
+        border-left: 2px solid var(--primary-color, #007bff);
+    }
+}
+
+// Layout adjustment for calendar when notes panel is open
+.main-content {
+    transition: margin-right 0.3s ease;
+    
+    &.notes-open {
+        margin-right: var(--notes-panel-width, 400px);
+    }
+}
+
+// Alternative: side-by-side layout
+.app-layout {
+    display: flex;
+    height: 100vh;
+    
+    .calendar-container {
+        flex: 1;
+        min-width: 0; // Allow shrinking
+        transition: margin-right 0.3s ease;
+        
+        &.notes-open {
+            margin-right: var(--notes-panel-width, 400px);
+        }
+    }
+    
+    .notes-side-panel {
+        position: fixed;
+        right: calc(-1 * var(--notes-panel-width, 400px)); // Use CSS variable for width
+        
+        &.open {
+            right: 0;
+        }
+    }
+}
+
+// Notes panel header - use footer-style theming
+.notes-panel-header {
+    padding: 0;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--secondary-bg); // Match footer background
+    flex-shrink: 0;
+
+    .notes-header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 20px;
+
+        h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-color);
+
+            #notesPanelContext {
+                font-weight: 400;
+                color: var(--text-muted);
+                font-size: 14px;
+            }
+        }
+
+        .close-panel-button {
+            background: none;
+            border: 1px solid var(--border-color);
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--text-color);
+            padding: 4px 8px;
+            border-radius: 4px;
+            line-height: 1;
+            transition: all 0.2s ease;
+
+            &:hover {
+                background: var(--hover-bg);
+                border-color: var(--primary-color, #007bff);
+            }
+        }
+    }
+}
+
+// Notes panel content - use footer-style theming
+.notes-panel-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    overflow: hidden;
+    background: var(--secondary-bg); // Match footer background
+
+    .loading-indicator {
+        color: var(--text-muted);
+        text-align: center;
+        padding: 20px;
+    }
+
+    .save-indicator {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background: var(--success-color, #28a745);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        opacity: 0.9;
+
+        &.hidden {
+            display: none;
+        }
+    }
+
+    .notes-textarea {
+        flex: 1;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 12px;
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 1.5;
+        resize: none;
+        outline: none;
+        background: var(--primary-bg); // Use primary background for input
+        color: var(--text-color);
+        width: calc(100% - 24px);
+
+        &:focus {
+            border-color: var(--primary-color, #007bff);
+            box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb, 0, 123, 255), 0.25);
+        }
+
+        &::placeholder {
+            color: var(--text-muted);
+        }
+    }
+}
+
+// Global body class when resizing
+body.notes-resizing {
+    user-select: none;
+    cursor: col-resize;
+
+    * {
+        user-select: none;
+        pointer-events: none;
+    }
+
+    .notes-side-panel {
+        pointer-events: auto;
+    }
+}
+
+// Visual feedback during resize
+.notes-resize-line {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--primary-color);
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.8;
+    box-shadow: 0 0 4px rgba(var(--primary-color-rgb, 0, 123, 255), 0.5);
+}
+
+// Responsive behavior
+@media (max-width: 768px) {
+    .notes-side-panel {
+        width: 100% !important;
+        max-width: 100% !important;
+        right: -100%;
+
+        &::before {
+            display: none; // Hide resize handle on mobile
+        }
+    }
+    
+    .main-content.notes-open,
+    .calendar-container.notes-open {
+        margin-right: 0; // No side-by-side on mobile
+    }
+}

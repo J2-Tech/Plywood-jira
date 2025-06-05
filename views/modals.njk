@@ -5,6 +5,8 @@
   {% import "configModal.njk" as configModal %}
   {% import "timerModal.njk" as timerModal %}
   {% import "colorPickerModal.njk" as colorPickerModal %}
+  {% import "sprintModal.njk" as sprintModal %}
+  {% import "notesListModal.njk" as notesListModal %}
 
   {{ colorPickerModal.modal() }}
   {{ aboutModal.modal() }}
@@ -12,4 +14,6 @@
   {{ updateModal.modal() }}
   {{ configModal.modal() }}
   {{ timerModal.modal() }}
+  {{ sprintModal.sprintModal() }}
+  {{ notesListModal.modal() }}
 {% endmacro %}

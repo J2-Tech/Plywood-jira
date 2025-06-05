@@ -4,11 +4,15 @@
     --text-color: #{$text-color};
     --text-muted: #666;
     --border-color: #{$border-color};
+    --primary-color: #{$primary-color};
+    --primary-color-rgb: 0, 123, 255;
     
     // Backgrounds
     --primary-bg: #fff;
     --secondary-bg: #eee;
     --hover-bg: rgba(0, 0, 0, 0.05);
+    --input-background: #fff;
+    --background-color: #fff;
     
     // Buttons
     --button-bg: var(--fc-event-bg-color, #{$secondary-color});
@@ -20,11 +24,15 @@
     --text-color: #{$dark-text};
     --text-muted: #aaa;
     --border-color: #{$dark-border};
+    --primary-color: #{$primary-color};
+    --primary-color-rgb: 0, 123, 255;
     
     // Backgrounds
     --primary-bg: #{$dark-bg};
     --secondary-bg: #{$dark-secondary};
     --hover-bg: rgba(255, 255, 255, 0.1);
+    --input-background: #{$dark-bg};
+    --background-color: #{$dark-bg};
     
     // Calendar specific
     --fc-page-bg-color: #{$dark-secondary};
