@@ -237,8 +237,8 @@ exports.createWorkLog = async function(req, issueId, started, ended, comment, is
         };
         
         // Add issue type icon if available
-        if (issueDetails && issueDetails.fields.issuetype && issueDetails.fields.issuetype.iconUrl) {
-            responseData.issueTypeIcon = issueDetails.fields.issuetype.iconUrl;
+        if (issueDetails && issueDetails.fields.issuetype && issueDetails.fields.issuetype.id) {
+            responseData.issueTypeIcon = `/avatars/issuetype/${issueDetails.fields.issuetype.id}?size=small`;
             responseData.issueType = issueDetails.fields.issuetype.name;
         }
         

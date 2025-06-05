@@ -2,6 +2,8 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const https = require('https');
 const dayjs = require('dayjs');
 const configController = require('./configController');
+const fs = require('fs').promises;
+const path = require('path');
 
 // Cache for API data
 const issueCache = new Map();
@@ -12,6 +14,10 @@ const WORKLOG_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 // Add avatar cache
 const avatarCache = new Map();
 const AVATAR_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+// Add icon cache
+const iconCache = new Map();
+const ICON_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 // Remove global state
 // global.selectedProject = 'all';
@@ -798,7 +804,7 @@ function cleanWorklogComment(comment) {
 }
 
 /**
- * Get issue type avatar using universal avatar API
+ * Get issue type avatar using universal avatar API and return proxy URLs
  */
 exports.getIssueTypeAvatar = async function(req, issueTypeId) {
     const cacheKey = `issuetype-avatar-${issueTypeId}`;
@@ -811,7 +817,7 @@ exports.getIssueTypeAvatar = async function(req, issueTypeId) {
     const url = getCallURL(req);
     
     try {
-        // First get the issue type to get avatar ID
+        // First get the issue type to get basic info
         const issueTypeResponse = await fetch(`${url}/rest/api/3/issuetype/${issueTypeId}`, {
             method: 'GET',
             headers: getDefaultHeaders(req),
@@ -824,23 +830,12 @@ exports.getIssueTypeAvatar = async function(req, issueTypeId) {
         }
         
         const issueType = await issueTypeResponse.json();
-        console.log('Issue type data:', issueType);
-        
-        // Extract avatar ID from iconUrl if available
-        let avatarId = null;
-        if (issueType.iconUrl) {
-            const avatarIdMatch = issueType.iconUrl.match(/avatar\/(\d+)/);
-            if (avatarIdMatch) {
-                avatarId = avatarIdMatch[1];
-            }
-        }
         
         const result = {
             issueTypeId: issueTypeId,
             name: issueType.name,
-            iconUrl: issueType.iconUrl,
-            avatarId: avatarId,
-            // Provide fallback URLs for different sizes
+            iconUrl: issueType.iconUrl, // Keep original for reference
+            // Always provide our proxy URLs that the browser can access
             avatarUrls: {
                 '16x16': `/avatars/issuetype/${issueTypeId}?size=xsmall`,
                 '24x24': `/avatars/issuetype/${issueTypeId}?size=small`,
@@ -858,14 +853,13 @@ exports.getIssueTypeAvatar = async function(req, issueTypeId) {
         return result;
         
     } catch (error) {
-        console.error('Error fetching issue type avatar:', error);
+        console.error('Error fetching issue type avatar info:', error);
         
-        // Return fallback data
+        // Return fallback data with our proxy URLs
         return {
             issueTypeId: issueTypeId,
             name: 'Unknown',
             iconUrl: null,
-            avatarId: null,
             avatarUrls: {
                 '16x16': `/avatars/issuetype/${issueTypeId}?size=xsmall`,
                 '24x24': `/avatars/issuetype/${issueTypeId}?size=small`,
@@ -877,28 +871,21 @@ exports.getIssueTypeAvatar = async function(req, issueTypeId) {
 };
 
 /**
- * Get issue type avatar image using universal avatar API
+ * Proxy an issue type avatar image from JIRA (real-time proxy, no local storage)
  */
-exports.getIssueTypeAvatarImage = async function(req, issueTypeId, size = 'medium') {
-    const sizeMap = {
-        'xsmall': '16',
-        'small': '24', 
-        'medium': '32',
-        'large': '48'
-    };
-    
-    const pixelSize = sizeMap[size] || '32';
-    const cacheKey = `issuetype-avatar-image-${issueTypeId}-${size}`;
+exports.proxyIssueTypeAvatarImage = async function(req, issueTypeId, size = 'medium') {
+    const cacheKey = `issuetype-avatar-proxy-${issueTypeId}-${size}`;
     const cached = avatarCache.get(cacheKey);
     
-    if (cached && Date.now() - cached.timestamp < AVATAR_CACHE_TTL) {
+    // Short cache for proxy requests to avoid hammering JIRA
+    if (cached && Date.now() - cached.timestamp < (5 * 60 * 1000)) { // 5 minute cache
         return cached.data;
     }
     
     const url = getCallURL(req);
     
     try {
-        // First try to get the issue type to extract avatar ID
+        // First get the issue type to extract avatar ID and iconUrl
         const issueTypeResponse = await fetch(`${url}/rest/api/3/issuetype/${issueTypeId}`, {
             method: 'GET',
             headers: getDefaultHeaders(req),
@@ -906,21 +893,20 @@ exports.getIssueTypeAvatarImage = async function(req, issueTypeId, size = 'mediu
         });
         
         if (!issueTypeResponse.ok) {
-            console.error(`Failed to fetch issue type: ${issueTypeResponse.status}`);
+            console.warn(`Failed to fetch issue type ${issueTypeId}: ${issueTypeResponse.status}`);
             return null;
         }
         
         const issueType = await issueTypeResponse.json();
-        
-        // Try multiple approaches to get the avatar
         let avatarBuffer = null;
+        let contentType = 'image/png';
         
         // Approach 1: Use universal avatar API with extracted avatar ID
         if (issueType.iconUrl) {
             const avatarIdMatch = issueType.iconUrl.match(/avatar\/(\d+)/);
             if (avatarIdMatch) {
                 const avatarId = avatarIdMatch[1];
-                console.log(`Trying universal avatar API with ID ${avatarId}`);
+                console.log(`Proxying avatar via universal API with ID ${avatarId} for issue type ${issueTypeId}`);
                 
                 try {
                     const avatarResponse = await fetch(`${url}/rest/api/3/universal_avatar/view/type/issuetype/avatar/${avatarId}?size=${size}`, {
@@ -934,7 +920,10 @@ exports.getIssueTypeAvatarImage = async function(req, issueTypeId, size = 'mediu
                     
                     if (avatarResponse.ok) {
                         avatarBuffer = await avatarResponse.buffer();
-                        console.log(`Successfully fetched avatar via universal API for issue type ${issueTypeId}`);
+                        contentType = avatarResponse.headers.get('content-type') || 'image/png';
+                        console.log(`Successfully proxied avatar via universal API for issue type ${issueTypeId}`);
+                    } else {
+                        console.warn(`Universal avatar API returned ${avatarResponse.status} for issue type ${issueTypeId}`);
                     }
                 } catch (error) {
                     console.warn(`Universal avatar API failed for issue type ${issueTypeId}:`, error.message);
@@ -944,7 +933,7 @@ exports.getIssueTypeAvatarImage = async function(req, issueTypeId, size = 'mediu
         
         // Approach 2: Try direct iconUrl if universal API failed
         if (!avatarBuffer && issueType.iconUrl) {
-            console.log(`Trying direct iconUrl for issue type ${issueTypeId}`);
+            console.log(`Proxying avatar via direct iconUrl for issue type ${issueTypeId}`);
             try {
                 const directResponse = await fetch(issueType.iconUrl, {
                     method: 'GET',
@@ -957,77 +946,58 @@ exports.getIssueTypeAvatarImage = async function(req, issueTypeId, size = 'mediu
                 
                 if (directResponse.ok) {
                     avatarBuffer = await directResponse.buffer();
-                    console.log(`Successfully fetched avatar via direct URL for issue type ${issueTypeId}`);
+                    contentType = directResponse.headers.get('content-type') || 'image/png';
+                    console.log(`Successfully proxied avatar via direct URL for issue type ${issueTypeId}`);
+                } else {
+                    console.warn(`Direct iconUrl returned ${directResponse.status} for issue type ${issueTypeId}`);
                 }
             } catch (error) {
                 console.warn(`Direct iconUrl failed for issue type ${issueTypeId}:`, error.message);
             }
         }
         
-        // Approach 3: Try alternative universal avatar endpoint
-        if (!avatarBuffer) {
-            console.log(`Trying alternative universal avatar endpoint for issue type ${issueTypeId}`);
-            try {
-                const altResponse = await fetch(`${url}/rest/api/3/universal_avatar/view/type/issuetype/owner/${issueTypeId}?size=${size}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': getDefaultHeaders(req).Authorization,
-                        'Accept': 'image/*'
-                    },
-                    agent: httpsAgent
-                });
-                
-                if (altResponse.ok) {
-                    avatarBuffer = await altResponse.buffer();
-                    console.log(`Successfully fetched avatar via alternative universal API for issue type ${issueTypeId}`);
-                }
-            } catch (error) {
-                console.warn(`Alternative universal avatar API failed for issue type ${issueTypeId}:`, error.message);
-            }
-        }
-        
-        // Cache the result (even if null)
-        if (avatarBuffer) {
+        // Cache the result for a short time
+        if (avatarBuffer && avatarBuffer.length > 0) {
+            const result = {
+                buffer: avatarBuffer,
+                contentType: contentType
+            };
+            
             avatarCache.set(cacheKey, {
-                data: avatarBuffer,
+                data: result,
                 timestamp: Date.now()
             });
+            
+            return result;
         }
         
-        return avatarBuffer;
+        return null;
         
     } catch (error) {
-        console.error(`Error fetching issue type avatar image for ${issueTypeId}:`, error);
+        console.error(`Error proxying issue type avatar image for ${issueTypeId}:`, error);
         return null;
     }
 };
 
-/**
- * Generate a fallback icon for issue types when avatar is not available
- */
-exports.generateFallbackIssueTypeIcon = function(issueTypeName, size = 32) {
-    // Generate a simple colored circle with the first letter of the issue type
-    const firstLetter = (issueTypeName || 'T').charAt(0).toUpperCase();
-    
-    // Generate a color based on the issue type name
-    let hash = 0;
-    for (let i = 0; i < issueTypeName.length; i++) {
-        hash = ((hash << 5) - hash) + issueTypeName.charCodeAt(i);
-        hash = hash & hash;
+// Add missing constants for icon caching
+const ICONS_DIR = path.join(__dirname, '..', 'public', 'cached-icons');
+
+// Ensure icons directory exists
+async function ensureIconsDirectory() {
+    try {
+        await fs.mkdir(ICONS_DIR, { recursive: true });
+    } catch (error) {
+        console.error('Error creating icons directory:', error);
     }
-    const hue = Math.abs(hash % 360);
-    const color = `hsl(${hue}, 60%, 50%)`;
-    
-    // Create SVG
-    const svg = `
-        <svg width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="${size/2}" cy="${size/2}" r="${size/2-1}" fill="${color}" stroke="#fff" stroke-width="1"/>
-            <text x="${size/2}" y="${size/2}" text-anchor="middle" dy="0.35em" fill="white" font-family="Arial, sans-serif" font-size="${size/2}" font-weight="bold">${firstLetter}</text>
-        </svg>
-    `;
-    
-    return Buffer.from(svg, 'utf8');
-};
+}
+
+// Schedule cleanup every 6 hours
+setInterval(() => {
+    exports.cleanupIconCache().catch(console.error);
+}, 6 * 60 * 60 * 1000);
+
+// Remove the icon caching functions that are causing issues
+// (The downloadAndCacheIssueTypeIcon and related functions have dependencies that aren't properly set up)
 
 // Add wrapper functions for all exports to ensure error handling
 const wrapWithErrorHandling = (fn) => {

@@ -247,9 +247,84 @@ function searchDebounce(func, delay) {
 }
 
 /**
- * Search for issues based on search term - simplified to use only /issues/user endpoint
- * @param {string} searchTerm - The search term
- * @returns {Promise} - Promise that resolves to search results
+ * Fetch and set issue color for modals
+ * @param {string} issueId - The issue ID
+ * @param {string} modalType - The modal type ('create' or 'update')
+ */
+async function fetchAndSetIssueColor(issueId, modalType) {
+    try {
+        const response = await fetch(`/issues/${issueId}/color`);
+        const data = await response.json();
+        
+        const colorInputId = modalType === 'create' ? 'issue-key-color-create' : 'issue-key-color';
+        const colorInput = document.getElementById(colorInputId);
+        
+        if (colorInput && data.color) {
+            colorInput.value = data.color;
+        }
+        
+        // Fetch and cache issue type icon
+        if (modalType === 'create') {
+            try {
+                // Use our proxy endpoint for issue type icons
+                const iconData = await fetch(`/issuetypes/${issueId}/avatar`).then(res => res.json());
+                
+                if (iconData && iconData.avatarUrls) {
+                    // Use our proxy URLs instead of original JIRA URLs
+                    window.lastIssueTypeIcon = iconData.avatarUrls['24x24'] || iconData.avatarUrls['16x16'];
+                    window.lastIssueTypeName = iconData.name;
+                    console.log(`Using proxy avatar URL for ${iconData.name}: ${window.lastIssueTypeIcon}`);
+                } else {
+                    console.warn(`No proxy avatar URLs available for issue type ${issueId}`);
+                }
+            } catch (iconError) {
+                console.warn('Failed to fetch issue type icon:', iconError);
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error fetching issue color:', error);
+    }
+}
+
+/**
+ * Update issue display with cached icon
+ * @param {HTMLElement} element - The element to update
+ * @param {string} issueTypeId - Issue type ID
+ * @param {string} issueTypeName - Issue type name
+ * @param {string} localIconUrl - Local cached icon URL
+ */
+function updateIssueDisplayWithCachedIcon(element, issueTypeId, issueTypeName, localIconUrl) {
+    if (!element || !window.showIssueTypeIcons) return;
+    
+    // Find or create avatar element
+    let avatarElement = element.querySelector('.issue-type-avatar');
+    if (!avatarElement) {
+        avatarElement = document.createElement('img');
+        avatarElement.className = 'issue-type-avatar';
+        avatarElement.style.cssText = 'width: 16px; height: 16px; margin-right: 4px; vertical-align: middle;';
+        element.insertBefore(avatarElement, element.firstChild);
+    }
+    
+    if (localIconUrl) {
+        avatarElement.src = localIconUrl;
+        avatarElement.alt = issueTypeName || 'Issue Type';
+        avatarElement.title = issueTypeName || 'Issue Type';
+        avatarElement.style.display = 'inline';
+        
+        // Handle load errors by hiding the icon
+        avatarElement.onerror = function() {
+            console.warn(`Failed to load cached icon: ${localIconUrl}`);
+            this.style.display = 'none';
+        };
+    } else {
+        // Hide icon if no cached version available
+        avatarElement.style.display = 'none';
+    }
+}
+
+/**
+ * Enhanced search function that includes icon caching
  */
 async function searchIssues(searchTerm) {
     if (!searchTerm || searchTerm.length < 3) {
@@ -294,19 +369,38 @@ async function searchIssues(searchTerm) {
             return [];
         }
         
-        // Transform the data for Choices.js - consistent format for all modals
-        const options = data.map((issue) => ({
-            value: issue.issueId,
-            label: `${issue.key} - ${issue.summary}`,
-            customProperties: {
-                key: issue.key,
-                issueKey: issue.key,
-                issueId: issue.issueId,
-                summary: issue.summary
+        // Transform the data for Choices.js - enhanced with icon caching
+        const options = await Promise.all(data.map(async (issue) => {
+            let localIconUrl = null;
+            
+            // Try to get cached icon for the issue type
+            if (issue.issueTypeIcon && window.showIssueTypeIcons) {
+                try {
+                    const iconResponse = await fetch(`/issues/${issue.issueId}/icon`);
+                    const iconData = await iconResponse.json();
+                    if (iconData.localIconUrl) {
+                        localIconUrl = iconData.localIconUrl;
+                    }
+                } catch (iconError) {
+                    console.warn(`Failed to get cached icon for ${issue.key}:`, iconError);
+                }
             }
+            
+            return {
+                value: issue.issueId,
+                label: `${issue.key} - ${issue.summary}`,
+                customProperties: {
+                    key: issue.key,
+                    issueKey: issue.key,
+                    issueId: issue.issueId,
+                    summary: issue.summary,
+                    issueType: issue.issueType,
+                    localIconUrl: localIconUrl
+                }
+            };
         }));
         
-        console.log(`Found ${options.length} issues for "${searchTerm}"`);
+        console.log(`Found ${options.length} issues for "${searchTerm}" with ${options.filter(o => o.customProperties.localIconUrl).length} cached icons`);
         hideLoading();
         return options;
         
@@ -314,33 +408,6 @@ async function searchIssues(searchTerm) {
         console.error('Error searching issues:', error);
         hideLoading();
         return [];
-    }
-}
-
-/**
- * Fetch and set issue color for modals
- * @param {string} issueId - The issue ID
- * @param {string} modalType - The modal type ('create' or 'update')
- */
-async function fetchAndSetIssueColor(issueId, modalType) {
-    try {
-        const response = await fetch(`/issues/${issueId}/color`);
-        const data = await response.json();
-        
-        const colorInputId = modalType === 'create' ? 'issue-key-color-create' : 'issue-key-color';
-        const colorInput = document.getElementById(colorInputId);
-        
-        if (colorInput && data.color) {
-            colorInput.value = data.color;
-        }
-        
-        // Store issue type icon for later use if available
-        if (data.issueTypeIcon && modalType === 'create') {
-            window.lastIssueTypeIcon = data.issueTypeIcon;
-        }
-        
-    } catch (error) {
-        console.error('Error fetching issue color:', error);
     }
 }
 

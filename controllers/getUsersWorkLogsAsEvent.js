@@ -201,7 +201,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
                                 issueType: issue.fields.issuetype?.name,
                                 issueStatus: issue.fields.status?.name,
                                 issueColor: issueKeyColor,
-                                issueTypeIcon: settings.showIssueTypeIcons && issue.fields.issuetype && issue.fields.issuetype.iconUrl ? issue.fields.issuetype.iconUrl : null,
+                                issueTypeIcon: settings.showIssueTypeIcons && issue.fields.issuetype && issue.fields.issuetype.id ? `/avatars/issuetype/${issue.fields.issuetype.id}?size=small` : null,
                                 showIssueTypeIcons: settings.showIssueTypeIcons !== false
                             }
                         };

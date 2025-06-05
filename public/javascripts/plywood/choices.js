@@ -784,3 +784,35 @@ function updateIssueDisplayWithAvatar(element, issueData) {
 // Make the avatar functions available globally for debugging
 window.getIssueTypeAvatarUrl = getIssueTypeAvatarUrl;
 window.updateIssueDisplayWithAvatar = updateIssueDisplayWithAvatar;
+
+/**
+ * Format an individual issue for display in choices
+ * @param {Object} issue - The issue object
+ * @returns {string} - The HTML string for the issue choice
+ */
+function formatIssueChoice(issue) {
+    const issueKey = issue.key;
+    const summary = issue.fields.summary;
+    const issueType = issue.fields.issuetype;
+    const issueTypeId = issueType ? issueType.id : null;
+    const issueTypeName = issueType ? issueType.name : 'Unknown';
+    
+    // Always use our proxy endpoint for issue type avatars
+    const avatarUrl = issueTypeId ? `/avatars/issuetype/${issueTypeId}?size=small` : `/avatars/issuetype/unknown?size=small&fallback=true`;
+    
+    // Create HTML with issue type icon
+    const html = `
+        <div class="issue-choice">
+            <img src="${avatarUrl}" 
+                 alt="${issueTypeName}" 
+                 title="${issueTypeName}"
+                 class="issue-type-icon"
+                 style="width: 16px; height: 16px; margin-right: 8px; vertical-align: middle;"
+                 onerror="this.src='/avatars/issuetype/${issueTypeId || 'unknown'}?size=small&fallback=true'">
+            <span class="issue-key">${issueKey}</span>
+            <span class="issue-summary"> - ${summary}</span>
+        </div>
+    `;
+    
+    return html;
+}

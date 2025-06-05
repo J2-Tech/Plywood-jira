@@ -177,46 +177,126 @@ router.get('/issuetypes/:issueTypeId/avatar', async function(req, res) {
 
 router.get('/avatars/issuetype/:issueTypeId', async function(req, res) {
     try {
+        const { issueTypeId } = req.params;
         const size = req.query.size || 'medium';
         const fallback = req.query.fallback === 'true';
-        let avatarBuffer = null;
         
+        let avatarResult = null;
+        
+        // Try to proxy the actual avatar first (unless fallback is explicitly requested)
         if (!fallback) {
-            avatarBuffer = await jiraAPIController.getIssueTypeAvatarImage(req, req.params.issueTypeId, size);
-        }
-        
-        // If no avatar found or fallback requested, generate fallback
-        if (!avatarBuffer || fallback) {
-            // Try to get issue type name for fallback
-            try {
-                const avatarData = await jiraAPIController.getIssueTypeAvatar(req, req.params.issueTypeId);
-                const issueTypeName = avatarData.name || 'Unknown';
-                const sizeMap = { 'xsmall': 16, 'small': 24, 'medium': 32, 'large': 48 };
-                const pixelSize = sizeMap[size] || 32;
+            console.log(`Proxying avatar for issue type ${issueTypeId}, size: ${size}`);
+            avatarResult = await jiraAPIController.proxyIssueTypeAvatarImage(req, issueTypeId, size);
+            
+            if (avatarResult && avatarResult.buffer) {
+                console.log(`Successfully proxied avatar for issue type ${issueTypeId}`);
                 
-                avatarBuffer = jiraAPIController.generateFallbackIssueTypeIcon(issueTypeName, pixelSize);
-            } catch (error) {
-                // Generate generic fallback
-                const sizeMap = { 'xsmall': 16, 'small': 24, 'medium': 32, 'large': 48 };
-                const pixelSize = sizeMap[size] || 32;
-                avatarBuffer = jiraAPIController.generateFallbackIssueTypeIcon('T', pixelSize);
+                // Set appropriate headers for proxied image
+                res.setHeader('Content-Type', avatarResult.contentType);
+                res.setHeader('Cache-Control', 'public, max-age=1800'); // Cache for 30 minutes
+                res.setHeader('Content-Length', avatarResult.buffer.length);
+                
+                return res.send(avatarResult.buffer);
+            } else {
+                console.log(`No avatar data proxied for issue type ${issueTypeId}, will generate fallback`);
             }
         }
         
-        if (!avatarBuffer) {
-            return res.status(404).json({ error: 'Avatar not found' });
+        // Generate fallback if proxy failed or was requested
+        console.log(`Generating fallback avatar for issue type ${issueTypeId}`);
+        
+        // Try to get issue type name for a better fallback
+        let issueTypeName = 'Unknown';
+        try {
+            const avatarData = await jiraAPIController.getIssueTypeAvatar(req, issueTypeId);
+            if (avatarData && avatarData.name) {
+                issueTypeName = avatarData.name;
+            }
+        } catch (error) {
+            console.warn(`Could not get issue type name for fallback: ${error.message}`);
         }
         
-        // Determine content type based on the buffer content
-        const contentType = avatarBuffer.toString().startsWith('<svg') ? 'image/svg+xml' : 'image/png';
+        const sizeMap = { 'xsmall': 16, 'small': 24, 'medium': 32, 'large': 48 };
+        const pixelSize = sizeMap[size] || 32;
         
-        // Set appropriate headers for image response
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
-        res.send(avatarBuffer);
+        const fallbackBuffer = jiraAPIController.generateFallbackIssueTypeIcon(issueTypeName, pixelSize);
+        
+        // Set appropriate headers for SVG fallback
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache fallbacks longer
+        res.setHeader('Content-Length', fallbackBuffer.length);
+        res.setHeader('Content-Disposition', `inline; filename="issuetype-${issueTypeId}-${size}-fallback.svg"`);
+        
+        res.send(fallbackBuffer);
+        
     } catch (error) {
-        console.error('Error fetching issue type avatar image:', error);
-        res.status(500).json({ error: 'Failed to fetch avatar image' });
+        console.error('Error serving issue type avatar:', error);
+        
+        // Generate a generic fallback as last resort
+        try {
+            const sizeMap = { 'xsmall': 16, 'small': 24, 'medium': 32, 'large': 48 };
+            const pixelSize = sizeMap[req.query.size] || 32;
+            const emergencyBuffer = jiraAPIController.generateFallbackIssueTypeIcon('?', pixelSize);
+            
+            res.setHeader('Content-Type', 'image/svg+xml');
+            res.setHeader('Cache-Control', 'public, max-age=300'); // Shorter cache for errors
+            res.send(emergencyBuffer);
+        } catch (fallbackError) {
+            console.error('Even fallback generation failed:', fallbackError);
+            res.status(500).json({ error: 'Failed to serve avatar' });
+        }
+    }
+});
+
+router.get('/cached-icons/info', async function(req, res) {
+    try {
+        const info = jiraAPIController.getCachedIconsInfo();
+        res.json({
+            totalCached: info.length,
+            icons: info
+        });
+    } catch (error) {
+        console.error('Error getting cached icons info:', error);
+        res.status(500).json({ error: 'Failed to get cache info' });
+    }
+});
+
+router.post('/cached-icons/cleanup', async function(req, res) {
+    try {
+        await jiraAPIController.cleanupIconCache();
+        res.json({ success: true, message: 'Cache cleanup completed' });
+    } catch (error) {
+        console.error('Error cleaning up icon cache:', error);
+        res.status(500).json({ error: 'Failed to cleanup cache' });
+    }
+});
+
+router.get('/issues/:issueId/icon', async function(req, res) {
+    try {
+        // Get issue details to extract issue type icon
+        const issue = await jiraAPIController.getIssue(req, req.params.issueId);
+        
+        if (!issue || !issue.fields || !issue.fields.issuetype) {
+            return res.status(404).json({ error: 'Issue or issue type not found' });
+        }
+        
+        const issueType = issue.fields.issuetype;
+        
+        // Get avatar data which includes our proxy URLs
+        const avatarData = await jiraAPIController.getIssueTypeAvatar(req, issueType.id);
+        
+        res.json({
+            issueTypeId: issueType.id,
+            issueTypeName: issueType.name,
+            originalIconUrl: issueType.iconUrl,
+            localIconUrl: avatarData.avatarUrls ? avatarData.avatarUrls['24x24'] : null,
+            avatarUrls: avatarData.avatarUrls, // Include all proxy URLs
+            cached: true // Since we're using our proxy system
+        });
+        
+    } catch (error) {
+        console.error('Error getting issue icon:', error);
+        res.status(500).json({ error: 'Failed to get issue icon' });
     }
 });
 

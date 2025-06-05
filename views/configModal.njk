@@ -45,6 +45,17 @@
           <input type="checkbox" id="save-timer-on-issue-switch" name="saveTimerOnIssueSwitch">
         </div>
       </div>
+      <div class="config-section">
+        <h3>Icon Cache</h3>
+        <div class="form-group">
+          <p>Issue type icons are cached locally for better performance.</p>
+          <button type="button" class="secondary" onclick="showIconCacheInfo()">📊 Cache Info</button>
+          <button type="button" class="secondary" onclick="cleanupIconCache()">🧹 Cleanup Cache</button>
+        </div>
+        <div id="iconCacheInfo" style="display: none; margin-top: 10px;">
+          <div id="iconCacheDetails"></div>
+        </div>
+      </div>
       <div class="buttons">
         <button id="close-btn-config" onclick="hideModal('#configModal')" title="Close" class="close-btn" type="button">✖️</button>
         <button type="button" class="success" onclick="saveConfig()">💾</button>

@@ -239,6 +239,86 @@ export async function initializeProjectSelectors() {
     }
 }
 
+/**
+ * Show icon cache information
+ */
+async function showIconCacheInfo() {
+    try {
+        const response = await fetch('/cached-icons/info');
+        const data = await response.json();
+        
+        const infoDiv = document.getElementById('iconCacheInfo');
+        const detailsDiv = document.getElementById('iconCacheDetails');
+        
+        let html = `<h4>Icon Cache Status</h4>`;
+        html += `<p><strong>Total cached icons:</strong> ${data.totalCached}</p>`;
+        
+        if (data.icons && data.icons.length > 0) {
+            html += `<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 10px;">`;
+            html += `<table style="width: 100%; font-size: 12px;">`;
+            html += `<thead><tr><th>Issue Type</th><th>Cached</th><th>Age</th></tr></thead>`;
+            html += `<tbody>`;
+            
+            data.icons.forEach(icon => {
+                const ageHours = Math.round(icon.age / (1000 * 60 * 60));
+                const ageText = ageHours < 24 ? `${ageHours}h` : `${Math.round(ageHours / 24)}d`;
+                
+                html += `<tr>`;
+                html += `<td>${icon.issueTypeId}</td>`;
+                html += `<td>${new Date(icon.cached).toLocaleString()}</td>`;
+                html += `<td>${ageText}</td>`;
+                html += `</tr>`;
+            });
+            
+            html += `</tbody></table>`;
+            html += `</div>`;
+        }
+        
+        detailsDiv.innerHTML = html;
+        infoDiv.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error fetching icon cache info:', error);
+        alert('Failed to fetch cache information');
+    }
+}
+
+/**
+ * Clean up icon cache
+ */
+async function cleanupIconCache() {
+    try {
+        showLoading();
+        
+        const response = await fetch('/cached-icons/cleanup', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Icon cache cleanup completed successfully');
+            // Refresh cache info if it's currently shown
+            const infoDiv = document.getElementById('iconCacheInfo');
+            if (infoDiv.style.display !== 'none') {
+                await showIconCacheInfo();
+            }
+        } else {
+            alert('Failed to cleanup cache: ' + (result.error || 'Unknown error'));
+        }
+        
+    } catch (error) {
+        console.error('Error cleaning up icon cache:', error);
+        alert('Failed to cleanup cache');
+    } finally {
+        hideLoading();
+    }
+}
+
+// Make functions available globally
+window.showIconCacheInfo = showIconCacheInfo;
+window.cleanupIconCache = cleanupIconCache;
+
 window.saveConfig = saveConfig;
 window.loadConfig = loadConfig;
 window.addIssueType = addIssueType;
