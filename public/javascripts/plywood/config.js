@@ -291,8 +291,15 @@ async function cleanupIconCache() {
         showLoading();
         
         const response = await fetch('/cached-icons/cleanup', {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
         
         const result = await response.json();
         
@@ -300,7 +307,7 @@ async function cleanupIconCache() {
             alert('Icon cache cleanup completed successfully');
             // Refresh cache info if it's currently shown
             const infoDiv = document.getElementById('iconCacheInfo');
-            if (infoDiv.style.display !== 'none') {
+            if (infoDiv && infoDiv.style.display !== 'none') {
                 await showIconCacheInfo();
             }
         } else {
@@ -309,7 +316,7 @@ async function cleanupIconCache() {
         
     } catch (error) {
         console.error('Error cleaning up icon cache:', error);
-        alert('Failed to cleanup cache');
+        alert('Failed to cleanup cache: ' + error.message);
     } finally {
         hideLoading();
     }

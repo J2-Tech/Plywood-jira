@@ -263,7 +263,7 @@ router.get('/cached-icons/info', async function(req, res) {
 
 router.post('/cached-icons/cleanup', async function(req, res) {
     try {
-        await jiraAPIController.cleanupIconCache();
+        const result = await jiraAPIController.cleanupIconCache();
         res.json({ success: true, message: 'Cache cleanup completed' });
     } catch (error) {
         console.error('Error cleaning up icon cache:', error);

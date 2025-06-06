@@ -991,32 +991,65 @@ async function ensureIconsDirectory() {
     }
 }
 
-// Schedule cleanup every 6 hours
-setInterval(() => {
-    exports.cleanupIconCache().catch(console.error);
-}, 6 * 60 * 60 * 1000);
-
-// Remove the icon caching functions that are causing issues
-// (The downloadAndCacheIssueTypeIcon and related functions have dependencies that aren't properly set up)
-
-// Add wrapper functions for all exports to ensure error handling
-const wrapWithErrorHandling = (fn) => {
-    return async (...args) => {
-        try {
-            return await fn(...args);
-        } catch (error) {
-            // Log the error but don't crash the app
-            console.error(`API call error in ${fn.name}:`, error);
-            
-            // Return appropriate error response instead of throwing
-            if (error.authFailure) {
-                return { error: 'Authentication required', authFailure: true, status: 401 };
-            }
-            
-            return { error: error.message || 'API call failed', status: error.status || 500 };
-        }
-    };
+/**
+ * Clean up old cached icons
+ */
+exports.cleanupIconCache = async function() {
+    try {
+        await ensureIconsDirectory();
+        
+        // Clear in-memory caches
+        iconCache.clear();
+        avatarCache.clear();
+        
+        console.log('Icon cache cleanup completed');
+        return true;
+    } catch (error) {
+        console.error('Error cleaning up icon cache:', error);
+        throw error;
+    }
 };
+
+/**
+ * Get information about cached icons
+ */
+exports.getCachedIconsInfo = function() {
+    const iconInfo = [];
+    
+    for (const [key, value] of iconCache.entries()) {
+        iconInfo.push({
+            issueTypeId: key,
+            cached: new Date(value.timestamp),
+            age: Date.now() - value.timestamp
+        });
+    }
+    
+    return iconInfo;
+};
+
+/**
+ * Generate fallback SVG icon for issue types
+ */
+exports.generateFallbackIssueTypeIcon = function(issueTypeName, size = 32) {
+    const firstLetter = (issueTypeName || '?').charAt(0).toUpperCase();
+    const color = `hsl(${Math.abs(issueTypeName.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % 360}, 70%, 50%)`;
+    
+    const svg = `
+        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+            <rect width="${size}" height="${size}" rx="4" fill="${color}"/>
+            <text x="50%" y="50%" font-family="Arial, sans-serif" font-size="${Math.floor(size * 0.6)}" 
+                  fill="white" text-anchor="middle" dominant-baseline="central">${firstLetter}</text>
+        </svg>
+    `;
+    
+    return Buffer.from(svg, 'utf8');
+};
+
+// Remove the problematic scheduled cleanup that runs every 6 hours
+// This was causing the overnight crash
+// setInterval(() => {
+//     exports.cleanupIconCache().catch(console.error);
+// }, 6 * 60 * 60 * 1000);
 
 // Wrap existing exports
 const originalExports = { ...module.exports };

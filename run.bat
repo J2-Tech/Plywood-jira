@@ -15,8 +15,8 @@ echo.
 :restart_loop
 echo [%date% %time%] Starting JiraTime application...
 
-REM Start the application and capture exit code
-npm run start
+REM Start the application and capture exit code, suppress any prompts
+npm run start <nul 2>&1
 set APP_EXIT_CODE=!ERRORLEVEL!
 
 REM Check if the application exited normally (code 0) or was terminated by user (code 1)
@@ -41,7 +41,7 @@ echo [%date% %time%] Application crashed with exit code !APP_EXIT_CODE! >> "%~dp
 REM Wait 5 seconds with countdown
 for /L %%i in (5,-1,1) do (
     echo Restarting in %%i seconds...
-    timeout /t 1 /nobreak >nul
+    ping 127.0.0.1 -n 2 >nul 2>&1
 )
 
 echo.
