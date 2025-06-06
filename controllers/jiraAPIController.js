@@ -1045,11 +1045,18 @@ exports.generateFallbackIssueTypeIcon = function(issueTypeName, size = 32) {
     return Buffer.from(svg, 'utf8');
 };
 
-// Remove the problematic scheduled cleanup that runs every 6 hours
-// This was causing the overnight crash
-// setInterval(() => {
-//     exports.cleanupIconCache().catch(console.error);
-// }, 6 * 60 * 60 * 1000);
+
+// Add the missing wrapWithErrorHandling function
+function wrapWithErrorHandling(fn) {
+    return async function(...args) {
+        try {
+            return await fn.apply(this, args);
+        } catch (error) {
+            console.error(`Error in ${fn.name}:`, error);
+            throw error;
+        }
+    };
+}
 
 // Wrap existing exports
 const originalExports = { ...module.exports };
