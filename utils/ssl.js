@@ -35,6 +35,12 @@ function generateSelfSignedCert() {
         fs.writeFileSync(SSL_KEY_PATH, pems.private);
         console.log('Self-signed SSL certificate generated.');
     }
+    
+    // Log HTTPS validation status
+    const disableValidation = process.env.JIRA_API_DISABLE_HTTPS_VALIDATION;
+    const validateHttps = disableValidation !== 'true' && disableValidation !== 'True' && disableValidation !== 'TRUE';
+    console.log(`JIRA API HTTPS certificate validation: ${validateHttps ? 'ENABLED' : 'DISABLED'}`);
+    console.log(`JIRA_API_DISABLE_HTTPS_VALIDATION environment variable: "${disableValidation}"`);
 }
 
 module.exports = { generateSelfSignedCert };

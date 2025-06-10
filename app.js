@@ -16,7 +16,15 @@ if (!fs.existsSync('.env')) {
   process.exit(1);
 }
 
-const dotenv = require('dotenv').config();
+console.log(`Loading .env file from: ${path.resolve('.env')}`);
+console.log(`JIRA_API_DISABLE_HTTPS_VALIDATION before dotenv: "${process.env.JIRA_API_DISABLE_HTTPS_VALIDATION}"`);
+
+const dotenv = require('dotenv').config({
+    override: true  // This forces .env to override system variables
+});
+
+console.log(`Dotenv config result:`, dotenv);
+console.log(`JIRA_API_DISABLE_HTTPS_VALIDATION after dotenv: "${process.env.JIRA_API_DISABLE_HTTPS_VALIDATION}"`);
 
 const https = require('https');
 
