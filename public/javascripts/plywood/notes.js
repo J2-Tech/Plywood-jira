@@ -4,10 +4,6 @@ import { showModal, hideModal } from './modal.js';
 
 let currentSprintId = null;
 let isGlobalNotes = true;  // Default to global notes if no sprint is active
-let saveTimeout = null;
-const AUTOSAVE_DELAY = 3000; // 3 second delay for auto-save (increased for better UX)
-let typingTimeout = null;
-const TYPING_DELAY = 500; // Delay before showing save indicator (for debouncing)
 
 /**
  * Initialize notes panel functionality
@@ -49,42 +45,19 @@ async function checkActiveSprintForNotes() {
     }
 }
 
-// Removed setNotesContext function as we're using the dropdown selector now
-
 /**
  * Setup the notes panel events
  */
 function setupNotesPanel() {
     const panel = document.getElementById('notesSidePanel');
     const closeButton = document.getElementById('closeNotesPanel');
-    const notesContent = document.getElementById('notesContent');
     
     // Close panel button
-    closeButton.addEventListener('click', () => {
-        toggleNotesPanel(false);
-    });
-    
-    // Setup auto-save for textarea with debouncing
-    notesContent.addEventListener('input', () => {
-        // Clear any existing timeouts
-        if (saveTimeout) {
-            clearTimeout(saveTimeout);
-        }
-        
-        if (typingTimeout) {
-            clearTimeout(typingTimeout);
-        }
-        
-        // Set typing timeout to show saving indicator after a delay
-        typingTimeout = setTimeout(() => {
-            showSavingIndicator();
-        }, TYPING_DELAY);
-        
-        // Set save timeout to save after longer delay
-        saveTimeout = setTimeout(() => {
-            saveNotes(notesContent.value);
-        }, AUTOSAVE_DELAY);
-    });
+    if (closeButton) {
+        closeButton.addEventListener('click', () => {
+            toggleNotesPanel(false);
+        });
+    }
     
     // Initialize keyboard shortcut (Ctrl+N or Cmd+N) to toggle notes panel
     document.addEventListener('keydown', (event) => {
@@ -108,14 +81,63 @@ export function toggleNotesPanel(forceState) {
         panel.classList.add('open');
         body.classList.add('notes-panel-open');
         
-        // Check for direct open flags from localStorage set by notesList.js
-        const notesType = localStorage.getItem('openNotesType');
+        // Initialize Tiptap editor if not already done
+        if (!window.tiptapEditor) {
+            // Wait for Tiptap to initialize
+            setTimeout(() => {
+                if (window.initializeTiptapEditor) {
+                    window.initializeTiptapEditor();
+                }
+                // Small delay to ensure editor is ready before loading content
+                setTimeout(() => {
+                    handleNotesOpening();
+                }, 200);
+            }, 100);
+        } else {
+            handleNotesOpening();
+        }
+    } else {
+        panel.classList.remove('open');
+        body.classList.remove('notes-panel-open');
         
-        if (notesType === 'global') {
-            // Open global notes directly
-            console.log('Opening global notes from local storage flag');
-            isGlobalNotes = true;
-            currentSprintId = null;
+        // Save any pending changes when closing
+        if (window.tiptapEditor) {
+            const content = window.getEditorContent();
+            if (content && content !== '<p></p>') {
+                saveNotes(content);
+            }
+        }
+    }
+}
+
+/**
+ * Handle opening notes (check for flags and load appropriate content)
+ */
+function handleNotesOpening() {
+    // Check for direct open flags from localStorage set by notesList.js
+    const notesType = localStorage.getItem('openNotesType');
+    
+    if (notesType === 'global') {
+        // Open global notes directly
+        console.log('Opening global notes from local storage flag');
+        isGlobalNotes = true;
+        currentSprintId = null;
+        
+        // Clear flags
+        localStorage.removeItem('openNotesType');
+        localStorage.removeItem('openSprintId');
+        
+        // Load the notes
+        loadNotes();
+    } 
+    else if (notesType === 'sprint') {
+        // Open sprint notes directly
+        const sprintId = localStorage.getItem('openSprintId');
+        
+        if (sprintId) {
+            console.log(`Opening sprint ${sprintId} notes from local storage flag`);
+            isGlobalNotes = false;
+            currentSprintId = sprintId;
             
             // Clear flags
             localStorage.removeItem('openNotesType');
@@ -123,74 +145,19 @@ export function toggleNotesPanel(forceState) {
             
             // Load the notes
             loadNotes();
-        } 
-        else if (notesType === 'sprint') {
-            // Open sprint notes directly
-            const sprintId = localStorage.getItem('openSprintId');
-            
-            if (sprintId) {
-                console.log(`Opening sprint ${sprintId} notes from local storage flag`);
-                isGlobalNotes = false;
-                currentSprintId = sprintId;
-                
-                // Clear flags
-                localStorage.removeItem('openNotesType');
-                localStorage.removeItem('openSprintId');
-                
-                // Load the notes
-                loadNotes();
-            } else {
-                // Fall back to normal behavior if no sprint ID
-                checkActiveSprintForNotes().then(() => {
-                    loadNotes();
-                });
-            }
-        }
-        else {
-            // Default behavior - check for active sprint and load notes
+        } else {
+            // Fall back to normal behavior if no sprint ID
             checkActiveSprintForNotes().then(() => {
                 loadNotes();
             });
         }
-    } else {
-        panel.classList.remove('open');
-        body.classList.remove('notes-panel-open');
-        
-        // Save any pending changes when closing
-        const notesContent = document.getElementById('notesContent');
-        if (saveTimeout) {
-            clearTimeout(saveTimeout);
-            saveNotes(notesContent.value);
-        }
     }
-}
-
-/**
- * Show the saving indicator
- */
-function showSavingIndicator() {
-    const saveIndicator = document.getElementById('saveIndicator');
-    if (!saveIndicator) return;
-    
-    // Only show if not already visible
-    if (saveIndicator.classList.contains('hidden')) {
-        saveIndicator.classList.remove('hidden');
-        saveIndicator.classList.remove('fade-out');
+    else {
+        // Default behavior - check for active sprint and load notes
+        checkActiveSprintForNotes().then(() => {
+            loadNotes();
+        });
     }
-}
-
-/**
- * Hide the saving indicator with a fade effect
- */
-function hideSavingIndicator() {
-    const saveIndicator = document.getElementById('saveIndicator');
-    if (!saveIndicator) return;
-    
-    saveIndicator.classList.add('fade-out');
-    
-    setTimeout(() => {
-        saveIndicator.classList.add('hidden');
-    }, 1000);
 }
 
 /**
@@ -198,11 +165,11 @@ function hideSavingIndicator() {
  */
 async function loadNotes() {
     const notesLoading = document.getElementById('notesLoading');
-    const notesContent = document.getElementById('notesContent');
     const notesPanelContext = document.getElementById('notesPanelContext');
     
-    notesLoading.style.display = 'block';
-    notesContent.style.display = 'none';
+    if (notesLoading) {
+        notesLoading.style.display = 'block';
+    }
     
     try {
         let url;
@@ -226,38 +193,58 @@ async function loadNotes() {
             
             if (response.ok) {
                 const data = await response.json();
-                notesContent.value = data.content || '';
+                const content = data.content || '';
+                
+                // Load content into Tiptap editor
+                if (window.loadNotesIntoEditor) {
+                    window.loadNotesIntoEditor(content);
+                }
             } else {
                 // If the request fails, try global notes as fallback
                 if (!isGlobalNotes && currentSprintId) {
                     const globalResponse = await fetch('/notes/global');
                     if (globalResponse.ok) {
                         const globalData = await globalResponse.json();
-                        notesContent.value = globalData.content || '';
+                        const content = globalData.content || '';
+                        
+                        if (window.loadNotesIntoEditor) {
+                            window.loadNotesIntoEditor(content);
+                        }
+                        
                         isGlobalNotes = true;
                         currentSprintId = null;
                         if (notesPanelContext) {
                             notesPanelContext.textContent = ` (Global - Fallback)`;
                         }
                     } else {
-                        notesContent.value = '';
+                        if (window.loadNotesIntoEditor) {
+                            window.loadNotesIntoEditor('');
+                        }
                     }
                 } else {
-                    notesContent.value = '';
+                    if (window.loadNotesIntoEditor) {
+                        window.loadNotesIntoEditor('');
+                    }
                 }
             }
         } catch (error) {
             console.warn('Error fetching notes, using blank content:', error);
-            notesContent.value = '';
+            if (window.loadNotesIntoEditor) {
+                window.loadNotesIntoEditor('');
+            }
         }
         
-        notesLoading.style.display = 'none';
-        notesContent.style.display = 'block';
+        if (notesLoading) {
+            notesLoading.style.display = 'none';
+        }
     } catch (error) {
         console.error('Critical error in notes loading:', error);
-        notesLoading.style.display = 'none';
-        notesContent.style.display = 'block';
-        notesContent.value = '';
+        if (notesLoading) {
+            notesLoading.style.display = 'none';
+        }
+        if (window.loadNotesIntoEditor) {
+            window.loadNotesIntoEditor('');
+        }
     }
 }
 
@@ -301,13 +288,8 @@ async function saveNotes(content) {
                 }
             }
         }
-        
-        // Hide saving indicator
-        hideSavingIndicator();
     } catch (error) {
         console.error('Error saving notes:', error);
-        // Don't show alert to user, just log the error
-        hideSavingIndicator();
     }
 }
 
@@ -332,10 +314,8 @@ export function openSprintNotes(sprintId) {
     }
 }
 
-// Clean up by removing old functions we don't need anymore
-// Removed: loadAvailableSprints, updateSprintSelector
-
 // Export functions to window
 window.toggleNotesPanel = toggleNotesPanel;
 window.openGlobalNotes = openGlobalNotes;
 window.openSprintNotes = openSprintNotes;
+window.saveNotes = saveNotes;

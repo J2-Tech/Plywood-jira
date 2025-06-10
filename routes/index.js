@@ -74,14 +74,33 @@ router.get('/events', function(req, res, next) {
         res.json(result);
       })
       .catch(error => {
-        console.log(error);
-        if (error.authFailure) {
-          return res.status(401).json({ error: 'Authentication required', redirect: '/auth/login' });
+        console.log('Error in /events route:', error);
+        
+        // Enhanced auth error handling
+        if (error.authFailure || error.status === 401 || error.code === 401) {
+          console.log('Authentication error detected in /events route');
+          return res.status(401).json({ 
+            error: 'Authentication required', 
+            authFailure: true,
+            redirect: '/auth/login' 
+          });
         }
+        
+        // Log other errors for debugging
+        console.error('Non-auth error in /events route:', error);
         res.status(500).json({ error: 'Failed to fetch events' });
       });
   } catch (error) {
-    console.log(error);
+    console.log('Synchronous error in /events route:', error);
+    
+    if (error.authFailure || error.status === 401) {
+      return res.status(401).json({ 
+        error: 'Authentication required', 
+        authFailure: true,
+        redirect: '/auth/login' 
+      });
+    }
+    
     res.status(500).json({ error: 'Internal server error' });
   }
 });

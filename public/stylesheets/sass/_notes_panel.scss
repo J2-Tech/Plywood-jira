@@ -48,31 +48,6 @@
     }
 }
 
-// Alternative: side-by-side layout
-.app-layout {
-    display: flex;
-    height: 100vh;
-    
-    .calendar-container {
-        flex: 1;
-        min-width: 0; // Allow shrinking
-        transition: margin-right 0.3s ease;
-        
-        &.notes-open {
-            margin-right: var(--notes-panel-width, 400px);
-        }
-    }
-    
-    .notes-side-panel {
-        position: fixed;
-        right: calc(-1 * var(--notes-panel-width, 400px)); // Use CSS variable for width
-        
-        &.open {
-            right: 0;
-        }
-    }
-}
-
 // Notes panel header - use footer-style theming
 .notes-panel-header {
     padding: 0;
@@ -118,14 +93,65 @@
     }
 }
 
+// Tiptap Toolbar
+.tiptap-toolbar {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--primary-bg);
+    border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 4px;
+
+    button {
+        background: none;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 6px 8px;
+        cursor: pointer;
+        color: var(--text-color);
+        font-size: 12px;
+        font-weight: 500;
+        min-width: 28px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+
+        &:hover {
+            background: var(--hover-bg);
+            border-color: var(--border-color);
+        }
+
+        &.active {
+            background: var(--primary-color, #007bff);
+            color: white;
+            border-color: var(--primary-color, #007bff);
+        }
+
+        &:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    }
+
+    .toolbar-divider {
+        width: 1px;
+        height: 20px;
+        background: var(--border-color);
+        margin: 0 4px;
+    }
+}
+
 // Notes panel content - use footer-style theming
 .notes-panel-content {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 20px;
     overflow: hidden;
     background: var(--secondary-bg); // Match footer background
+    position: relative;
 
     .loading-indicator {
         color: var(--text-muted);
@@ -137,39 +163,172 @@
         position: absolute;
         top: 10px;
         right: 10px;
-        background: var(--success-color, #28a745);
-        color: white;
         padding: 4px 8px;
         border-radius: 4px;
         font-size: 12px;
-        opacity: 0.9;
+        z-index: 10;
+        transition: all 0.3s ease;
 
         &.hidden {
-            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        &.saved {
+            background: var(--success-color, #28a745);
+            color: white;
+        }
+
+        &.error {
+            background: var(--danger-color, #dc3545);
+            color: white;
+        }
+
+        &:not(.saved):not(.error) {
+            background: var(--info-color, #17a2b8);
+            color: white;
         }
     }
+}
 
-    .notes-textarea {
-        flex: 1;
-        border: 1px solid var(--border-color);
-        border-radius: 4px;
-        padding: 12px;
-        font-family: inherit;
-        font-size: 14px;
-        line-height: 1.5;
-        resize: none;
+// Tiptap Editor Styles
+.tiptap-editor {
+    flex: 1;
+    overflow: auto;
+    background: var(--primary-bg);
+
+    .tiptap-content {
+        padding: 16px;
         outline: none;
-        background: var(--primary-bg); // Use primary background for input
+        min-height: 100%;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
         color: var(--text-color);
-        width: calc(100% - 24px);
 
-        &:focus {
-            border-color: var(--primary-color, #007bff);
-            box-shadow: 0 0 0 2px rgba(var(--primary-color-rgb, 0, 123, 255), 0.25);
+        // Typography styles
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--text-color);
+            margin: 1.5em 0 0.5em 0;
+            font-weight: 600;
+            line-height: 1.3;
+
+            &:first-child {
+                margin-top: 0;
+            }
         }
 
-        &::placeholder {
+        h1 { font-size: 1.75em; }
+        h2 { font-size: 1.5em; }
+        h3 { font-size: 1.25em; }
+
+        p {
+            margin: 0.75em 0;
+            
+            &:first-child {
+                margin-top: 0;
+            }
+            
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+
+        // List styles
+        ul, ol {
+            margin: 0.75em 0;
+            padding-left: 1.5em;
+
+            li {
+                margin: 0.25em 0;
+                
+                p {
+                    margin: 0;
+                }
+            }
+        }
+
+        // Task list styles
+        ul[data-type="taskList"] {
+            list-style: none;
+            padding-left: 0;
+
+            li {
+                display: flex;
+                align-items: flex-start;
+                margin: 0.5em 0;
+
+                > label {
+                    flex: 0 0 auto;
+                    margin-right: 0.5em;
+                    user-select: none;
+                    margin-top: 2px;
+                }
+
+                > div {
+                    flex: 1 1 auto;
+                }
+            }
+        }
+
+        // Blockquote styles
+        blockquote {
+            border-left: 3px solid var(--primary-color, #007bff);
+            margin: 1em 0;
+            padding-left: 1em;
+            font-style: italic;
             color: var(--text-muted);
+        }
+
+        // Code styles
+        code {
+            background: var(--code-bg, #f1f3f4);
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+            font-size: 0.9em;
+            padding: 0.2em 0.4em;
+        }
+
+        pre {
+            background: var(--code-bg, #f1f3f4);
+            border-radius: 6px;
+            color: var(--text-color);
+            font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
+            margin: 1em 0;
+            overflow-x: auto;
+            padding: 1em;
+
+            code {
+                background: none;
+                color: inherit;
+                font-size: inherit;
+                padding: 0;
+            }
+        }
+
+        // Link styles
+        a {
+            color: var(--primary-color, #007bff);
+            text-decoration: underline;
+            
+            &:hover {
+                text-decoration: none;
+            }
+        }
+
+        // Highlight styles
+        mark {
+            background: #fef08a;
+            padding: 0.1em 0.2em;
+            border-radius: 2px;
+        }
+
+        // Empty state
+        &:empty::before {
+            content: 'Start typing your notes...';
+            color: var(--text-muted);
+            font-style: italic;
+            pointer-events: none;
         }
     }
 }
@@ -202,20 +361,66 @@ body.notes-resizing {
     box-shadow: 0 0 4px rgba(var(--primary-color-rgb, 0, 123, 255), 0.5);
 }
 
+/* Tiptap Editor Basic Styling */
+.tiptap-editor {
+    padding: 15px 20px;
+    min-height: 200px;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+
+
+/* Task list styling - fix checkbox positioning */
+.tiptap-editor ul[data-type="taskList"] {
+    list-style: none;
+}
+
+.tiptap-editor ul[data-type="taskList"] li {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 0.25em;
+}
+
+.tiptap-editor ul[data-type="taskList"] li > label {
+    flex: 0 0 auto;
+    margin-right: 0.5em;
+    margin-top: 0.1em; /* Align with first line of text */
+    user-select: none;
+}
+
+.tiptap-editor ul[data-type="taskList"] li > div {
+    flex: 1 1 auto;
+    min-width: 0; /* Prevent flex item from overflowing */
+    vertical-align: middle;
+}
+
+/* Ensure checkbox input styling */
+.tiptap-editor ul[data-type="taskList"] li input[type="checkbox"] {
+    margin: 0;
+    width: 16px;
+    height: 16px;
+}
+
+
+.tiptap-editor ul[data-type="taskList"] li > div p {
+margin: 0;
+}
+
 // Responsive behavior
 @media (max-width: 768px) {
     .notes-side-panel {
         width: 100% !important;
         max-width: 100% !important;
         right: -100%;
-
-        &::before {
-            display: none; // Hide resize handle on mobile
-        }
     }
     
-    .main-content.notes-open,
-    .calendar-container.notes-open {
-        margin-right: 0; // No side-by-side on mobile
+    .tiptap-toolbar {
+        button {
+            min-width: 32px;
+            height: 32px;
+            font-size: 14px;
+        }
     }
 }

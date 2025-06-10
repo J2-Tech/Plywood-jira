@@ -1,6 +1,5 @@
 import { hideModal } from './modal.js';
 import { applyTheme, getCurrentProject, changeProject } from './ui.js';
-import { showLoading, hideLoading } from './ui.js';
 
 /**
  * Save configuration settings.
@@ -323,9 +322,6 @@ async function cleanupIconCache() {
 }
 
 // Make functions available globally
-window.showIconCacheInfo = showIconCacheInfo;
-window.cleanupIconCache = cleanupIconCache;
-
 window.saveConfig = saveConfig;
 window.loadConfig = loadConfig;
 window.addIssueType = addIssueType;

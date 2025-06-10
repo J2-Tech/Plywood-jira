@@ -177,3 +177,25 @@ exports.debugDumpSettings = async function(req, issueKey) {
         console.error('Error in debugDumpSettings:', error);
     }
 };
+
+/**
+ * Get the configuration directory path for a request
+ * @param {Object} req - Express request object
+ * @returns {string} - Configuration directory path
+ */
+function getConfigDir(req) {
+    return exports.ensureConfigDirExists(req);
+}
+
+module.exports = {
+    loadConfig: exports.loadConfig,
+    setSetting: exports.setSetting,
+    accumulateIssueColor: exports.accumulateIssueColor,
+    saveAccumulatedIssueColors: exports.saveAccumulatedIssueColors,
+    ensureConfigDirExists: exports.ensureConfigDirExists,
+    findColorFieldName: exports.findColorFieldName,
+    determineIssueColor: exports.determineIssueColor,
+    clearSettingsCache: exports.clearSettingsCache,
+    debugDumpSettings: exports.debugDumpSettings,
+    getConfigDir,
+};

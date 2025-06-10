@@ -420,11 +420,43 @@ function setupFormSubmissionHandlers() {
     console.log('Form submission handlers initialized');
 }
 
+/**
+ * Toggle notes panel visibility
+ */
+export function toggleNotesPanel() {
+    // Use the new notes module function
+    if (window.toggleNotesPanel) {
+        window.toggleNotesPanel();
+    } else {
+        console.warn('Notes panel toggle function not available');
+    }
+}
+
+// Add keyboard shortcut for notes
+document.addEventListener('keydown', function(e) {
+    // Ctrl+N or Cmd+N to toggle notes
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault();
+        toggleNotesPanel();
+    }
+});
+
+// Restore notes panel state on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const notesVisible = localStorage.getItem('notes-panel-visible') === 'true';
+    if (notesVisible) {
+        setTimeout(() => {
+            toggleNotesPanel();
+        }, 100);
+    }
+});
+
 // Make functions available globally
 window.searchIssues = searchIssues;
 window.fetchAndSetIssueColor = fetchAndSetIssueColor;
 window.setupFormSubmissionHandlers = setupFormSubmissionHandlers;
 window.searchDebounce = searchDebounce;
+window.toggleNotesPanel = toggleNotesPanel;
 
 /**
  * Convert datetime-local inputs to ISO format before form submission

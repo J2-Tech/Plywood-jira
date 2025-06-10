@@ -81,15 +81,21 @@ async function withRetry(fetchFn, req, ...args) {
             // Enhanced check for various forms of authentication errors
             const hasAuthError = data.code === 401 || 
                                 data.status === 401 || 
+                                data.statusCode === 401 ||
+                                (data.message && data.message.toLowerCase().includes('unauthorized')) ||
                                 (Array.isArray(data.errors) && data.errors.some(err => 
                                     typeof err === 'string' && (err.includes('Authorization') || 
                                                              err.includes('auth') || 
-                                                             err.includes('token')))) ||
+                                                             err.includes('token') ||
+                                                             err.includes('Unauthorized')))) ||
                                 (typeof data.errors === 'string' && (data.errors.includes('Authorization') || 
                                                                    data.errors.includes('auth') || 
-                                                                   data.errors.includes('token'))) ||
+                                                                   data.errors.includes('token') ||
+                                                                   data.errors.includes('Unauthorized'))) ||
                                 (data.errorMessages && Array.isArray(data.errorMessages) && 
-                                 data.errorMessages.some(msg => msg.includes('auth') || msg.includes('token')));
+                                 data.errorMessages.some(msg => msg.includes('auth') || 
+                                                              msg.includes('token') || 
+                                                              msg.includes('Unauthorized')));
                                 
             if (hasAuthError && process.env.JIRA_AUTH_TYPE === "OAUTH" && attempt < maxRetries) {
                 console.log(`Token expired or auth error detected. Attempting to refresh token... (attempt ${attempt + 1})`);
@@ -105,7 +111,7 @@ async function withRetry(fetchFn, req, ...args) {
                     authError.status = 401;
                     throw authError;
                 }
-            } else if (data.code === 401 || data.status === 401) {
+            } else if (hasAuthError) {
                 console.log('Error - unauthorized. Check your credentials.');
                 const authError = new Error('Unauthorized');
                 authError.authFailure = true;
@@ -141,6 +147,8 @@ async function withRetry(fetchFn, req, ...args) {
                     } catch (refreshError) {
                         console.log('Token refresh failed:', refreshError.message);
                         lastError = refreshError;
+                        lastError.authFailure = true;
+                        lastError.status = 401;
                     }
                 }
             }
@@ -420,58 +428,11 @@ exports.getIssueTypes = async function(req) {
     return response.json();
 }
 
-async function searchIssuesWithWorkLogsInternal(req, start, end) {
-    const cacheKey = `${start}-${end}-${req.query.project || 'all'}`;
-    const cached = issueCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < ISSUE_CACHE_TTL) {
-        return cached.data;
-    }
-
-    const url = getCallURL(req);
-    let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
-    
-    // Get project from query params
-    const projectKey = req.query.project;
-    jql = appendProjectFilter(jql, projectKey);
-    
-    try {
-        const searchResult = await fetch(url + '/rest/api/2/search', {
-            method: 'POST',
-            headers: getDefaultHeaders(req),
-            body: JSON.stringify({
-                jql,
-                fields: ['parent', 'customfield_10017', 'summary', 'issuetype', 'status', 'project'],
-                maxResults: 100 // Limit results for faster response
-            }),
-            agent: httpsAgent
-        }).then(res => {
-            if (!res.ok) {
-                console.error(`Search API error: ${res.status} ${res.statusText}`);
-                return { issues: [] };
-            }
-            return res.json();
-        });
-
-        // Check for API errors
-        if (searchResult.errorMessages || searchResult.errors) {
-            console.warn('Search API returned errors:', searchResult.errorMessages || searchResult.errors);
-            return { issues: [] };
-        }
-
-        // Cache the result
-        issueCache.set(cacheKey, {
-            data: searchResult,
-            timestamp: Date.now()
-        });
-
-        return searchResult;
-    } catch (error) {
-        console.error('Search issues error:', error);
-        return { issues: [] };
-    }
-}
-
 exports.searchIssuesWithWorkLogs = async function(req, start, end) {
+    return withRetry(searchIssuesWithWorkLogsInternal, req, start, end);
+};
+
+async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const url = getCallURL(req);
     let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
     
@@ -479,7 +440,7 @@ exports.searchIssuesWithWorkLogs = async function(req, start, end) {
     const projectKey = req.query.project;
     jql = appendProjectFilter(jql, projectKey);
     
-    return fetch(url + '/rest/api/2/search', {
+    const response = await fetch(url + '/rest/api/2/search', {
         method: 'POST',
         headers: getDefaultHeaders(req),
         body: JSON.stringify({
@@ -488,7 +449,20 @@ exports.searchIssuesWithWorkLogs = async function(req, start, end) {
             fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype', 'status', 'project']
         }),
         agent: httpsAgent
-    }).then(res => res.json());
+    });
+    
+    // Check response status before parsing
+    if (!response.ok) {
+        if (response.status === 401) {
+            const authError = new Error('Unauthorized');
+            authError.authFailure = true;
+            authError.status = 401;
+            throw authError;
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return response.json();
 };
 
 exports.getProjects = async function(req) {

@@ -2,6 +2,7 @@ import { showLoading, hideLoading, getCurrentProject } from './ui.js';
 import { showUpdateModal, showCreateModal } from './modal.js';
 import { optimisticallyUpdateEvent, rollbackOptimisticUpdate, confirmOptimisticUpdate, preserveEventData } from './optimisticUpdates.js';
 import { getContrastingTextColor } from './colorUtils.js';
+import { apiClient } from './apiClient.js';
 
 window.calendar = null;
 
@@ -54,18 +55,9 @@ export function refreshWorklog(issueId, worklogId) {
     // Check if event already exists to prevent duplicates
     let existingEvent = window.calendar.getEventById(worklogId);
     
-    fetch(`/events/${worklogId}?issueId=${issueId}&_nocache=${Date.now()}`, {
-        headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
-    })
+    apiClient.get(`/events/${worklogId}?issueId=${issueId}&_nocache=${Date.now()}`)
         .then(response => {
             if (!response.ok) {
-                if (response.status === 401) {
-                    console.log("Authentication error, redirecting to login");
-                    window.location.href = "/auth/login";
-                    throw new Error('Authentication required');
-                }
                 throw new Error(`HTTP error! Status: ${response.status}`);
             }
             return response.json();
@@ -116,11 +108,9 @@ export function refreshWorklog(issueId, worklogId) {
         .catch(error => {
             console.error('Error refreshing worklog:', error);
             hideLoading();
-            if (!error.message.includes('Authentication required')) {
-                // If refresh fails, do a full calendar refresh as fallback
-                console.log('Worklog refresh failed, doing full calendar refresh');
-                window.calendar.refetchEvents();
-            }
+            // If refresh fails, do a full calendar refresh as fallback
+            console.log('Worklog refresh failed, doing full calendar refresh');
+            window.calendar.refetchEvents();
         });
 }
 
@@ -215,7 +205,9 @@ export function initializeCalendar() {
                 return event;
             },
             failure: function (error) {
-                // Check all possible authentication error patterns
+                console.error("FullCalendar failure handler called with:", error);
+                
+                // Enhanced authentication error detection
                 const isAuthError = 
                     (error && error.response && error.response.status === 401) || 
                     (error && error.response && error.response.headers && error.response.headers.location && error.response.headers.location.includes("login")) ||
@@ -223,8 +215,11 @@ export function initializeCalendar() {
                         error.message.includes("Authentication required") || 
                         error.message.includes("NetworkError") ||
                         error.message.includes("unauthorized") ||
-                        error.message.includes("Unauthorized")
-                    ));
+                        error.message.includes("Unauthorized") ||
+                        error.message.includes("401")
+                    )) ||
+                    (error && error.status === 401) ||
+                    (error && error.authFailure);
                 
                 if (isAuthError) {
                     console.log("Authentication error detected, attempting to refresh token automatically");
@@ -234,18 +229,34 @@ export function initializeCalendar() {
                         .then(response => {
                             if (response.ok) {
                                 console.log("Token refreshed successfully, reloading calendar");
-                                window.calendar.refetchEvents(); // Retry loading events
+                                // Show success message and retry
+                                if (typeof showNotification === 'function') {
+                                    showNotification('Session refreshed. Reloading calendar...', 'info');
+                                }
+                                setTimeout(() => {
+                                    window.calendar.refetchEvents(); // Retry loading events
+                                }, 1000);
                             } else {
                                 console.log("Token refresh failed, redirecting to login");
-                                window.location.href = "/auth/login";
+                                if (typeof showNotification === 'function') {
+                                    showNotification('Session expired. Redirecting to login...', 'warning');
+                                }
+                                setTimeout(() => {
+                                    window.location.href = "/auth/login";
+                                }, 2000);
                             }
                         })
                         .catch(refreshError => {
                             console.error("Error during token refresh:", refreshError);
-                            window.location.href = "/auth/login";
+                            if (typeof showNotification === 'function') {
+                                showNotification('Session expired. Please log in again.', 'warning');
+                            }
+                            setTimeout(() => {
+                                window.location.href = "/auth/login";
+                            }, 2000);
                         });
                 } else {
-                    console.error("Error fetching events:", error);
+                    console.error("Non-auth error fetching events:", error);
                     alert("There was an error while fetching events. Please refresh the page and try again.");
                 }
                 hideLoading();
@@ -430,29 +441,21 @@ export function forceRefreshAllEvents() {
 export function refreshIssueColors() {
     console.log("Forcing server to refresh issue colors");
     
-    return fetch(`/config/refreshColors?_t=${Date.now()}`, {
-        method: 'GET',
-        headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        },
-        cache: 'no-store'
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Failed to refresh issue colors');
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log("Server issue colors refreshed:", data);
-        return data;
-    })
-    .catch(error => {
-        console.error("Error refreshing issue colors:", error);
-        throw error;
-    });
+    return apiClient.get(`/config/refreshColors?_t=${Date.now()}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to refresh issue colors');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("Server issue colors refreshed:", data);
+            return data;
+        })
+        .catch(error => {
+            console.error("Error refreshing issue colors:", error);
+            throw error;
+        });
 }
 
 // Make this function available globally
@@ -504,60 +507,49 @@ export function handleEventResize(info) {
     // Show loading indicator
     showLoading();
     
-    // Send update to server
-    fetch(`/worklog/${updateData.worklogId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData)
-    })
-    .then(function (response) {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('Worklog resize updated successfully:', data);
-        
-        // Confirm optimistic update
-        confirmOptimisticUpdate(event.id);
-        
-        // Ensure event data is preserved and correct with proper text color
-        preserveEventData(event, {
-            worklogId: data.worklogId || updateData.worklogId,
-            issueId: data.issueId || updateData.issueId,
-            comment: data.comment || updateData.comment,
-            issueColor: data.issueKeyColor || updateData.issueKeyColor,
-            calculatedTextColor: textColor
+    // Send update to server using API client
+    apiClient.put(`/worklog/${updateData.worklogId}`, updateData)
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Worklog resize updated successfully:', data);
+            
+            // Confirm optimistic update
+            confirmOptimisticUpdate(event.id);
+            
+            // Ensure event data is preserved and correct with proper text color
+            preserveEventData(event, {
+                worklogId: data.worklogId || updateData.worklogId,
+                issueId: data.issueId || updateData.issueId,
+                comment: data.comment || updateData.comment,
+                issueColor: data.issueKeyColor || updateData.issueKeyColor,
+                calculatedTextColor: textColor
+            });
+            
+            // Update visual properties to ensure consistency
+            event.setProp('backgroundColor', backgroundColor);
+            event.setProp('borderColor', backgroundColor);
+            event.setProp('textColor', textColor);
+            
+            // Update total time without refreshing individual worklog
+            updateTotalTime();
+            
+            hideLoading();
+        })
+        .catch((error) => {
+            console.error('Error updating resized worklog:', error);
+            
+            // Rollback the optimistic update
+            rollbackOptimisticUpdate(event.id);
+            
+            // Revert the event size
+            info.revert();
+            hideLoading();
         });
-        
-        // Update visual properties to ensure consistency
-        event.setProp('backgroundColor', backgroundColor);
-        event.setProp('borderColor', backgroundColor);
-        event.setProp('textColor', textColor);
-        
-        // Update total time without refreshing individual worklog
-        updateTotalTime();
-        
-        hideLoading();
-    })
-    .catch((error) => {
-        console.error('Error updating resized worklog:', error);
-        
-        // Rollback the optimistic update
-        rollbackOptimisticUpdate(event.id);
-        
-        // Preserve original error handling behavior
-        if (error && error.message && error.message == "NetworkError when attempting to fetch resource.") {
-            window.location.href = "/auth/login";
-        }
-        
-        // Revert the event size
-        info.revert();
-        hideLoading();
-    });
 }
 
 /**
@@ -599,60 +591,49 @@ export function handleEventDrop(info) {
     // Show loading indicator
     showLoading();
     
-    // Send update to server
-    fetch(`/worklog/${updateData.worklogId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData)
-    })
-    .then(function (response) {
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('Worklog drop updated successfully:', data);
-        
-        // Confirm optimistic update
-        confirmOptimisticUpdate(event.id);
-        
-        // Ensure event data is preserved and correct with proper text color
-        preserveEventData(event, {
-            worklogId: data.worklogId || updateData.worklogId,
-            issueId: data.issueId || updateData.issueId,
-            comment: data.comment || updateData.comment,
-            issueColor: data.issueKeyColor || updateData.issueKeyColor,
-            calculatedTextColor: textColor
+    // Send update to server using API client
+    apiClient.put(`/worklog/${updateData.worklogId}`, updateData)
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Worklog drop updated successfully:', data);
+            
+            // Confirm optimistic update
+            confirmOptimisticUpdate(event.id);
+            
+            // Ensure event data is preserved and correct with proper text color
+            preserveEventData(event, {
+                worklogId: data.worklogId || updateData.worklogId,
+                issueId: data.issueId || updateData.issueId,
+                comment: data.comment || updateData.comment,
+                issueColor: data.issueKeyColor || updateData.issueKeyColor,
+                calculatedTextColor: textColor
+            });
+            
+            // Update visual properties to ensure consistency
+            event.setProp('backgroundColor', backgroundColor);
+            event.setProp('borderColor', backgroundColor);
+            event.setProp('textColor', textColor);
+            
+            // Update total time without refreshing individual worklog
+            updateTotalTime();
+            
+            hideLoading();
+        })
+        .catch((error) => {
+            console.error('Error updating dropped worklog:', error);
+            
+            // Rollback the optimistic update
+            rollbackOptimisticUpdate(event.id);
+            
+            // Revert the event position
+            info.revert();
+            hideLoading();
         });
-        
-        // Update visual properties to ensure consistency
-        event.setProp('backgroundColor', backgroundColor);
-        event.setProp('borderColor', backgroundColor);
-        event.setProp('textColor', textColor);
-        
-        // Update total time without refreshing individual worklog
-        updateTotalTime();
-        
-        hideLoading();
-    })
-    .catch((error) => {
-        console.error('Error updating dropped worklog:', error);
-        
-        // Rollback the optimistic update
-        rollbackOptimisticUpdate(event.id);
-        
-        // Preserve original error handling behavior
-        if (error && error.message && error.message == "NetworkError when attempting to fetch resource.") {
-            window.location.href = "/auth/login";
-        }
-        
-        // Revert the event position
-        info.revert();
-        hideLoading();
-    });
 }
 
 /**

@@ -52,4 +52,33 @@ router.get('/refresh-token', async (req, res) => {
     }
 });
 
+/**
+ * Endpoint to refresh the token via AJAX request (POST method)
+ * Returns JSON instead of redirecting
+ */
+router.post('/refresh-token', async (req, res) => {
+    console.log('Token refresh requested via AJAX (POST)');
+    
+    try {
+        // Check if the user is authenticated
+        if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+            return res.status(401).json({ success: false, message: 'Not authenticated' });
+        }
+        
+        // Attempt to refresh the token
+        const refreshed = await jiraAPIController.refreshToken(req);
+        
+        if (refreshed) {
+            console.log('Token refreshed successfully via AJAX (POST)');
+            return res.json({ success: true, message: 'Token refreshed successfully' });
+        } else {
+            console.log('Token refresh failed via AJAX (POST)');
+            return res.status(401).json({ success: false, message: 'Token refresh failed' });
+        }
+    } catch (error) {
+        console.error('Error refreshing token via AJAX (POST):', error);
+        return res.status(500).json({ success: false, message: 'Error refreshing token' });
+    }
+});
+
 module.exports = router;

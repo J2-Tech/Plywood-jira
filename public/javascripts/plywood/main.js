@@ -7,6 +7,13 @@ import { initializeSprint } from './sprint.js';
 import { initializeNotesPanel } from './notes.js';
 import './notesList.js'; // Import notes list functionality
 
+// Main application JavaScript
+
+// Global app state
+window.appState = {
+    isNotesOpen: false
+};
+
 async function initializeApp() {
     try {
         // First load config and apply saved settings

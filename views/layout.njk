@@ -20,19 +20,42 @@
     <body>
         {{ modals.modals() }}
 
-        {% block content %}{% endblock %}        <!-- Notes Side Panel -->
+        {% block content %}{% endblock %}
+        
+        <!-- Notes Side Panel -->
         <div id="notesSidePanel" class="notes-side-panel">
             <div class="notes-panel-header">
                 <div class="notes-header-top">
                     <h3>Notes <span id="notesPanelContext"></span></h3>
                     <button id="closeNotesPanel" class="close-panel-button">&times;</button>
                 </div>
+                
+                <!-- Tiptap Toolbar -->
+                <div id="tiptapToolbar" class="tiptap-toolbar">
+                    <button type="button" data-action="bold" title="Bold">B</button>
+                    <button type="button" data-action="italic" title="Italic">I</button>
+                    <button type="button" data-action="underline" title="Underline">U</button>
+                    <button type="button" data-action="strike" title="Strike">S</button>
+                    <span class="toolbar-divider"></span>
+                    <button type="button" data-action="heading1" title="Heading 1">H1</button>
+                    <button type="button" data-action="heading2" title="Heading 2">H2</button>
+                    <button type="button" data-action="heading3" title="Heading 3">H3</button>
+                    <span class="toolbar-divider"></span>
+                    <button type="button" data-action="bulletList" title="Bullet List">•</button>
+                    <button type="button" data-action="orderedList" title="Numbered List">1.</button>
+                    <button type="button" data-action="taskList" title="Task List">☐</button>
+                    <span class="toolbar-divider"></span>
+                    <button type="button" data-action="codeBlock" title="Code Block">&lt;/&gt;</button>
+                    <span class="toolbar-divider"></span>
+                    <button type="button" data-action="undo" title="Undo">↶</button>
+                    <button type="button" data-action="redo" title="Redo">↷</button>
+                </div>
             </div>
             
             <div class="notes-panel-content">
                 <div id="notesLoading" class="loading-indicator">Loading notes...</div>
                 <div id="saveIndicator" class="save-indicator hidden">Saving...</div>
-                <textarea id="notesContent" class="notes-textarea" placeholder="Type your notes here..."></textarea>
+                <div id="tiptapEditor" class="tiptap-editor"></div>
             </div>
         </div>
         
@@ -50,9 +73,6 @@
                             <span>📅 Calendar</span>
                         </div>                        <div class="menu-item" onclick="window.location.href='/stats'">
                             <span>📊 Statistics</span>
-                        </div>
-                        <div class="menu-item" onclick="showNotesListModal()">
-                            <span>📝 Notes</span>
                         </div>
                         <div class="menu-item" onclick="toggleConfigModal()">
                             <span>⚙️ Settings</span>
@@ -83,6 +103,69 @@
         <!-- Non-module script for global functions -->
         <script src="/javascripts/notes-global.js"></script>
         <script src="/javascripts/notes-resizing.js"></script>
+        <script src="/javascripts/notes-tiptap.js" type="module"></script>
+        <script>
+        // Legacy notes format handler - add to global scope
+        window.convertLegacyNotes = function(notesData) {
+            try {
+                // If it's already HTML, return as is
+                if (typeof notesData === 'string' && notesData.includes('<')) {
+                    return notesData;
+                }
+                
+                // If it's JSON from old format, try to parse and convert
+                if (typeof notesData === 'string' && (notesData.startsWith('{') || notesData.startsWith('['))) {
+                    const parsed = JSON.parse(notesData);
+                    
+                    // Handle EditorJS format
+                    if (parsed.blocks && Array.isArray(parsed.blocks)) {
+                        return parsed.blocks.map(block => {
+                            if (block.type === 'paragraph') {
+                                return `<p>${block.data.text || ''}</p>`;
+                            }
+                            return `<p>${block.data?.text || JSON.stringify(block)}</p>`;
+                        }).join('');
+                    }
+                    
+                    // Handle simple object with text
+                    if (parsed.text) {
+                        return `<p>${parsed.text}</p>`;
+                    }
+                    
+                    // Fallback: convert to string
+                    return `<p>${JSON.stringify(parsed)}</p>`;
+                }
+                
+                // Handle plain text
+                if (typeof notesData === 'string') {
+                    return `<p>${notesData.replace(/\n/g, '</p><p>')}</p>`;
+                }
+                
+                // Default fallback
+                return '<p></p>';
+            } catch (e) {
+                console.warn('Failed to convert legacy notes:', e);
+                return `<p>${notesData || ''}</p>`;
+            }
+        };
+        
+        // Fix toolbar button actions - ensure underline works correctly
+        window.fixTiptapToolbar = function() {
+            document.addEventListener('DOMContentLoaded', function() {
+                const toolbar = document.getElementById('tiptapToolbar');
+                if (toolbar) {
+                    // Make sure the underline button triggers underline, not strikethrough
+                    const underlineBtn = toolbar.querySelector('[data-action="underline"]');
+                    if (underlineBtn) {
+                        underlineBtn.setAttribute('data-action', 'underline');
+                        underlineBtn.title = 'Underline';
+                    }
+                }
+            });
+        };
+        
+        window.fixTiptapToolbar();
+        </script>
         <script src="/javascripts/plywood/ui.js" type="module"></script>
         <script src="/javascripts/plywood/modal.js" type="module"></script>
         {% block scripts %}{% endblock %}

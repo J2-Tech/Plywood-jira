@@ -55,189 +55,214 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
 
         console.log(`Fetching worklogs for ${formattedStart} to ${formattedEnd}`);
         
-        try {
-            // Try to get worklogs with error handling
-            let result;
+        // Enhanced error handling with token refresh
+        let result;
+        let attempts = 0;
+        const maxAttempts = 2;
+        
+        while (attempts < maxAttempts) {
             try {
                 result = await jiraAPIController.searchIssuesWithWorkLogs(req, formattedStart, formattedEnd);
+                break; // Success, exit loop
             } catch (error) {
-                // Check for auth errors
-                if (error.authFailure) {
-                    console.log('Authentication error detected, attempting to refresh token');
+                attempts++;
+                console.log(`Attempt ${attempts} failed:`, error.message);
+                
+                // Check for 401 or auth-related errors
+                const isAuthError = error.status === 401 || 
+                                  error.code === 401 || 
+                                  error.authFailure ||
+                                  (error.message && error.message.toLowerCase().includes('unauthorized')) ||
+                                  (typeof error === 'object' && error.code === 401);
+                
+                if (isAuthError && process.env.JIRA_AUTH_TYPE === "OAUTH" && attempts < maxAttempts) {
+                    console.log('Authentication error detected, attempting to refresh token...');
                     
                     try {
                         const tokenRefreshed = await jiraAPIController.refreshToken(req);
                         
                         if (tokenRefreshed) {
-                            // Try again with refreshed token
                             console.log('Token refreshed successfully, retrying request');
-                            result = await jiraAPIController.searchIssuesWithWorkLogs(req, formattedStart, formattedEnd);
+                            continue; // Retry the request
                         } else {
                             console.log('Token refresh failed, authentication required');
                             const authError = new Error('Authentication required');
+                            authError.authFailure = true;
                             authError.status = 401;
                             throw authError;
                         }
                     } catch (refreshError) {
                         console.error('Token refresh failed:', refreshError);
                         const authError = new Error('Authentication required');
+                        authError.authFailure = true;
                         authError.status = 401;
                         throw authError;
                     }
+                } else if (isAuthError) {
+                    // Auth error but not OAuth or max attempts reached
+                    console.log('Authentication failed - redirecting to login required');
+                    const authError = new Error('Authentication required');
+                    authError.authFailure = true;
+                    authError.status = 401;
+                    throw authError;
                 } else {
-                    // Rethrow other errors
+                    // Non-auth error, rethrow
                     throw error;
                 }
             }
-            
-            // Validate we have valid result data
-            if (!result || !result.issues) {
-                console.error('Invalid response from JIRA API:', result);
-                throw new Error('Failed to fetch worklogs from JIRA');
+        }
+        
+        // Validate we have valid result data
+        if (!result || !result.issues) {
+            console.error('Invalid response from JIRA API:', result);
+            // Check if result contains auth error info
+            if (result && (result.code === 401 || result.status === 401)) {
+                const authError = new Error('Authentication required');
+                authError.authFailure = true;
+                authError.status = 401;
+                throw authError;
             }
-            
-            // Process the worklogs
-            const events = [];
-            
-            for (const issue of result.issues) {
-                if (!issue.fields || !issue.fields.worklog || !issue.fields.worklog.worklogs) {
-                    continue;
+            throw new Error('Failed to fetch worklogs from JIRA');
+        }
+        
+        // Process the worklogs
+        const events = [];
+        
+        for (const issue of result.issues) {
+            if (!issue.fields || !issue.fields.worklog || !issue.fields.worklog.worklogs) {
+                continue;
+            }
+
+            // Filter worklogs first
+            const filteredWorklogs = issue.fields.worklog.worklogs.filter(worklog => {
+                if (process.env.JIRA_BASIC_AUTH_USERNAME) {
+                    return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
                 }
+                if (process.env.JIRA_AUTH_TYPE === "OAUTH") {
+                    return worklog.author.emailAddress === req.user.email;
+                }
+                return true;
+            });
 
-                // Filter worklogs first
-                const filteredWorklogs = issue.fields.worklog.worklogs.filter(worklog => {
-                    if (process.env.JIRA_BASIC_AUTH_USERNAME) {
-                        return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
+            // Only process issues with matching worklogs
+            if (filteredWorklogs.length === 0) continue;
+
+            // Get issue color from settings or use default
+            const issueData = {
+                issueId: issue.id,
+                issueKey: issue.key,
+                issueType: issue.fields.issuetype?.name || 'unknown'
+            };
+            
+            // Process each worklog
+            for (const worklog of filteredWorklogs) {
+                try {
+                    // Only process worklogs within our date range
+                    const started = new Date(worklog.started);
+                    if (started < filterStartTime || started > filterEndTime) {
+                        continue;
                     }
-                    if (process.env.JIRA_AUTH_TYPE === "OAUTH") {
-                        return worklog.author.emailAddress === req.user.email;
+
+                    // Get the worklog duration
+                    const durationSeconds = worklog.timeSpentSeconds;
+                    
+                    // Calculate end time by adding the duration to the start time
+                    const endTime = new Date(started.getTime() + (durationSeconds * 1000));
+
+                    // Determine issue color
+                    let issueKeyColor = null;
+
+                    // Check for color in worklog comment first (allows per-worklog color override)
+                    if (worklog.comment && worklog.comment.includes('color:')) {
+                        const colorMatch = worklog.comment.match(/color:\s*([#0-9A-Fa-f]+)/);
+                        if (colorMatch && colorMatch[1]) {
+                            issueKeyColor = colorMatch[1];
+                        }
                     }
-                    return true;
-                });
-
-                // Only process issues with matching worklogs
-                if (filteredWorklogs.length === 0) continue;
-
-                // Get issue color from settings or use default
-                const issueData = {
-                    issueId: issue.id,
-                    issueKey: issue.key,
-                    issueType: issue.fields.issuetype?.name || 'unknown'
-                };
-                
-                // Process each worklog
-                for (const worklog of filteredWorklogs) {
-                    try {
-                        // Only process worklogs within our date range
-                        const started = new Date(worklog.started);
-                        if (started < filterStartTime || started > filterEndTime) {
-                            continue;
-                        }
-
-                        // Get the worklog duration
-                        const durationSeconds = worklog.timeSpentSeconds;
-                        
-                        // Calculate end time by adding the duration to the start time
-                        const endTime = new Date(started.getTime() + (durationSeconds * 1000));
-
-                        // Determine issue color
-                        let issueKeyColor = null;
-
-                        // Check for color in worklog comment first (allows per-worklog color override)
-                        if (worklog.comment && worklog.comment.includes('color:')) {
-                            const colorMatch = worklog.comment.match(/color:\s*([#0-9A-Fa-f]+)/);
-                            if (colorMatch && colorMatch[1]) {
-                                issueKeyColor = colorMatch[1];
-                            }
-                        }
-                        
-                        // If no color in comment, determine from issue settings
-                        if (!issueKeyColor) {
-                            // Special case: If this request is coming after a color change,
-                            // bypass the cache and use the settings value directly
-                            if (req.query._forceRefresh || req.query._clearWorklogCache || req.query._forceClearCache) {
-                                // Try to get color directly from settings first
-                                const issueKey = issue.key.toLowerCase();
-                                if (settings && settings.issueColors && settings.issueColors[issueKey]) {
-                                    // Use the settings value directly
-                                    issueKeyColor = settings.issueColors[issueKey];
-                                    console.log(`Using direct color from settings for ${issueKey}: ${issueKeyColor}`);
-                                } else {
-                                    // Fall back to normal determination
-                                    issueKeyColor = await determineIssueColor(settings, req, {
-                                        issueId: issue.id,
-                                        issueKey: issue.key,
-                                        issueType: issue.fields.issuetype?.name
-                                    }, null);
-                                }
+                    
+                    // If no color in comment, determine from issue settings
+                    if (!issueKeyColor) {
+                        // Special case: If this request is coming after a color change,
+                        // bypass the cache and use the settings value directly
+                        if (req.query._forceRefresh || req.query._clearWorklogCache || req.query._forceClearCache) {
+                            // Try to get color directly from settings first
+                            const issueKey = issue.key.toLowerCase();
+                            if (settings && settings.issueColors && settings.issueColors[issueKey]) {
+                                // Use the settings value directly
+                                issueKeyColor = settings.issueColors[issueKey];
+                                console.log(`Using direct color from settings for ${issueKey}: ${issueKeyColor}`);
                             } else {
-                                // Normal flow
+                                // Fall back to normal determination
                                 issueKeyColor = await determineIssueColor(settings, req, {
                                     issueId: issue.id,
                                     issueKey: issue.key,
                                     issueType: issue.fields.issuetype?.name
                                 }, null);
                             }
-                        }
-
-                        // Create the calendar event
-                        const event = {
-                            title: `${issue.key}: ${issue.fields.summary}`,
-                            start: started.toISOString(),
-                            end: endTime.toISOString(),
-                            id: worklog.id,
-                            backgroundColor: issueKeyColor,
-                            borderColor: issueKeyColor,
-                            textColor: issueKeyColor === '#ffffff' || issueKeyColor === '#FFFFFF' ? '#000000' : undefined,
-                            extendedProps: {
-                                worklogId: worklog.id,
+                        } else {
+                            // Normal flow
+                            issueKeyColor = await determineIssueColor(settings, req, {
                                 issueId: issue.id,
                                 issueKey: issue.key,
-                                issueSummary: issue.fields.summary,
-                                comment: worklog.comment,
-                                timeSpent: worklog.timeSpent,
-                                timeSpentSeconds: worklog.timeSpentSeconds,
-                                author: worklog.author.displayName,
-                                issueType: issue.fields.issuetype?.name,
-                                issueStatus: issue.fields.status?.name,
-                                issueColor: issueKeyColor,
-                                issueTypeIcon: settings.showIssueTypeIcons && issue.fields.issuetype && issue.fields.issuetype.id ? `/avatars/issuetype/${issue.fields.issuetype.id}?size=small` : null,
-                                showIssueTypeIcons: settings.showIssueTypeIcons !== false
-                            }
-                        };
-
-                        events.push(event);
-                    } catch (worklogError) {
-                        console.error(`Error processing worklog ${worklog.id}:`, worklogError);
-                        // Continue with other worklogs
+                                issueType: issue.fields.issuetype?.name
+                            }, null);
+                        }
                     }
+
+                    // Create the calendar event
+                    const event = {
+                        title: `${issue.key}: ${issue.fields.summary}`,
+                        start: started.toISOString(),
+                        end: endTime.toISOString(),
+                        id: worklog.id,
+                        backgroundColor: issueKeyColor,
+                        borderColor: issueKeyColor,
+                        textColor: issueKeyColor === '#ffffff' || issueKeyColor === '#FFFFFF' ? '#000000' : undefined,
+                        extendedProps: {
+                            worklogId: worklog.id,
+                            issueId: issue.id,
+                            issueKey: issue.key,
+                            issueSummary: issue.fields.summary,
+                            comment: worklog.comment,
+                            timeSpent: worklog.timeSpent,
+                            timeSpentSeconds: worklog.timeSpentSeconds,
+                            author: worklog.author.displayName,
+                            issueType: issue.fields.issuetype?.name,
+                            issueStatus: issue.fields.status?.name,
+                            issueColor: issueKeyColor,
+                            issueTypeIcon: settings.showIssueTypeIcons && issue.fields.issuetype && issue.fields.issuetype.id ? `/avatars/issuetype/${issue.fields.issuetype.id}?size=small` : null,
+                            showIssueTypeIcons: settings.showIssueTypeIcons !== false
+                        }
+                    };
+
+                    events.push(event);
+                } catch (worklogError) {
+                    console.error(`Error processing worklog ${worklog.id}:`, worklogError);
+                    // Continue with other worklogs
                 }
             }
-
-            // Cache the result
-            worklogCache.set(cacheKey, { 
-                events,
-                timestamp: Date.now()
-            });
-
-            return events;
-        } catch (error) {
-            console.error('Error getting worklogs:', error);
-            
-            // Check for auth errors
-            if (error.status === 401 || error.code === 401 || error.authFailure) {
-                const authError = new Error('Authentication required');
-                authError.authFailure = true;
-                throw authError;
-            }
-            
-            throw error;
         }
+
+        // Cache the result
+        worklogCache.set(cacheKey, { 
+            events,
+            timestamp: Date.now()
+        });
+
+        return events;
     } catch (error) {
         console.error('Error in getUsersWorkLogsAsEvent:', error);
-        if (error.authFailure) {
-            throw error; // Re-throw auth errors
+        
+        // Enhanced auth error detection and propagation
+        if (error.authFailure || error.status === 401 || error.code === 401 || 
+            (error.message && error.message.toLowerCase().includes('unauthorized'))) {
+            console.log('Propagating authentication error');
+            const authError = new Error('Authentication required');
+            authError.authFailure = true;
+            authError.status = 401;
+            throw authError;
         }
+        
         return []; // Return empty array for other errors
     }
 };
