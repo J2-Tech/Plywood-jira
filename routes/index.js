@@ -159,7 +159,18 @@ router.get('/projects', async function(req, res, next) {
         const projects = await jiraAPIController.getProjects(req);
         res.json(projects);
     } catch (error) {
-        console.log(error);
+        console.error('Error in /projects route:', error);
+        
+        // Enhanced auth error handling
+        if (error.authFailure || error.status === 401 || error.code === 401) {
+            console.log('Authentication error detected in /projects route');
+            return res.status(401).json({ 
+                error: 'Authentication required', 
+                authFailure: true,
+                redirect: '/auth/login' 
+            });
+        }
+        
         res.status(500).json({ error: 'Failed to fetch projects' });
     }
 });

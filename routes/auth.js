@@ -62,7 +62,14 @@ router.post('/refresh-token', async (req, res) => {
     try {
         // Check if the user is authenticated
         if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+            console.log('No authenticated user found for token refresh');
             return res.status(401).json({ success: false, message: 'Not authenticated' });
+        }
+        
+        // Check if user has required tokens
+        if (!req.user.refreshToken) {
+            console.log('No refresh token found for user');
+            return res.status(401).json({ success: false, message: 'No refresh token available' });
         }
         
         // Attempt to refresh the token
@@ -77,6 +84,12 @@ router.post('/refresh-token', async (req, res) => {
         }
     } catch (error) {
         console.error('Error refreshing token via AJAX (POST):', error);
+        
+        // Check if it's an auth-related error
+        if (error.message && (error.message.includes('invalid') || error.message.includes('expired'))) {
+            return res.status(401).json({ success: false, message: 'Token refresh failed - please login again' });
+        }
+        
         return res.status(500).json({ success: false, message: 'Error refreshing token' });
     }
 });

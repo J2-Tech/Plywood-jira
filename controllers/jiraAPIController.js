@@ -22,10 +22,14 @@ const ICON_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 // Remove global state
 // global.selectedProject = 'all';
 
-const shouldValidateHttps = process.env.JIRA_API_DISABLE_HTTPS_VALIDATION !== 'true';
+const disableValidation = process.env.JIRA_API_DISABLE_HTTPS_VALIDATION;
+console.log(`JIRA_API_DISABLE_HTTPS_VALIDATION environment variable: "${disableValidation}"`);
+const shouldValidateHttps = !(disableValidation === 'true' || disableValidation === 'True' || disableValidation === 'TRUE' || disableValidation === '1');
 const httpsAgent = new https.Agent({
     rejectUnauthorized: shouldValidateHttps
 });
+
+console.log(`HTTPS certificate validation: ${shouldValidateHttps ? 'ENABLED' : 'DISABLED'}`);
 
 function getDefaultHeaders(req) {
     if (!req.user && process.env.JIRA_AUTH_TYPE === "OAUTH") {
@@ -561,7 +565,7 @@ exports.getMainColorFromIcon = async function (imageUrl) {
         const response = await fetch(imageUrl, { agent: httpsAgent });
         const contentType = response.headers.get('content-type');
         
-        if (contentType.includes('svg')) {
+        if (contentType && contentType.includes('svg')) {
             const svgText = await response.text();
             
             // Look for Rectangle use element
@@ -611,10 +615,9 @@ exports.getMainColorFromIcon = async function (imageUrl) {
             return `hsl(${hue}, 70%, 50%)`;
         }
     } catch (error) {
+        console.warn('Error fetching icon for color extraction:', error.message);
         return '#2684FF';
     }
-    
-    return '#2684FF';
 };
 
 function appendProjectFilter(jql, projectKey) {
@@ -915,7 +918,7 @@ exports.proxyIssueTypeAvatarImage = async function(req, issueTypeId, size = 'med
                         'Authorization': getDefaultHeaders(req).Authorization,
                         'Accept': 'image/*'
                     },
-                    agent: httpsAgent
+                    agent: httpsAgent  // Make sure this uses the configured agent
                 });
                 
                 if (directResponse.ok) {

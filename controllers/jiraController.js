@@ -421,6 +421,26 @@ async function updateWorklogsColorForIssue(req, issueKey, newColor) {
     }
 }
 
+exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
+    const startTime = Date.now();
+    console.log(`Loading worklogs from ${start} to ${end}`);
+    
+    try {
+        // Use the optimized module function
+        const getUsersWorkLogsModule = require('./getUsersWorkLogsAsEvent');
+        const events = await getUsersWorkLogsModule.getUsersWorkLogsAsEvent(req, start, end);
+        
+        const duration = Date.now() - startTime;
+        console.log(`Worklogs loaded in ${duration}ms, found ${events.length} events`);
+        
+        return events;
+    } catch (error) {
+        const duration = Date.now() - startTime;
+        console.error(`Worklog loading failed after ${duration}ms:`, error);
+        throw error;
+    }
+};
+
 module.exports = {
     suggestIssues: exports.suggestIssues,
     getSingleEvent: exports.getSingleEvent,

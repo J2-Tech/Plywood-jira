@@ -53,20 +53,83 @@ export async function changeProject(projectKey) {
     }
 }
 
+let loadingCount = 0;
+let loadingStatus = '';
+
 /**
  * Show loading spinner.
  */
-export function showLoading() {
-    document.getElementById("loading-container").style.display = "block";
-    document.body.classList.add("loading"); // Add this line
+export function showLoading(status = 'Loading...') {
+    loadingCount++;
+    loadingStatus = status;
+    
+    const loadingElement = document.getElementById('loading');
+    const container = document.getElementById('loading-container');
+    
+    if (loadingElement) {
+        loadingElement.style.visibility = 'visible';
+        loadingElement.title = loadingStatus;
+    }
+    
+    if (container) {
+        container.style.visibility = 'visible';
+        container.title = loadingStatus;
+    }
+    
+    // Update any status text elements
+    const statusElements = document.querySelectorAll('.loading-status-text');
+    statusElements.forEach(el => {
+        el.textContent = loadingStatus;
+    });
+    
+    console.log(`Loading started: ${loadingStatus} (count: ${loadingCount})`);
 }
 
 /**
  * Hide loading spinner.
  */
 export function hideLoading() {
-    document.getElementById("loading-container").style.display = "none";
-    document.body.classList.remove("loading"); // Add this line
+    loadingCount = Math.max(0, loadingCount - 1);
+    
+    if (loadingCount === 0) {
+        const loadingElement = document.getElementById('loading');
+        const container = document.getElementById('loading-container');
+        
+        if (loadingElement) {
+            loadingElement.style.visibility = 'hidden';
+        }
+        
+        if (container) {
+            container.style.visibility = 'hidden';
+        }
+        
+        console.log('All loading completed');
+    } else {
+        console.log(`Loading continues (count: ${loadingCount})`);
+    }
+}
+
+export function setLoadingStatus(status) {
+    loadingStatus = status;
+    
+    const loadingElement = document.getElementById('loading');
+    const container = document.getElementById('loading-container');
+    
+    if (loadingElement) {
+        loadingElement.title = loadingStatus;
+    }
+    
+    if (container) {
+        container.title = loadingStatus;
+    }
+    
+    // Update any status text elements
+    const statusElements = document.querySelectorAll('.loading-status-text');
+    statusElements.forEach(el => {
+        el.textContent = loadingStatus;
+    });
+    
+    console.log(`Loading status updated: ${loadingStatus}`);
 }
 
 /**

@@ -53,9 +53,24 @@ export function saveConfig() {
  * Load configuration settings.
  */
 export function loadConfig() {
-    return fetch('/config/getConfig')
-        .then(response => response.json())
+    return window.apiClient.get('/config/getConfig')
+        .then(response => {
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    console.log('Authentication required - redirecting to login');
+                    window.location.href = '/auth/login';
+                    return;
+                }
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        })
         .then(async config => {
+            if (!config) {
+                console.warn('No config received, using defaults');
+                config = {};
+            }
+            
             // Set default values if undefined
             config = {
                 showIssueTypeIcons: true,
@@ -99,6 +114,28 @@ export function loadConfig() {
             console.log('showIssueTypeIcons setting loaded:', config.showIssueTypeIcons);
             
             return config;
+        })
+        .catch(error => {
+            console.error('Error loading config:', error);
+            
+            // Handle authentication errors
+            if (error.message && (error.message.includes('401') || error.message.includes('Authentication'))) {
+                console.log('Authentication error in loadConfig - redirecting to login');
+                window.location.href = '/auth/login';
+                return {};
+            }
+            
+            // Return default config on error
+            const defaultConfig = {
+                showIssueTypeIcons: true,
+                themeSelection: localStorage.getItem('themeSelection') || 'auto',
+                roundingInterval: 15,
+                issueColors: {},
+                selectedProject: localStorage.getItem('currentProject') || 'all'
+            };
+            
+            console.warn('Using default config due to load error');
+            return defaultConfig;
         });
 }
 
@@ -181,60 +218,74 @@ export async function loadProjects(targetElement, selectedValue = 'all') {
     const maxResults = 50;
     let hasMore = true;
 
-    while (hasMore) {
-        const response = await fetch(`/projects?startAt=${startAt}&maxResults=${maxResults}`);
-        const data = await response.json();
-        allProjects = allProjects.concat(data.values);
+    try {
+        while (hasMore) {
+            // Use apiClient for automatic token refresh
+            const response = await window.apiClient.get(`/projects?startAt=${startAt}&maxResults=${maxResults}`);
+            
+            if (!response.ok) {
+                // Check for auth errors
+                if (response.status === 401 || response.status === 403) {
+                    const errorData = await response.json().catch(() => ({}));
+                    if (errorData.authFailure) {
+                        console.log('Authentication required - redirecting to login');
+                        window.location.href = '/auth/login';
+                        return;
+                    }
+                }
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            allProjects = allProjects.concat(data.values);
+            
+            hasMore = startAt + maxResults < data.total;
+            startAt += maxResults;
+        }
+
+        // Convert projects to Choices.js format
+        const choices = [
+            { value: 'all', label: 'All Projects' },
+            ...allProjects.map(project => ({
+                value: project.key,
+                label: `${project.key} - ${project.name}`
+            }))
+        ];
+
+        // Initialize Choices.js
+        const choicesInstance = new Choices(targetElement, {
+            choices,
+            searchEnabled: true,
+            searchFields: ['label'],
+            itemSelectText: '',
+            shouldSort: true,
+            shouldSortItems: true,
+            position: 'bottom'
+        });
+
+        // Set selected value
+        choicesInstance.setChoiceByValue(selectedValue);
+
+        return choicesInstance;
         
-        hasMore = startAt + maxResults < data.total;
-        startAt += maxResults;
-    }
-
-    // Convert projects to Choices.js format
-    const choices = [
-        { value: 'all', label: 'All Projects' },
-        ...allProjects.map(project => ({
-            value: project.key,
-            label: `${project.key} - ${project.name}`
-        }))
-    ];
-
-    // Initialize Choices.js
-    const choicesInstance = new Choices(targetElement, {
-        choices,
-        searchEnabled: true,
-        searchFields: ['label'],
-        itemSelectText: '',
-        shouldSort: true,
-        shouldSortItems: true,
-        position: 'bottom'
-    });
-
-    // Set selected value
-    choicesInstance.setChoiceByValue(selectedValue);
-
-    return choicesInstance;
-}
-
-export async function initializeProjectSelectors() {
-    const headerProjectSelect = document.getElementById('headerProjectSelection');
-    const configProjectSelect = document.getElementById('projectSelection');
-    
-    // Get current project using the getter from ui.js
-    const savedProject = localStorage.getItem('currentProject') || 'all';
-    
-    if (headerProjectSelect) {
-        await loadProjects(headerProjectSelect, savedProject);
-        headerProjectSelect.addEventListener('change', (event) => {
-            changeProject(event.target.value);
+    } catch (error) {
+        console.error('Error loading projects:', error);
+        
+        // Handle authentication errors
+        if (error.message && (error.message.includes('401') || error.message.includes('Authentication'))) {
+            console.log('Authentication error in loadProjects - redirecting to login');
+            window.location.href = '/auth/login';
+            return;
+        }
+        
+        // For other errors, show a fallback option
+        const choices = [{ value: 'all', label: 'All Projects (Error loading)' }];
+        const choicesInstance = new Choices(targetElement, {
+            choices,
+            searchEnabled: false
         });
-    }
-    
-    if (configProjectSelect) {
-        await loadProjects(configProjectSelect, savedProject);
-        configProjectSelect.addEventListener('change', (event) => {
-            changeProject(event.target.value);
-        });
+        choicesInstance.setChoiceByValue(selectedValue);
+        return choicesInstance;
     }
 }
 

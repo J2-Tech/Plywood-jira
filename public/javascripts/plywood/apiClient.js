@@ -20,6 +20,9 @@ function isAuthError(error) {
     // Check if it's a Response object with auth error
     if (error instanceof Response && (error.status === 401 || error.status === 403)) return true;
     
+    // Check for parsed JSON data indicating auth error
+    if (error.authFailure === true) return true;
+    
     // Check error message patterns
     if (error.message) {
         const authPatterns = [
@@ -30,7 +33,9 @@ function isAuthError(error) {
             'invalid token',
             'authentication failed',
             'session expired',
-            'NetworkError when attempting to fetch resource'
+            'NetworkError when attempting to fetch resource',
+            'Not authenticated',
+            'No refresh token available'
         ];
         return authPatterns.some(pattern => 
             error.message.toLowerCase().includes(pattern.toLowerCase())
@@ -115,8 +120,21 @@ async function executeWithTokenRefresh(url, options = {}, retryCount = 0) {
         }
         
         // Check if this is an auth error that we can retry
-        if (isAuthError(response) && retryCount < maxRetries) {
+        if ((response.status === 401 || response.status === 403) && retryCount < maxRetries) {
             console.log('Authentication error detected, attempting token refresh...');
+            
+            // Try to get more details from response
+            let responseData = null;
+            try {
+                responseData = await response.clone().json();
+            } catch (parseError) {
+                console.log('Could not parse error response');
+            }
+            
+            // Check if the response explicitly indicates auth failure
+            if (responseData && responseData.authFailure) {
+                console.log('Server indicated auth failure, refreshing token...');
+            }
             
             // If we're already refreshing the token, wait for it
             if (isRefreshingToken && refreshPromise) {

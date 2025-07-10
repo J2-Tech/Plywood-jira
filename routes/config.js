@@ -8,6 +8,17 @@ router.get('/getConfig', async (req, res) => {
         const config = await configController.loadConfig(req);
         res.json(config);
     } catch (error) {
+        console.error('Error in /config/getConfig:', error);
+        
+        // Check for auth errors
+        if (error.authFailure || error.status === 401 || error.code === 401) {
+            return res.status(401).json({ 
+                error: 'Authentication required', 
+                authFailure: true,
+                redirect: '/auth/login' 
+            });
+        }
+        
         res.status(500).json({ error: 'Failed to load configuration' });
     }
 });

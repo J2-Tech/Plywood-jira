@@ -122,9 +122,14 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
       }
   });
 
+  // Use the same HTTPS validation setting for OAuth strategy
+  const shouldValidateHttps = !(process.env.JIRA_API_DISABLE_HTTPS_VALIDATION === 'true' || 
+                                process.env.JIRA_API_DISABLE_HTTPS_VALIDATION === 'True' || 
+                                process.env.JIRA_API_DISABLE_HTTPS_VALIDATION === 'TRUE' || 
+                                process.env.JIRA_API_DISABLE_HTTPS_VALIDATION === '1');
+  
   authStrategy._oauth2.setAgent(new https.Agent({
-    rejectUnauthorized: false,
-    
+    rejectUnauthorized: shouldValidateHttps
   }));
   passport.use(authStrategy);
 
