@@ -5,7 +5,7 @@ cd /D "%~dp0"
 
 echo.
 echo ========================================
-echo    JiraTime Application - Auto Restart
+echo    Plywood - Auto Restart
 echo ========================================
 echo.
 echo Starting application with crash recovery...
@@ -13,7 +13,7 @@ echo Press Ctrl+C twice to exit permanently
 echo.
 
 :restart_loop
-echo [%date% %time%] Starting JiraTime application...
+echo [%date% %time%] Starting Plywood...
 
 REM Start the application and capture exit code, suppress any prompts
 npm run start <nul 2>&1

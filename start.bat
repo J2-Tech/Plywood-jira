@@ -8,7 +8,7 @@ IF %ERRORLEVEL% NEQ 0 ( ECHO nodejs wasn't found, exiting && pause && EXIT /B 1 
 
 echo.
 echo ========================================
-echo        JiraTime Application
+echo        Plywood
 echo ========================================
 echo.
 

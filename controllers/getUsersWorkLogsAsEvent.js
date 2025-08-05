@@ -1,4 +1,3 @@
-// filepath: d:\workspaces\jiraTime\jiraTime\controllers\getUsersWorkLogsAsEvent.js
 // Modified getUsersWorkLogsAsEvent function to handle token refresh properly
 const jiraAPIController = require('./jiraAPIController');
 const configController = require('./configController');

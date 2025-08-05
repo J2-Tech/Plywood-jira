@@ -1,4 +1,3 @@
-// filepath: d:\workspaces\jiraTime\jiraTime\controllers\jiraController.js
 const jiraAPIController = require('./jiraAPIController');
 const configController = require('./configController');
 const colorUtils = require('./colorUtils');

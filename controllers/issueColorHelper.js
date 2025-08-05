@@ -1,4 +1,3 @@
-// filepath: d:\workspaces\jiraTime\jiraTime\controllers\issueColorHelper.js
 /**
  * A standalone helper module for determining issue colors
  */
