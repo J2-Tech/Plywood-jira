@@ -357,7 +357,7 @@ exports.getWorkLog = function(req, issueId, worklogId) {
 }
 
 function updateWorkLogInternal(req, issue, worklogId, started, timeSpentSeconds, comment, issueKeyColor) {
-    console.log(`Updating worklog ${worklogId} for issue ${issue} with comment: "${comment}"`);
+    console.log(`Updating worklog ${worklogId} for issue ${issue} with comment: "${comment}" (type: ${typeof comment})`);
     
     // Clean comment to remove any color information that might have been stored previously
     const cleanedComment = cleanWorklogComment(comment || "");
@@ -450,20 +450,40 @@ exports.searchIssuesWithWorkLogs = async function(req, start, end) {
 
 async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const url = getCallURL(req);
-    let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser()`;
+    
+    // Use a more efficient approach: search for issues with worklogs in the specific date range
+    // This reduces the number of API calls significantly
+    let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}"`;
+    
+    // Add user filter if we can identify the current user
+    if (process.env.JIRA_BASIC_AUTH_USERNAME) {
+        jql += ` AND worklogAuthor = "${process.env.JIRA_BASIC_AUTH_USERNAME}"`;
+    } else if (req.user && req.user.email) {
+        jql += ` AND worklogAuthor = "${req.user.email}"`;
+    } else {
+        // Fallback to currentUser() function
+        jql += ` AND worklogAuthor = currentUser()`;
+    }
     
     // Get project from query params and apply filter
     const projectKey = req.query.project;
     jql = appendProjectFilter(jql, projectKey);
     
-    const response = await fetch(url + '/rest/api/2/search', {
+    // Use the new JQL-based search API with worklog expansion
+    const requestBody = {
+        jql: jql,
+        maxResults: parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 100,
+        expand: 'renderedFields,worklog',
+        fields: ['summary', 'issuetype', 'status', 'project', 'key', 'id', 'parent', 'customfield_10017', 'worklog']
+    };
+    
+    const response = await fetch(url + '/rest/api/3/search/jql', {
         method: 'POST',
-        headers: getDefaultHeaders(req),
-        body: JSON.stringify({
-            jql,
-            expand: ['renderedFields', 'worklog'],
-            fields: ['parent', 'customfield_10017', 'worklog', 'summary', 'issuetype', 'status', 'project']
-        }),
+        headers: {
+            ...getDefaultHeaders(req),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
         agent: httpsAgent
     });
     
@@ -475,10 +495,72 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
             authError.status = 401;
             throw authError;
         }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        
+        // Try to get more details about the error
+        let errorDetails = '';
+        try {
+            const errorResponse = await response.text();
+            errorDetails = ` - Response: ${errorResponse}`;
+        } catch (e) {
+            errorDetails = ' - Could not read error response';
+        }
+        
+        throw new Error(`HTTP ${response.status}: ${response.statusText}${errorDetails}`);
     }
     
-    return response.json();
+    const issuesData = await response.json();
+    
+    if (!issuesData.issues || !Array.isArray(issuesData.issues)) {
+        console.log('No issues found with worklogs in date range');
+        return { issues: [] };
+    }
+    
+    console.log(`Found ${issuesData.issues.length} issues with worklogs in date range`);
+    
+    // Process the issues - the worklogs should already be included in the response
+    const issuesWithWorklogs = [];
+    
+    for (const issue of issuesData.issues) {
+        try {
+            // Check if worklogs are already included in the response
+            if (issue.fields.worklog && issue.fields.worklog.worklogs && Array.isArray(issue.fields.worklog.worklogs)) {
+                // Filter worklogs by user to ensure we only get the current user's worklogs
+                const filteredWorklogs = issue.fields.worklog.worklogs.filter(worklog => {
+                    // Check if worklog is by the current user
+                    if (process.env.JIRA_BASIC_AUTH_USERNAME) {
+                        return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
+                    } else if (req.user && req.user.email) {
+                        return worklog.author.emailAddress === req.user.email;
+                    }
+                    
+                    return true;
+                });
+                
+                if (filteredWorklogs.length > 0) {
+                    // Update the issue with filtered worklogs
+                    const issueWithWorklogs = {
+                        ...issue,
+                        fields: {
+                            ...issue.fields,
+                            worklog: {
+                                worklogs: filteredWorklogs
+                            }
+                        }
+                    };
+                    
+                    issuesWithWorklogs.push(issueWithWorklogs);
+                    console.log(`Issue ${issue.key}: ${filteredWorklogs.length} worklogs in date range`);
+                }
+            }
+        } catch (error) {
+            console.error(`Error processing issue ${issue.key}:`, error.message);
+            continue;
+        }
+    }
+    
+    console.log(`Successfully processed ${issuesWithWorklogs.length} issues with relevant worklogs`);
+    
+    return { issues: issuesWithWorklogs };
 };
 
 exports.getProjects = async function(req) {
@@ -497,16 +579,79 @@ exports.getProjects = async function(req) {
 exports.getSprintIssues = async function(req, sprintId) {
     const url = getCallURL(req);
     const jql = `sprint = ${sprintId}`;
-    return fetch(url + '/rest/api/2/search', {
+    
+    // Use the new JQL-based search API to get sprint issues
+    const requestBody = {
+        jql: jql,
+        maxResults: parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 100,
+        expand: 'renderedFields',
+        fields: ['summary', 'issuetype', 'status', 'key', 'id']
+    };
+    
+    const response = await fetch(url + '/rest/api/3/search/jql', {
         method: 'POST',
-        headers: getDefaultHeaders(req),
-        body: JSON.stringify({
-            jql,
-            expand: ['renderedFields', 'worklog'],
-            fields: ['worklog', 'summary', 'issuetype', 'status']
-        }),
+        headers: {
+            ...getDefaultHeaders(req),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
         agent: httpsAgent
-    }).then(res => res.json());
+    });
+    
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const issuesData = await response.json();
+    
+    if (!issuesData.issues || !Array.isArray(issuesData.issues)) {
+        return { issues: [] };
+    }
+    
+    // Now fetch detailed worklog data for each issue
+    const issuesWithWorklogs = [];
+    
+    for (const issue of issuesData.issues) {
+        try {
+            // Fetch all worklogs for this issue
+            const worklogResponse = await fetch(`${url}/rest/api/3/issue/${issue.key}/worklog?expand=renderedFields`, {
+                method: 'GET',
+                headers: getDefaultHeaders(req),
+                agent: httpsAgent
+            });
+            
+            if (!worklogResponse.ok) {
+                console.warn(`Failed to fetch worklogs for issue ${issue.key}: ${worklogResponse.status}`);
+                continue;
+            }
+            
+            const worklogData = await worklogResponse.json();
+            
+            if (!worklogData.worklogs || !Array.isArray(worklogData.worklogs)) {
+                console.warn(`No worklogs found for issue ${issue.key}`);
+                continue;
+            }
+            
+            // Add all worklogs to the issue
+            const issueWithWorklogs = {
+                ...issue,
+                fields: {
+                    ...issue.fields,
+                    worklog: {
+                        worklogs: worklogData.worklogs
+                    }
+                }
+            };
+            
+            issuesWithWorklogs.push(issueWithWorklogs);
+            
+        } catch (error) {
+            console.error(`Error fetching worklogs for issue ${issue.key}:`, error.message);
+            continue;
+        }
+    }
+    
+    return { issues: issuesWithWorklogs };
 };
 
 exports.getProjectAvatar = async function(req, projectKey) {
@@ -770,6 +915,12 @@ exports.getSprintById = async function(req, sprintId) {
  */
 function cleanWorklogComment(comment) {
     if (!comment) return '';
+    
+    // Handle case where comment is an object (shouldn't happen, but defensive programming)
+    if (typeof comment !== 'string') {
+        console.warn('cleanWorklogComment received non-string comment:', comment, typeof comment);
+        return '';
+    }
     
     // Remove color hex codes (e.g., #FF0000, #ff0000)
     let cleanedComment = comment.replace(/#[0-9A-Fa-f]{6}/g, '');

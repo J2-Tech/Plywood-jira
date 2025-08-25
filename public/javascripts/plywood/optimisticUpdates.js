@@ -104,7 +104,7 @@ export function preserveEventData(event, newData = {}) {
         issueId: event.extendedProps.issueId,
         issueKey: event.extendedProps.issueKey,
         issueSummary: event.extendedProps.issueSummary,
-        comment: event.extendedProps.comment,
+        comment: event.extendedProps.comment || '',
         author: event.extendedProps.author,
         issueColor: event.extendedProps.issueColor || event.backgroundColor,
         issueType: event.extendedProps.issueType,

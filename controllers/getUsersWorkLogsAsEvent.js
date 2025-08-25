@@ -8,6 +8,62 @@ const { determineIssueColor } = require('./issueColorHelper');
 const worklogCache = new Map();
 const WORKLOG_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 
+/**
+ * Extract text content from a comment field that might be a string or ProseMirror document
+ * @param {any} comment - The comment field (string, object, or null)
+ * @returns {string} - Extracted text content
+ */
+function extractCommentText(comment) {
+    if (!comment) return '';
+    
+    // If it's already a string, return it
+    if (typeof comment === 'string') {
+        return comment;
+    }
+    
+    // If it's a ProseMirror document object, extract text content
+    if (comment && typeof comment === 'object' && comment.type === 'doc' && comment.content) {
+        return extractProseMirrorText(comment.content);
+    }
+    
+    // If it has a content property, try to extract from it
+    if (comment && comment.content) {
+        return extractProseMirrorText(comment.content);
+    }
+    
+    // Fallback: try to stringify the object (for debugging)
+    console.warn('Unknown comment format:', comment);
+    return '';
+}
+
+/**
+ * Recursively extract text content from ProseMirror document structure
+ * @param {Array} content - The content array from ProseMirror
+ * @returns {string} - Extracted text content
+ */
+function extractProseMirrorText(content) {
+    if (!Array.isArray(content)) return '';
+    
+    let text = '';
+    
+    for (const node of content) {
+        if (node.type === 'text' && node.text) {
+            text += node.text;
+        } else if (node.content && Array.isArray(node.content)) {
+            text += extractProseMirrorText(node.content);
+        } else if (node.content && typeof node.content === 'string') {
+            text += node.content;
+        }
+        
+        // Add line breaks for block-level elements
+        if (node.type === 'paragraph' || node.type === 'heading') {
+            text += '\n';
+        }
+    }
+    
+    return text.trim();
+}
+
 // Helper to clear worklog cache when data changes
 function clearWorklogCache() {
     console.log('Clearing worklog cache');
@@ -171,9 +227,12 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
                     // Determine issue color
                     let issueKeyColor = null;
 
+
+                    
                     // Check for color in worklog comment first (allows per-worklog color override)
-                    if (worklog.comment && worklog.comment.includes('color:')) {
-                        const colorMatch = worklog.comment.match(/color:\s*([#0-9A-Fa-f]+)/);
+                    const commentText = extractCommentText(worklog.comment);
+                    if (commentText && commentText.includes('color:')) {
+                        const colorMatch = commentText.match(/color:\s*([#0-9A-Fa-f]+)/);
                         if (colorMatch && colorMatch[1]) {
                             issueKeyColor = colorMatch[1];
                         }
@@ -222,7 +281,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
                             issueId: issue.id,
                             issueKey: issue.key,
                             issueSummary: issue.fields.summary,
-                            comment: worklog.comment,
+                            comment: extractCommentText(worklog.comment),
                             timeSpent: worklog.timeSpent,
                             timeSpentSeconds: worklog.timeSpentSeconds,
                             author: worklog.author.displayName,

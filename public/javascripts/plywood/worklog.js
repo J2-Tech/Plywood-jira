@@ -104,6 +104,16 @@ export async function handleSubmit(event, url, method) {
     const form = event.target.closest('form');
     const formData = new FormData(form);
     const data = Object.fromEntries(formData.entries());
+    
+    // Ensure comment is always a string
+    if (data.comment && typeof data.comment !== 'string') {
+        console.warn('Comment field is not a string, converting:', data.comment, typeof data.comment);
+        data.comment = String(data.comment);
+    }
+    
+    // Debug: Log the form data to see what we're working with
+    console.log('Form data after processing:', data);
+    console.log('Comment field type:', typeof data.comment, 'Value:', data.comment);
 
     // Validate required fields
     if (!data.issueId) {
@@ -333,7 +343,7 @@ async function submitWorklog(url, method, data, issueKey, selectedColor) {
                 result.worklogId = data.worklogId;
                 result.startTime = data.startTime;
                 result.endTime = data.endTime;
-                result.comment = data.comment;
+                result.comment = (data.comment && typeof data.comment === 'string') ? data.comment : '';
                 
                 // Call the calendar's modal update handler
                 window.handleModalWorklogUpdate(result, data.worklogId);

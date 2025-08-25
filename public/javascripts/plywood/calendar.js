@@ -321,7 +321,7 @@ export function initializeCalendar() {
             }
             
             // Add comment if available
-            if (props.comment && props.comment.trim()) {
+            if (props.comment && typeof props.comment === 'string' && props.comment.trim()) {
                 const comment = document.createElement('div');
                 comment.className = 'fc-event-comment';
                 comment.textContent = props.comment;
@@ -490,7 +490,7 @@ export function handleEventResize(info) {
         issueId: event.extendedProps.issueId,
         startTime: event.start.toISOString(),
         endTime: event.end.toISOString(),
-        comment: event.extendedProps.comment || '',
+        comment: (event.extendedProps.comment && typeof event.extendedProps.comment === 'string') ? event.extendedProps.comment : '',
         issueKeyColor: backgroundColor
     };
     
@@ -574,7 +574,7 @@ export function handleEventDrop(info) {
         issueId: event.extendedProps.issueId,
         startTime: event.start.toISOString(),
         endTime: event.end.toISOString(),
-        comment: event.extendedProps.comment || '',
+        comment: (event.extendedProps.comment && typeof event.extendedProps.comment === 'string') ? event.extendedProps.comment : '',
         issueKeyColor: backgroundColor
     };
     
