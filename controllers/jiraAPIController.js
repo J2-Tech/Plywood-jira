@@ -235,9 +235,21 @@ function searchIssuesInternal(req, jql) {
     jql = appendProjectFilter(jql, req.query.project);
     
     const fields = ['summary', 'issuetype', 'parent', 'customfield_10017'];
-    return fetch(url + '/rest/api/3/search?maxResults=' + process.env.JIRA_MAX_SEARCH_RESULTS + '&jql=' + encodeURIComponent(jql) + '&fields=' + fields.join(','), {
-        method: 'GET',
-        headers,
+    
+    // Use the new JQL-based search API (POST method)
+    const requestBody = {
+        jql: jql,
+        maxResults: parseInt(process.env.JIRA_MAX_SEARCH_RESULTS),
+        fields: fields
+    };
+    
+    return fetch(url + '/rest/api/3/search/jql', {
+        method: 'POST',
+        headers: {
+            ...headers,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
         agent: httpsAgent
     }).then(res => res.json());
 }
