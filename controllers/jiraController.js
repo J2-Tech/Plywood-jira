@@ -143,18 +143,30 @@ exports.updateWorkLog = async function(req, issueId, worklogId, comment, startTi
     }
 };
 
-exports.createWorkLog = async function(req, issueId, started, ended, comment, issueKeyColor) {
-    console.log(`Creating worklog for issue ${issueId}`);
+function calculateContrastingTextColor(backgroundColor) {
+    if (!backgroundColor) return '#000000';
+    
+    var hex = backgroundColor.replace('#', '');
+    
+    var r = parseInt(hex.substr(0, 2), 16);
+    var g = parseInt(hex.substr(2, 2), 16);
+    var b = parseInt(hex.substr(4, 2), 16);
+    
+    var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
+}
+
+exports.createWorkLog = function(req, issueId, started, ended, comment, issueKeyColor) {
+    console.log('Creating worklog for issue ' + issueId);
     
     try {
-        // Validate inputs
         if (!issueId || !started || !ended) {
             throw new Error('Missing required parameters');
         }
         
-        // Calculate duration in seconds
-        const startDate = new Date(started);
-        const endDate = new Date(ended);
+        var startDate = new Date(started);
+        var endDate = new Date(ended);
         
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
             throw new Error('Invalid date format');
@@ -164,90 +176,138 @@ exports.createWorkLog = async function(req, issueId, started, ended, comment, is
             throw new Error('End time must be after start time');
         }
         
-        const durationSeconds = Math.round((endDate.getTime() - startDate.getTime()) / 1000);
+        var durationSeconds = Math.round((endDate.getTime() - startDate.getTime()) / 1000);
         
         if (durationSeconds < 60) {
             throw new Error('Worklog must be at least 1 minute long');
         }
         
-        const safeComment = comment || '';
-        
-        // Get the issue key from the request body if available
-        const issueKey = req.body.issueKey;
-        
-        // Determine the color to use - use issue-based color determination
-        let color = issueKeyColor || '#2a75fe';
+        var safeComment = comment || '';
+        var issueKey = req.body.issueKey;
+        var color = issueKeyColor || '#2a75fe';
         
         if (issueKey) {
             try {
-                // Use the issue color determination system
-                const determinedColor = await exports.determineIssueColor(req, issueKey);
-                if (determinedColor) {
-                    color = determinedColor;
-                    console.log(`Using determined color ${color} for issue ${issueKey}`);
-                }
+                return exports.determineIssueColor(req, issueKey).then(function(determinedColor) {
+                    if (determinedColor) {
+                        color = determinedColor;
+                        console.log('Using determined color ' + color + ' for issue ' + issueKey);
+                    }
+                    
+                    var textColor = calculateContrastingTextColor(color);
+                    
+                    return jiraAPIController.createWorkLog(req, issueId, startDate, durationSeconds, safeComment, color).then(function(result) {
+                        if (result.errorMessages && result.errorMessages.length > 0) {
+                            throw new Error(result.errorMessages.join(', '));
+                        }
+                        
+                        if (result.errors) {
+                            throw new Error(Object.values(result.errors).join(', '));
+                        }
+                        
+                        return jiraAPIController.getIssue(req, issueId).then(function(issueDetails) {
+                            exports.clearWorklogCache();
+                            
+                            console.log('Worklog created successfully with id: ' + result.id + ', background: ' + color + ', text: ' + textColor + ' for issue: ' + issueKey);
+                            
+                            var responseData = {
+                                id: result.id,
+                                issueId: issueId,
+                                issueKey: issueKey || (issueDetails ? issueDetails.key : null),
+                                issueSummary: issueDetails ? issueDetails.fields.summary : null,
+                                title: (issueKey || 'Unknown') + (issueDetails ? ': ' + issueDetails.fields.summary : ''),
+                                start: startDate.toISOString(),
+                                end: endDate.toISOString(),
+                                startTime: startDate.toISOString(),
+                                endTime: endDate.toISOString(),
+                                comment: safeComment,
+                                backgroundColor: color,
+                                borderColor: color,
+                                textColor: textColor,
+                                color: color,
+                                timeSpentSeconds: durationSeconds,
+                                author: result.author || 'Current User',
+                                classNames: ['worklog-event'],
+                                extendedProps: {
+                                    issueId: issueId,
+                                    issueKey: issueKey,
+                                    comment: safeComment,
+                                    timeSpentSeconds: durationSeconds,
+                                    backgroundColor: color,
+                                    textColor: textColor,
+                                    calculatedTextColor: textColor
+                                }
+                            };
+                            
+                            if (issueDetails && issueDetails.fields.issuetype && issueDetails.fields.issuetype.id) {
+                                responseData.issueTypeIcon = '/avatars/issuetype/' + issueDetails.fields.issuetype.id + '?size=small';
+                                responseData.issueType = issueDetails.fields.issuetype.name;
+                                responseData.extendedProps.issueType = issueDetails.fields.issuetype.name;
+                                responseData.extendedProps.issueTypeIcon = responseData.issueTypeIcon;
+                            }
+                            
+                            return responseData;
+                        }).catch(function(error) {
+                            console.warn('Could not fetch issue details for response:', error);
+                            
+                            exports.clearWorklogCache();
+                            
+                            return {
+                                id: result.id,
+                                issueId: issueId,
+                                issueKey: issueKey,
+                                title: issueKey || 'Unknown Issue',
+                                start: startDate.toISOString(),
+                                end: endDate.toISOString(),
+                                comment: safeComment,
+                                backgroundColor: color,
+                                borderColor: color,
+                                textColor: textColor,
+                                color: color,
+                                timeSpentSeconds: durationSeconds,
+                                classNames: ['worklog-event'],
+                                extendedProps: {
+                                    backgroundColor: color,
+                                    textColor: textColor
+                                }
+                            };
+                        });
+                    });
+                });
             } catch (error) {
-                console.warn(`Could not determine color for issue ${issueKey}, using default:`, error);
+                console.warn('Could not determine color for issue ' + issueKey + ', using default:', error);
             }
         }
         
-        // Calculate contrasting text color
-        const textColor = calculateContrastingTextColor(color);
+        var textColor = calculateContrastingTextColor(color);
         
-        // Call API to create worklog
-        const result = await jiraAPIController.createWorkLog(req, issueId, startDate, durationSeconds, safeComment, color);
+        return jiraAPIController.createWorkLog(req, issueId, startDate, durationSeconds, safeComment, color).then(function(result) {
+            if (result.errorMessages && result.errorMessages.length > 0) {
+                throw new Error(result.errorMessages.join(', '));
+            }
+            
+            if (result.errors) {
+                throw new Error(Object.values(result.errors).join(', '));
+            }
+            
+            exports.clearWorklogCache();
+            
+            return {
+                id: result.id,
+                issueId: issueId,
+                title: 'Unknown Issue',
+                start: startDate.toISOString(),
+                end: endDate.toISOString(),
+                comment: safeComment,
+                backgroundColor: color,
+                borderColor: color,
+                textColor: textColor,
+                color: color,
+                timeSpentSeconds: durationSeconds,
+                classNames: ['worklog-event']
+            };
+        });
         
-        if (result.errorMessages && result.errorMessages.length > 0) {
-            throw new Error(result.errorMessages.join(', '));
-        }
-        
-        if (result.errors) {
-            throw new Error(Object.values(result.errors).join(', '));
-        }
-        
-        // Get issue details for complete response data
-        let issueDetails = null;
-        try {
-            issueDetails = await jiraAPIController.getIssue(req, issueId);
-        } catch (error) {
-            console.warn('Could not fetch issue details for response:', error);
-        }
-        
-        // Clear worklog cache to ensure fresh data on next load
-        exports.clearWorklogCache();
-        
-        console.log(`Worklog created successfully with id: ${result.id}, background: ${color}, text: ${textColor} for issue: ${issueKey}`);
-        
-        // Return comprehensive data for client-side use
-        const responseData = {
-            ...result,
-            issueId,
-            issueKey: issueKey || (issueDetails ? issueDetails.key : null),
-            issueSummary: issueDetails ? issueDetails.fields.summary : null,
-            startTime: startDate.toISOString(),
-            endTime: endDate.toISOString(),
-            comment: safeComment,
-            issueKeyColor: color,
-            backgroundColor: color,
-            borderColor: color,
-            textColor: textColor, // Include calculated text color
-            timeSpentSeconds: durationSeconds,
-            author: result.author || 'Current User'
-        };
-        
-        // Add issue type icon if available
-        if (issueDetails && issueDetails.fields.issuetype && issueDetails.fields.issuetype.id) {
-            responseData.issueTypeIcon = `/avatars/issuetype/${issueDetails.fields.issuetype.id}?size=small`;
-            responseData.issueType = issueDetails.fields.issuetype.name;
-        }
-        
-        // Add calculated text color to extended props
-        if (!responseData.extendedProps) {
-            responseData.extendedProps = {};
-        }
-        responseData.extendedProps.calculatedTextColor = textColor;
-        
-        return responseData;
     } catch (error) {
         console.error('Error creating worklog:', error);
         throw error;

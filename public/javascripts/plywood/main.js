@@ -1,6 +1,6 @@
 // main.js
 
-import { initializeUI, initializeDropdown, applyTheme } from './ui.js';
+import { showLoading, hideLoading, initializeUI, initializeDropdown, applyTheme } from './ui.js';
 import { initializeCalendar } from './calendar.js';
 import { loadConfig } from './config.js';
 import { initializeSprint } from './sprint.js';
@@ -17,6 +17,58 @@ window.appState = {
 // Add loading state management
 let isLoadingData = false;
 
+// Date formatting utility function
+function formatDateForAPI(date) {
+    if (!date) return null;
+    
+    // Ensure we have a Date object
+    var dateObj = date instanceof Date ? date : new Date(date);
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) {
+        console.error('Invalid date provided to formatDateForAPI:', date);
+        return null;
+    }
+    
+    // Format as YYYY-MM-DD
+    var year = dateObj.getFullYear();
+    var month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    var day = String(dateObj.getDate()).padStart(2, '0');
+    
+    return year + '-' + month + '-' + day;
+}
+
+// Helper function to get selected project
+function getSelectedProject() {
+    var projectSelector = document.getElementById('headerProjectSelection') || 
+                         document.getElementById('projectSelection');
+    return projectSelector ? projectSelector.value : 'all';
+}
+
+// Helper function to update total time display
+function updateTotalTime(worklogsData) {
+    // Calculate total time from worklogs
+    var totalSeconds = 0;
+    if (worklogsData && worklogsData.length > 0) {
+        totalSeconds = worklogsData.reduce(function(total, worklog) {
+            return total + (worklog.timeSpentSeconds || 0);
+        }, 0);
+    }
+    
+    // Convert to hours and minutes
+    var hours = Math.floor(totalSeconds / 3600);
+    var minutes = Math.floor((totalSeconds % 3600) / 60);
+    
+    // Update display elements
+    var totalTimeElements = document.querySelectorAll('.total-time, #totalTime');
+    totalTimeElements.forEach(function(element) {
+        if (element) {
+            element.textContent = hours + 'h ' + minutes + 'm';
+        }
+    });
+}
+
+// Initialize app when DOM is ready
 async function initializeApp() {
     try {
         // First load config and apply saved settings
@@ -55,35 +107,26 @@ async function loadCalendarData() {
     showLoading();
     
     try {
-        const view = calendar.view;
-        const start = formatDateForAPI(view.activeStart);
-        const end = formatDateForAPI(view.activeEnd);
+        var view = calendar.view;
+        var start = formatDateForAPI(view.activeStart);
+        var end = formatDateForAPI(view.activeEnd);
         
-        console.log(`Loading calendar data for ${start} to ${end}`);
+        console.log('Loading calendar data for ' + start + ' to ' + end);
         
-        // Start both requests in parallel
-        const worklogsPromise = fetchWorklogs(start, end);
-        const projectsPromise = loadProjects();
+        // Only fetch worklogs - projects are handled by initializeUI
+        var worklogsData = await fetchWorklogs(start, end);
         
-        // Wait for both to complete
-        const [worklogsData, projectsData] = await Promise.all([
-            worklogsPromise,
-            projectsPromise
-        ]);
-        
-        // Process the results
+        // Process the worklog results
         if (worklogsData && worklogsData.length > 0) {
             calendar.removeAllEvents();
             calendar.addEventSource(worklogsData);
             updateTotalTime(worklogsData);
-            console.log(`Loaded ${worklogsData.length} worklog events`);
+            console.log('Loaded ' + worklogsData.length + ' worklog events');
         } else {
             calendar.removeAllEvents();
             updateTotalTime([]);
             console.log('No worklog events found for the current period');
         }
-        
-        // Projects are handled by loadProjects() function
         
     } catch (error) {
         console.error('Error loading calendar data:', error);
@@ -101,126 +144,79 @@ async function loadCalendarData() {
 }
 
 async function fetchWorklogs(start, end) {
-    const projectParam = getSelectedProject();
-    const url = `/worklog?start=${start}&end=${end}&project=${projectParam}`;
+    var projectParam = getSelectedProject();
+    var url = '/events?start=' + start + '&end=' + end + '&project=' + projectParam;
     
-    console.log(`Fetching worklogs from: ${url}`);
+    console.log('Fetching worklogs from: ' + url);
     
-    const response = await fetch(url);
+    var response = await fetch(url);
     
     if (!response.ok) {
-        if (response.status === 401) {
+        if (response.status == 401) {
             throw new Error('Authentication required');
         }
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
     }
     
-    return response.json();
-}
-
-async function loadProjects() {
-    try {
-        console.log('Loading projects...');
-        
-        const response = await fetch('/projects');
-        
-        if (!response.ok) {
-            console.warn(`Projects request failed: ${response.status}`);
-            return [];
-        }
-        
-        const data = await response.json();
-        const projects = data.values || [];
-        
-        console.log(`Loaded ${projects.length} projects`);
-        
-        // Update project selector
-        updateProjectSelector(projects);
-        
-        return projects;
-    } catch (error) {
-        console.error('Error loading projects:', error);
-        return [];
-    }
-}
-
-function updateProjectSelector(projects) {
-    const selectors = [
-        document.getElementById('headerProjectSelection'),
-        document.getElementById('projectSelection')
-    ].filter(Boolean);
+    var data = await response.json();
     
-    selectors.forEach(selector => {
-        // Store current selection
-        const currentValue = selector.value;
-        
-        // Clear existing options except "All Projects"
-        const allOption = selector.querySelector('option[value="all"]');
-        selector.innerHTML = '';
-        if (allOption) {
-            selector.appendChild(allOption);
-        } else {
-            const newAllOption = document.createElement('option');
-            newAllOption.value = 'all';
-            newAllOption.textContent = 'All Projects';
-            selector.appendChild(newAllOption);
-        }
-        
-        // Add project options
-        projects.forEach(project => {
-            const option = document.createElement('option');
-            option.value = project.key;
-            option.textContent = `${project.key} - ${project.name}`;
-            selector.appendChild(option);
+    // Ensure events have proper color properties
+    if (data && Array.isArray(data)) {
+        data.forEach(function(event) {
+            // Ensure each event has proper color properties
+            if (!event.backgroundColor || event.backgroundColor == 'transparent') {
+                event.backgroundColor = event.issueKeyColor || '#2a75fe';
+            }
+            
+            if (!event.borderColor) {
+                event.borderColor = event.backgroundColor;
+            }
+            
+            // Calculate contrasting text color if not provided
+            if (!event.textColor) {
+                event.textColor = calculateTextColor(event.backgroundColor);
+            }
+            
+            // Ensure extendedProps exists for additional styling
+            if (!event.extendedProps) {
+                event.extendedProps = {};
+            }
+            
+            // Store calculated colors in extendedProps for CSS access
+            event.extendedProps.backgroundColor = event.backgroundColor;
+            event.extendedProps.textColor = event.textColor;
+            event.extendedProps.borderColor = event.borderColor;
         });
-        
-        // Restore selection or default to "all"
-        if (currentValue && selector.querySelector(`option[value="${currentValue}"]`)) {
-            selector.value = currentValue;
-        } else {
-            selector.value = 'all';
-        }
-    });
-}
-
-function showErrorMessage(message) {
-    // Create or update error message element
-    let errorElement = document.getElementById('error-message');
-    if (!errorElement) {
-        errorElement = document.createElement('div');
-        errorElement.id = 'error-message';
-        errorElement.className = 'error-message';
-        errorElement.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #ff4444;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 5px;
-            z-index: 10000;
-            max-width: 300px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-        `;
-        document.body.appendChild(errorElement);
     }
     
-    errorElement.textContent = message;
-    errorElement.style.display = 'block';
+    return data;
+}
+
+// Helper function to calculate contrasting text color
+function calculateTextColor(backgroundColor) {
+    if (!backgroundColor) return '#000000';
     
-    // Auto-hide after 5 seconds
-    setTimeout(() => {
-        if (errorElement) {
-            errorElement.style.display = 'none';
-        }
-    }, 5000);
+    // Remove hash if present
+    var hex = backgroundColor.replace('#', '');
+    
+    // Handle 3-character hex codes
+    if (hex.length == 3) {
+        hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
+    }
+    
+    // Parse RGB values
+    var r = parseInt(hex.substr(0, 2), 16);
+    var g = parseInt(hex.substr(2, 2), 16);
+    var b = parseInt(hex.substr(4, 2), 16);
+    
+    // Calculate luminance
+    var luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    
+    // Return white text for dark backgrounds, black text for light backgrounds
+    return luminance > 0.5 ? '#000000' : '#FFFFFF';
 }
 
-function showAuthError() {
-    showErrorMessage('Authentication expired. Please refresh the page to log in again.');
-}
-
-// Update initialization to use optimized loading
+// Initialize app when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Initializing calendar...');
     
