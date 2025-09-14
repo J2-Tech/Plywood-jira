@@ -224,7 +224,10 @@
     }
     
     .fc-event-summary {
-      display: none; // Hide summary in month view to save space
+      display: inline; // Show summary inline in month view
+      margin-left: 4px;
+      font-size: 0.8em;
+      opacity: 0.8;
     }
     
     .fc-event-comment {

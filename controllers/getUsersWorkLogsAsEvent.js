@@ -3,10 +3,19 @@ const jiraAPIController = require('./jiraAPIController');
 const configController = require('./configController');
 const colorUtils = require('./colorUtils');
 const { determineIssueColor } = require('./issueColorHelper');
+const authErrorHandler = require('../utils/authErrorHandler');
 
-// Add worklog caching system
+// Add worklog caching system with improved management
 const worklogCache = new Map();
 const WORKLOG_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
+// Cache statistics for monitoring
+const cacheStats = {
+    hits: 0,
+    misses: 0,
+    clears: 0,
+    lastClear: null
+};
 
 /**
  * Extract text content from a comment field that might be a string or ProseMirror document
@@ -65,13 +74,39 @@ function extractProseMirrorText(content) {
 }
 
 // Helper to clear worklog cache when data changes
-function clearWorklogCache() {
-    console.log('Clearing worklog cache');
+function clearWorklogCache(reason = 'manual') {
+    console.log(`Clearing worklog cache (reason: ${reason})`);
     worklogCache.clear();
+    cacheStats.clears++;
+    cacheStats.lastClear = new Date().toISOString();
 }
 
-// Export the clearWorklogCache function so it can be used by other modules
+// Helper to clear cache for specific date ranges
+function clearWorklogCacheForDateRange(start, end) {
+    const startStr = new Date(start).toISOString().split('T')[0];
+    const endStr = new Date(end).toISOString().split('T')[0];
+    
+    for (const [key, value] of worklogCache.entries()) {
+        if (key.includes(startStr) || key.includes(endStr)) {
+            worklogCache.delete(key);
+            console.log(`Cleared cache entry: ${key}`);
+        }
+    }
+}
+
+// Get cache statistics
+function getCacheStats() {
+    return {
+        ...cacheStats,
+        size: worklogCache.size,
+        hitRate: cacheStats.hits / (cacheStats.hits + cacheStats.misses) || 0
+    };
+}
+
+// Export functions for external use
 exports.clearWorklogCache = clearWorklogCache;
+exports.clearWorklogCacheForDateRange = clearWorklogCacheForDateRange;
+exports.getCacheStats = getCacheStats;
 
 exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
     // Check if this is just a HEAD request for cache validation
@@ -97,6 +132,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
         const formattedStart = filterStartTime.toISOString().split('T')[0];
         const formattedEnd = filterEndTime.toISOString().split('T')[0];
         
+        
         // Generate a cache key based on the date range and project
         const projectKey = req.query.project || 'all';
         const cacheKey = `${formattedStart}_${formattedEnd}_${projectKey}`;
@@ -105,8 +141,11 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
         const cached = worklogCache.get(cacheKey);
         if (cached && Date.now() - cached.timestamp < WORKLOG_CACHE_TTL) {
             console.log(`Using cached worklogs for ${formattedStart} to ${formattedEnd}`);
+            cacheStats.hits++;
             return cached.events;
         }
+        
+        cacheStats.misses++;
 
         console.log(`Fetching worklogs for ${formattedStart} to ${formattedEnd}`);
         
@@ -123,43 +162,30 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
                 attempts++;
                 console.log(`Attempt ${attempts} failed:`, error.message);
                 
-                // Check for 401 or auth-related errors
-                const isAuthError = error.status === 401 || 
-                                  error.code === 401 || 
-                                  error.authFailure ||
-                                  (error.message && error.message.toLowerCase().includes('unauthorized')) ||
-                                  (typeof error === 'object' && error.code === 401);
-                
-                if (isAuthError && process.env.JIRA_AUTH_TYPE === "OAUTH" && attempts < maxAttempts) {
-                    console.log('Authentication error detected, attempting to refresh token...');
-                    
-                    try {
-                        const tokenRefreshed = await jiraAPIController.refreshToken(req);
+                // Use centralized auth error detection
+                if (authErrorHandler.isAuthError(error)) {
+                    if (process.env.JIRA_AUTH_TYPE === "OAUTH" && attempts < maxAttempts) {
+                        console.log('Authentication error detected, attempting to refresh token...');
                         
-                        if (tokenRefreshed) {
-                            console.log('Token refreshed successfully, retrying request');
-                            continue; // Retry the request
-                        } else {
-                            console.log('Token refresh failed, authentication required');
-                            const authError = new Error('Authentication required');
-                            authError.authFailure = true;
-                            authError.status = 401;
-                            throw authError;
+                        try {
+                            const tokenRefreshed = await jiraAPIController.refreshToken(req);
+                            
+                            if (tokenRefreshed) {
+                                console.log('Token refreshed successfully, retrying request');
+                                continue; // Retry the request
+                            } else {
+                                console.log('Token refresh failed, authentication required');
+                                throw authErrorHandler.createAuthError();
+                            }
+                        } catch (refreshError) {
+                            console.error('Token refresh failed:', refreshError);
+                            throw authErrorHandler.createAuthError();
                         }
-                    } catch (refreshError) {
-                        console.error('Token refresh failed:', refreshError);
-                        const authError = new Error('Authentication required');
-                        authError.authFailure = true;
-                        authError.status = 401;
-                        throw authError;
+                    } else {
+                        // Auth error but not OAuth or max attempts reached
+                        console.log('Authentication failed - redirecting to login required');
+                        throw authErrorHandler.createAuthError();
                     }
-                } else if (isAuthError) {
-                    // Auth error but not OAuth or max attempts reached
-                    console.log('Authentication failed - redirecting to login required');
-                    const authError = new Error('Authentication required');
-                    authError.authFailure = true;
-                    authError.status = 401;
-                    throw authError;
                 } else {
                     // Non-auth error, rethrow
                     throw error;
@@ -171,11 +197,8 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
         if (!result || !result.issues) {
             console.error('Invalid response from JIRA API:', result);
             // Check if result contains auth error info
-            if (result && (result.code === 401 || result.status === 401)) {
-                const authError = new Error('Authentication required');
-                authError.authFailure = true;
-                authError.status = 401;
-                throw authError;
+            if (authErrorHandler.isAuthError(result)) {
+                throw authErrorHandler.createAuthError();
             }
             throw new Error('Failed to fetch worklogs from JIRA');
         }
@@ -240,25 +263,17 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
                     
                     // If no color in comment, determine from issue settings
                     if (!issueKeyColor) {
-                        // Special case: If this request is coming after a color change,
-                        // bypass the cache and use the settings value directly
-                        if (req.query._forceRefresh || req.query._clearWorklogCache || req.query._forceClearCache) {
-                            // Try to get color directly from settings first
-                            const issueKey = issue.key.toLowerCase();
-                            if (settings && settings.issueColors && settings.issueColors[issueKey]) {
-                                // Use the settings value directly
-                                issueKeyColor = settings.issueColors[issueKey];
-                                console.log(`Using direct color from settings for ${issueKey}: ${issueKeyColor}`);
-                            } else {
-                                // Fall back to normal determination
-                                issueKeyColor = await determineIssueColor(settings, req, {
-                                    issueId: issue.id,
-                                    issueKey: issue.key,
-                                    issueType: issue.fields.issuetype?.name
-                                }, null);
-                            }
+                        const issueKey = issue.key.toLowerCase();
+                        
+                        // Check for force refresh scenarios
+                        const isForceRefresh = req.query._forceRefresh || req.query._clearWorklogCache || req.query._forceClearCache;
+                        
+                        if (isForceRefresh && settings && settings.issueColors && settings.issueColors[issueKey]) {
+                            // Use the settings value directly for force refresh
+                            issueKeyColor = settings.issueColors[issueKey];
+                            console.log(`Using direct color from settings for ${issueKey}: ${issueKeyColor}`);
                         } else {
-                            // Normal flow
+                            // Normal flow - determine color using the helper
                             issueKeyColor = await determineIssueColor(settings, req, {
                                 issueId: issue.id,
                                 issueKey: issue.key,
@@ -312,13 +327,9 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
         console.error('Error in getUsersWorkLogsAsEvent:', error);
         
         // Enhanced auth error detection and propagation
-        if (error.authFailure || error.status === 401 || error.code === 401 || 
-            (error.message && error.message.toLowerCase().includes('unauthorized'))) {
+        if (authErrorHandler.isAuthError(error)) {
             console.log('Propagating authentication error');
-            const authError = new Error('Authentication required');
-            authError.authFailure = true;
-            authError.status = 401;
-            throw authError;
+            throw authErrorHandler.createAuthError();
         }
         
         return []; // Return empty array for other errors

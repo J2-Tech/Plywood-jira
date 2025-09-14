@@ -311,13 +311,22 @@ export function initializeCalendar() {
             
             container.appendChild(header);
             
-            // Add issue summary if available and different from title
+            // Add issue summary - inline for month view, as separate div for other views
             if (props.issueSummary && props.issueSummary !== event.title) {
-                const summary = document.createElement('div');
+                const summary = document.createElement('span');
                 summary.className = 'fc-event-summary';
                 summary.textContent = props.issueSummary;
                 summary.style.color = textColor; // Apply contrasting text color
-                container.appendChild(summary);
+                
+                // Check if we're in month view
+                const currentView = window.calendar?.view?.type;
+                if (currentView === 'dayGridMonth') {
+                    // For month view, add inline to header
+                    header.appendChild(summary);
+                } else {
+                    // For other views, add as separate element after header
+                    container.appendChild(summary);
+                }
             }
             
             // Add comment if available
@@ -332,7 +341,8 @@ export function initializeCalendar() {
             return { domNodes: [container] };
         },
         datesSet: function (info) {
-            //updateTotalTime();
+            // Refresh events when calendar view changes
+            window.calendar.refetchEvents();
         },
         editable: true, // Enable drag-and-drop and resizing
         eventResizableFromStart: false, // Only allow resize from end

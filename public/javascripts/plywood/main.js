@@ -217,19 +217,6 @@ function calculateTextColor(backgroundColor) {
 }
 
 // Initialize app when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('Initializing calendar...');
-    
-    // Initialize calendar first
-    initializeCalendar();
-    
-    // Start loading data immediately
-    loadCalendarData();
-    
-    // ...existing initialization code...
-});
-
-// Initialize app when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeApp);
 } else {

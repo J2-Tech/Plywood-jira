@@ -172,7 +172,8 @@ export async function initializeUI() {
     setupFormSubmissionHandlers();
     
     var slider = document.getElementById("zoom-range");
-    slider.oninput = function () {
+    if (slider) {
+        slider.oninput = function () {
         var timeVal = this.value;
 
         if (timeVal < 10) {
@@ -199,24 +200,29 @@ export async function initializeUI() {
                 break;
         }
     };
+    }
 
     var weekendInput = document.getElementById("include-weekends");
-    weekendInput.addEventListener("change", () => {
-        window.calendar.setOption("weekends", weekendInput.checked);
-        refreshEverything();
-    });
-
-    // Initialize project selector
-    const headerProjectSelect = document.getElementById('headerProjectSelection');
-    if (headerProjectSelect) {
-        // Load saved project from localStorage or default to 'all'
-        currentProject = localStorage.getItem('currentProject') || 'all';
-        
-        await loadProjects(headerProjectSelect, currentProject);
-        
-        headerProjectSelect.addEventListener('change', (event) => {
-            changeProject(event.target.value);
+    if (weekendInput) {
+        weekendInput.addEventListener("change", () => {
+            window.calendar.setOption("weekends", weekendInput.checked);
+            refreshEverything();
         });
+    }
+
+    // Initialize project selector (skip on stats page as it's handled by stats.js)
+    if (window.location.pathname !== '/stats') {
+        const headerProjectSelect = document.getElementById('headerProjectSelection');
+        if (headerProjectSelect) {
+            // Load saved project from localStorage or default to 'all'
+            currentProject = localStorage.getItem('currentProject') || 'all';
+            
+            await loadProjects(headerProjectSelect, currentProject);
+            
+            headerProjectSelect.addEventListener('change', (event) => {
+                changeProject(event.target.value);
+            });
+        }
     }
 
     hideLoading();
@@ -337,6 +343,9 @@ async function fetchAndSetIssueColor(issueId, modalType) {
                     window.lastIssueTypeIcon = iconData.avatarUrls['24x24'] || iconData.avatarUrls['16x16'];
                     window.lastIssueTypeName = iconData.name;
                     console.log(`Using proxy avatar URL for ${iconData.name}: ${window.lastIssueTypeIcon}`);
+                    
+                    // Immediately display the icon in the create modal
+                    displayIconInCreateModal(window.lastIssueTypeIcon, iconData.name);
                 } else {
                     console.warn(`No proxy avatar URLs available for issue type ${issueId}`);
                 }
@@ -348,6 +357,65 @@ async function fetchAndSetIssueColor(issueId, modalType) {
     } catch (error) {
         console.error('Error fetching issue color:', error);
     }
+}
+
+/**
+ * Display icon in the create modal when an issue is selected
+ * @param {string} iconUrl - The icon URL
+ * @param {string} iconName - The icon name
+ */
+function displayIconInCreateModal(iconUrl, iconName) {
+    if (!window.showIssueTypeIcons || !iconUrl) return;
+    
+    // Find the create modal and the issue select container
+    const createModal = document.querySelector('.modal-create');
+    if (!createModal) return;
+    
+    const issueSelectContainer = createModal.querySelector('#issue-create').closest('.choices');
+    if (!issueSelectContainer) return;
+    
+    // Find or create the icon display element
+    let iconDisplay = createModal.querySelector('.selected-issue-icon');
+    if (!iconDisplay) {
+        iconDisplay = document.createElement('div');
+        iconDisplay.className = 'selected-issue-icon';
+        iconDisplay.style.cssText = 'display: flex; align-items: center; margin-top: 8px; padding: 4px; background: rgba(0,0,0,0.05); border-radius: 4px;';
+        
+        // Insert after the issue select container
+        issueSelectContainer.parentNode.insertBefore(iconDisplay, issueSelectContainer.nextSibling);
+    }
+    
+    // Create or update the icon image
+    let iconImg = iconDisplay.querySelector('img');
+    if (!iconImg) {
+        iconImg = document.createElement('img');
+        iconImg.style.cssText = 'width: 20px; height: 20px; margin-right: 8px;';
+        iconDisplay.insertBefore(iconImg, iconDisplay.firstChild);
+    }
+    
+    // Create or update the icon label
+    let iconLabel = iconDisplay.querySelector('.icon-label');
+    if (!iconLabel) {
+        iconLabel = document.createElement('span');
+        iconLabel.className = 'icon-label';
+        iconLabel.style.cssText = 'font-size: 14px; color: #666;';
+        iconDisplay.appendChild(iconLabel);
+    }
+    
+    // Set the icon and label
+    iconImg.src = iconUrl;
+    iconImg.alt = iconName || 'Issue Type';
+    iconImg.title = iconName || 'Issue Type';
+    iconLabel.textContent = `Issue Type: ${iconName || 'Unknown'}`;
+    
+    // Handle icon load errors
+    iconImg.onerror = function() {
+        console.warn(`Failed to load icon: ${iconUrl}`);
+        iconDisplay.style.display = 'none';
+    };
+    
+    // Show the icon display
+    iconDisplay.style.display = 'flex';
 }
 
 /**

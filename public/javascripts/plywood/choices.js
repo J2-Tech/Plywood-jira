@@ -159,6 +159,12 @@ export function showCreateModal(start, end) {
         window.choicesCreate.removeActiveItems();
     }
     
+    // Clear any existing icon display
+    const iconDisplay = modal.querySelector('.selected-issue-icon');
+    if (iconDisplay) {
+        iconDisplay.style.display = 'none';
+    }
+    
     const startTimeInput = form.querySelector('input[name="startTime"]');
     const endTimeInput = form.querySelector('input[name="endTime"]');
     const colorInput = form.querySelector('input[name="issueKeyColor"]');

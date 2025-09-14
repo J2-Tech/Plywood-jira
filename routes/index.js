@@ -6,22 +6,24 @@ const jiraAPIController = require('../controllers/jiraAPIController');
 const sprintNotesController = require('../controllers/sprintNotesController');
 const globalNotesController = require('../controllers/globalNotesController');
 const getUsersWorkLogsModule = require('../controllers/getUsersWorkLogsAsEvent');
+const authErrorHandler = require('../utils/authErrorHandler');
+const errorHandler = require('../middlewares/errorHandlerMiddleware');
 
-// Get access to the clearWorklogCache function 
-const { clearWorklogCache } = getUsersWorkLogsModule;
+// Get access to the cache management functions 
+const { clearWorklogCache, clearWorklogCacheForDateRange, getCacheStats } = getUsersWorkLogsModule;
 
 
-if (process.env.JIRA_AUTH_TYPE == "OAUTH") { 
-  const authMiddleware = require('../middlewares/authenticationMiddleware');
-  router.use(authMiddleware);  
-}
+// Apply OAuth middleware only to Jira-dependent routes
+// Notes routes should work independently of Jira authentication
+const authMiddleware = process.env.JIRA_AUTH_TYPE == "OAUTH" ? 
+  require('../middlewares/authenticationMiddleware') : null;
 
 /* GET home page. */
 router.get(['/', '/index'], function(req, res, next) {
   res.render('index', { title: 'Jira Time', jiraUrl: process.env.JIRA_URL});
 });
 
-router.get('/events/:worklogId', function(req, res, next) {
+router.get('/events/:worklogId', authMiddleware, function(req, res, next) {
   try {
     jiraController.getSingleEvent(req, req.query.issueId, req.params.worklogId)
       .then(result => {
@@ -40,7 +42,7 @@ router.get('/events/:worklogId', function(req, res, next) {
   }
 });
 
-router.get('/events', function(req, res, next) {
+router.get('/events', authMiddleware, function(req, res, next) {
   try {
     // Set strong no-cache headers
     res.set({
@@ -76,14 +78,9 @@ router.get('/events', function(req, res, next) {
       .catch(error => {
         console.log('Error in /events route:', error);
         
-        // Enhanced auth error handling
-        if (error.authFailure || error.status === 401 || error.code === 401) {
-          console.log('Authentication error detected in /events route');
-          return res.status(401).json({ 
-            error: 'Authentication required', 
-            authFailure: true,
-            redirect: '/auth/login' 
-          });
+        // Use centralized error handling
+        if (errorHandler.handleAuthError(error, res)) {
+          return;
         }
         
         // Log other errors for debugging
@@ -93,19 +90,15 @@ router.get('/events', function(req, res, next) {
   } catch (error) {
     console.log('Synchronous error in /events route:', error);
     
-    if (error.authFailure || error.status === 401) {
-      return res.status(401).json({ 
-        error: 'Authentication required', 
-        authFailure: true,
-        redirect: '/auth/login' 
-      });
+    if (errorHandler.handleAuthError(error, res)) {
+      return;
     }
     
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/issues/user', function(req, res, next) {
+router.get('/issues/user', authMiddleware, function(req, res, next) {
   try {
     jiraController.suggestIssues(req, req.query.start, req.query.end, req.query.query)
       .then(result => {
@@ -124,7 +117,7 @@ router.get('/issues/user', function(req, res, next) {
   }
 });
 
-router.get('/issues/:issueId', function(req, res, next) { 
+router.get('/issues/:issueId', authMiddleware, function(req, res, next) { 
   try {
     jiraAPIController.getIssue(req, req.params.issueId).then(result => {
       res.json(result);
@@ -134,7 +127,7 @@ router.get('/issues/:issueId', function(req, res, next) {
   }
 });
 
-router.get('/issues/:issueId/color', async function(req, res) {
+router.get('/issues/:issueId/color', authMiddleware, async function(req, res) {
     try {
         const color = await jiraAPIController.getIssueColor(req, req.params.issueId);
         res.json({ color });
@@ -144,7 +137,7 @@ router.get('/issues/:issueId/color', async function(req, res) {
     }
 });
 
-router.get('/worklog/:worklogId', function(req, res, next) {
+router.get('/worklog/:worklogId', authMiddleware, function(req, res, next) {
   try {
     jiraAPIController.getWorkLog(req, req.query.issueId, req.params.worklogId).then(result => {
       res.json(result);
@@ -154,7 +147,7 @@ router.get('/worklog/:worklogId', function(req, res, next) {
   }
 });
 
-router.get('/projects', async function(req, res, next) {
+router.get('/projects', authMiddleware, async function(req, res, next) {
     try {
         const projects = await jiraAPIController.getProjects(req);
         res.json(projects);
@@ -175,7 +168,7 @@ router.get('/projects', async function(req, res, next) {
     }
 });
 
-router.get('/projects/sprints', async function(req, res, next) {
+router.get('/projects/sprints', authMiddleware, async function(req, res, next) {
     try {
         const sprints = await jiraAPIController.getSprints(req);
         res.json(sprints);
@@ -185,7 +178,7 @@ router.get('/projects/sprints', async function(req, res, next) {
     }
 });
 
-router.get('/projects/:projectKey/avatar', async function(req, res) {
+router.get('/projects/:projectKey/avatar', authMiddleware, async function(req, res) {
     try {
         const color = await jiraAPIController.getProjectAvatar(req, req.params.projectKey);
         res.json({ color });
@@ -195,7 +188,7 @@ router.get('/projects/:projectKey/avatar', async function(req, res) {
     }
 });
 
-router.get('/issuetypes/:issueTypeId/avatar', async function(req, res) {
+router.get('/issuetypes/:issueTypeId/avatar', authMiddleware, async function(req, res) {
     try {
         const avatarData = await jiraAPIController.getIssueTypeAvatar(req, req.params.issueTypeId);
         res.json(avatarData);
@@ -205,7 +198,7 @@ router.get('/issuetypes/:issueTypeId/avatar', async function(req, res) {
     }
 });
 
-router.get('/avatars/issuetype/:issueTypeId', async function(req, res) {
+router.get('/avatars/issuetype/:issueTypeId', authMiddleware, async function(req, res) {
     try {
         const { issueTypeId } = req.params;
         const size = req.query.size || 'medium';
@@ -278,30 +271,8 @@ router.get('/avatars/issuetype/:issueTypeId', async function(req, res) {
     }
 });
 
-router.get('/cached-icons/info', async function(req, res) {
-    try {
-        const info = jiraAPIController.getCachedIconsInfo();
-        res.json({
-            totalCached: info.length,
-            icons: info
-        });
-    } catch (error) {
-        console.error('Error getting cached icons info:', error);
-        res.status(500).json({ error: 'Failed to get cache info' });
-    }
-});
 
-router.post('/cached-icons/cleanup', async function(req, res) {
-    try {
-        const result = await jiraAPIController.cleanupIconCache();
-        res.json({ success: true, message: 'Cache cleanup completed' });
-    } catch (error) {
-        console.error('Error cleaning up icon cache:', error);
-        res.status(500).json({ error: 'Failed to cleanup cache' });
-    }
-});
-
-router.get('/issues/:issueId/icon', async function(req, res) {
+router.get('/issues/:issueId/icon', authMiddleware, async function(req, res) {
     try {
         // Get issue details to extract issue type icon
         const issue = await jiraAPIController.getIssue(req, req.params.issueId);
@@ -330,7 +301,7 @@ router.get('/issues/:issueId/icon', async function(req, res) {
     }
 });
 
-router.put('/worklog/:worklogId', async function(req, res, next) {
+router.put('/worklog/:worklogId', authMiddleware, async function(req, res, next) {
   try {
     if (!req.body.issueId || !req.body.startTime || !req.body.endTime) {
       return res.status(400).json({ 
@@ -419,7 +390,7 @@ router.put('/worklog/:worklogId', async function(req, res, next) {
   }
 });
 
-router.post('/worklog', async function(req, res, next) {  
+router.post('/worklog', authMiddleware, async function(req, res, next) {  
   try {
     console.log('Creating worklog for issue:', req.body.issueId);
     console.log('Request body:', req.body);
@@ -510,7 +481,7 @@ router.post('/worklog', async function(req, res, next) {
   }
 });
 
-router.delete('/worklog/:worklogId', async function(req, res, next) {
+router.delete('/worklog/:worklogId', authMiddleware, async function(req, res, next) {
   try {
     const issueId = req.query.issueId;
     
@@ -581,7 +552,7 @@ router.get('/stats', function(req, res) {
 });
 
 
-router.get('/stats/data', async function(req, res, next) {
+router.get('/stats/data', authMiddleware, async function(req, res, next) {
     try {
         const { start, end, project } = req.query;
         if (!start || !end) {
@@ -596,7 +567,7 @@ router.get('/stats/data', async function(req, res, next) {
 });
 
 // Routes for sprints
-router.get('/sprints', async function(req, res) {
+router.get('/sprints', authMiddleware, async function(req, res) {
     try {
         const sprints = await jiraAPIController.getSprints(req);
         res.json(sprints);
@@ -606,7 +577,7 @@ router.get('/sprints', async function(req, res) {
     }
 });
 
-router.get('/sprints/current', async function(req, res) {
+router.get('/sprints/current', authMiddleware, async function(req, res) {
     try {
         // Get all sprints
         const sprintsResult = await jiraAPIController.getSprints(req);
@@ -630,7 +601,7 @@ router.get('/sprints/current', async function(req, res) {
     }
 });
 
-router.get('/sprints/:sprintId', async function(req, res) {
+router.get('/sprints/:sprintId', authMiddleware, async function(req, res) {
     try {
         const sprintDetails = await jiraAPIController.getSprintById(req, req.params.sprintId);
         res.json(sprintDetails);
@@ -699,6 +670,28 @@ router.post('/notes/global', async function(req, res) {
     } catch (error) {
         console.error('Error saving global notes:', error);
         res.status(500).json({ error: 'Failed to save notes' });
+    }
+});
+
+// Cache management routes (no auth required for monitoring)
+router.get('/cache/stats', function(req, res) {
+    try {
+        const stats = getCacheStats();
+        res.json(stats);
+    } catch (error) {
+        console.error('Error getting cache stats:', error);
+        res.status(500).json({ error: 'Failed to get cache stats' });
+    }
+});
+
+router.post('/cache/clear', authMiddleware, function(req, res) {
+    try {
+        const reason = req.body.reason || 'manual';
+        clearWorklogCache(reason);
+        res.json({ success: true, message: 'Cache cleared successfully', reason });
+    } catch (error) {
+        console.error('Error clearing cache:', error);
+        res.status(500).json({ error: 'Failed to clear cache' });
     }
 });
 

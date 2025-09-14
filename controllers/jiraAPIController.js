@@ -4,6 +4,7 @@ const dayjs = require('dayjs');
 const configController = require('./configController');
 const fs = require('fs').promises;
 const path = require('path');
+const authErrorHandler = require('../utils/authErrorHandler');
 
 // Cache for API data
 const issueCache = new Map();
@@ -82,60 +83,30 @@ async function withRetry(fetchFn, req, ...args) {
         try {
             const data = await fetchFn(req, ...args);
             
-            // Enhanced check for various forms of authentication errors
-            const hasAuthError = data.code === 401 || 
-                                data.status === 401 || 
-                                data.statusCode === 401 ||
-                                (data.message && data.message.toLowerCase().includes('unauthorized')) ||
-                                (Array.isArray(data.errors) && data.errors.some(err => 
-                                    typeof err === 'string' && (err.includes('Authorization') || 
-                                                             err.includes('auth') || 
-                                                             err.includes('token') ||
-                                                             err.includes('Unauthorized')))) ||
-                                (typeof data.errors === 'string' && (data.errors.includes('Authorization') || 
-                                                                   data.errors.includes('auth') || 
-                                                                   data.errors.includes('token') ||
-                                                                   data.errors.includes('Unauthorized'))) ||
-                                (data.errorMessages && Array.isArray(data.errorMessages) && 
-                                 data.errorMessages.some(msg => msg.includes('auth') || 
-                                                              msg.includes('token') || 
-                                                              msg.includes('Unauthorized')));
-                                
-            if (hasAuthError && process.env.JIRA_AUTH_TYPE === "OAUTH" && attempt < maxRetries) {
-                console.log(`Token expired or auth error detected. Attempting to refresh token... (attempt ${attempt + 1})`);
-                const tokenRefreshed = await refreshToken(req);
-                
-                if (tokenRefreshed) {
-                    console.log('Token refreshed successfully, retrying request');
-                    continue; // Retry the request
+            // Use centralized auth error detection
+            if (authErrorHandler.isAuthError(data)) {
+                if (process.env.JIRA_AUTH_TYPE === "OAUTH" && attempt < maxRetries) {
+                    console.log(`Token expired or auth error detected. Attempting to refresh token... (attempt ${attempt + 1})`);
+                    const tokenRefreshed = await refreshToken(req);
+                    
+                    if (tokenRefreshed) {
+                        console.log('Token refreshed successfully, retrying request');
+                        continue; // Retry the request
+                    } else {
+                        console.log('Token refresh failed, authentication required');
+                        throw authErrorHandler.createAuthError();
+                    }
                 } else {
-                    console.log('Token refresh failed, authentication required');
-                    const authError = new Error('Authentication required');
-                    authError.authFailure = true;
-                    authError.status = 401;
-                    throw authError;
+                    console.log('Error - unauthorized. Check your credentials.');
+                    throw authErrorHandler.createAuthError('Unauthorized');
                 }
-            } else if (hasAuthError) {
-                console.log('Error - unauthorized. Check your credentials.');
-                const authError = new Error('Unauthorized');
-                authError.authFailure = true;
-                authError.status = 401;
-                throw authError;
             }
             return data;
         } catch (error) {
             lastError = error;
             
-            // Enhanced auth error detection
-            if (error.message && (
-                error.message.includes('Authentication') || 
-                error.message.includes('Unauthorized') ||
-                error.message.includes('token') ||
-                error.message.includes('auth') ||
-                error.message.includes('401')
-            )) {
-                error.authFailure = true;
-                error.status = 401;
+            // Use centralized auth error detection
+            if (authErrorHandler.isAuthError(error)) {
                 console.log(`Authentication error detected in API call: ${error.message} (attempt ${attempt + 1})`);
                 
                 // Try to refresh token if OAuth is enabled and we have retries left
@@ -150,9 +121,7 @@ async function withRetry(fetchFn, req, ...args) {
                         }
                     } catch (refreshError) {
                         console.log('Token refresh failed:', refreshError.message);
-                        lastError = refreshError;
-                        lastError.authFailure = true;
-                        lastError.status = 401;
+                        lastError = authErrorHandler.createAuthError();
                     }
                 }
             }
@@ -465,6 +434,9 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
         jql += ` AND worklogAuthor = currentUser()`;
     }
     
+    console.log(`JQL Query: ${jql}`);
+    console.log(`Date range: ${start} to ${end}`);
+    
     // Get project from query params and apply filter
     const projectKey = req.query.project;
     jql = appendProjectFilter(jql, projectKey);
@@ -517,6 +489,11 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
     
     console.log(`Found ${issuesData.issues.length} issues with worklogs in date range`);
     
+    // Debug: Log all found issues
+    issuesData.issues.forEach((issue, index) => {
+        console.log(`  Issue ${index + 1}: ${issue.key} (${issue.fields.issuetype?.name || 'unknown type'})`);
+    });
+    
     // Process the issues - the worklogs should already be included in the response
     const issuesWithWorklogs = [];
     
@@ -535,6 +512,8 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
                     
                     return true;
                 });
+                
+                console.log(`Issue ${issue.key}: Found ${issue.fields.worklog.worklogs.length} total worklogs, ${filteredWorklogs.length} filtered for user`);
                 
                 if (filteredWorklogs.length > 0) {
                     // Update the issue with filtered worklogs

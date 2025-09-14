@@ -15,9 +15,24 @@ const { determineIssueColor } = require('./issueColorHelper');
 exports.getSingleEvent = getSingleEventModule.getSingleEvent;
 exports.getUsersWorkLogsAsEvent = getUsersWorkLogsModule.getUsersWorkLogsAsEvent;
 exports.clearWorklogCache = getUsersWorkLogsModule.clearWorklogCache;
+exports.clearWorklogCacheForDateRange = getUsersWorkLogsModule.clearWorklogCacheForDateRange;
 
-// Export determineIssueColor function
-exports.determineIssueColor = determineIssueColor;
+// Export determineIssueColor function with improved wrapper
+exports.determineIssueColor = async function(req, issueKey) {
+    try {
+        const settings = await configController.loadConfig(req);
+        const issueData = {
+            issueKey: issueKey,
+            issueId: null, // We don't have the ID at this point
+            issueType: null // We'll determine this later if needed
+        };
+        
+        return await determineIssueColor(settings, req, issueData, null);
+    } catch (error) {
+        console.error('Error determining issue color:', error);
+        return '#2a75fe'; // Default color
+    }
+};
 
 // Track in-flight requests to prevent duplicate color API calls
 const pendingColorRequests = new Map();
@@ -157,7 +172,7 @@ function calculateContrastingTextColor(backgroundColor) {
     return luminance > 0.5 ? '#000000' : '#FFFFFF';
 }
 
-exports.createWorkLog = function(req, issueId, started, ended, comment, issueKeyColor) {
+exports.createWorkLog = async function(req, issueId, started, ended, comment, issueKeyColor) {
     console.log('Creating worklog for issue ' + issueId);
     
     try {
@@ -165,8 +180,8 @@ exports.createWorkLog = function(req, issueId, started, ended, comment, issueKey
             throw new Error('Missing required parameters');
         }
         
-        var startDate = new Date(started);
-        var endDate = new Date(ended);
+        const startDate = new Date(started);
+        const endDate = new Date(ended);
         
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
             throw new Error('Invalid date format');
@@ -176,143 +191,140 @@ exports.createWorkLog = function(req, issueId, started, ended, comment, issueKey
             throw new Error('End time must be after start time');
         }
         
-        var durationSeconds = Math.round((endDate.getTime() - startDate.getTime()) / 1000);
+        const durationSeconds = Math.round((endDate.getTime() - startDate.getTime()) / 1000);
         
         if (durationSeconds < 60) {
             throw new Error('Worklog must be at least 1 minute long');
         }
         
-        var safeComment = comment || '';
-        var issueKey = req.body.issueKey;
-        var color = issueKeyColor || '#2a75fe';
+        const safeComment = comment || '';
+        const issueKey = req.body.issueKey;
+        
+        // Determine color with improved logic
+        let color = issueKeyColor || '#2a75fe';
         
         if (issueKey) {
             try {
-                return exports.determineIssueColor(req, issueKey).then(function(determinedColor) {
-                    if (determinedColor) {
-                        color = determinedColor;
-                        console.log('Using determined color ' + color + ' for issue ' + issueKey);
-                    }
-                    
-                    var textColor = calculateContrastingTextColor(color);
-                    
-                    return jiraAPIController.createWorkLog(req, issueId, startDate, durationSeconds, safeComment, color).then(function(result) {
-                        if (result.errorMessages && result.errorMessages.length > 0) {
-                            throw new Error(result.errorMessages.join(', '));
-                        }
-                        
-                        if (result.errors) {
-                            throw new Error(Object.values(result.errors).join(', '));
-                        }
-                        
-                        return jiraAPIController.getIssue(req, issueId).then(function(issueDetails) {
-                            exports.clearWorklogCache();
-                            
-                            console.log('Worklog created successfully with id: ' + result.id + ', background: ' + color + ', text: ' + textColor + ' for issue: ' + issueKey);
-                            
-                            var responseData = {
-                                id: result.id,
-                                issueId: issueId,
-                                issueKey: issueKey || (issueDetails ? issueDetails.key : null),
-                                issueSummary: issueDetails ? issueDetails.fields.summary : null,
-                                title: (issueKey || 'Unknown') + (issueDetails ? ': ' + issueDetails.fields.summary : ''),
-                                start: startDate.toISOString(),
-                                end: endDate.toISOString(),
-                                startTime: startDate.toISOString(),
-                                endTime: endDate.toISOString(),
-                                comment: safeComment,
-                                backgroundColor: color,
-                                borderColor: color,
-                                textColor: textColor,
-                                color: color,
-                                timeSpentSeconds: durationSeconds,
-                                author: result.author || 'Current User',
-                                classNames: ['worklog-event'],
-                                extendedProps: {
-                                    issueId: issueId,
-                                    issueKey: issueKey,
-                                    comment: safeComment,
-                                    timeSpentSeconds: durationSeconds,
-                                    backgroundColor: color,
-                                    textColor: textColor,
-                                    calculatedTextColor: textColor
-                                }
-                            };
-                            
-                            if (issueDetails && issueDetails.fields.issuetype && issueDetails.fields.issuetype.id) {
-                                responseData.issueTypeIcon = '/avatars/issuetype/' + issueDetails.fields.issuetype.id + '?size=small';
-                                responseData.issueType = issueDetails.fields.issuetype.name;
-                                responseData.extendedProps.issueType = issueDetails.fields.issuetype.name;
-                                responseData.extendedProps.issueTypeIcon = responseData.issueTypeIcon;
-                            }
-                            
-                            return responseData;
-                        }).catch(function(error) {
-                            console.warn('Could not fetch issue details for response:', error);
-                            
-                            exports.clearWorklogCache();
-                            
-                            return {
-                                id: result.id,
-                                issueId: issueId,
-                                issueKey: issueKey,
-                                title: issueKey || 'Unknown Issue',
-                                start: startDate.toISOString(),
-                                end: endDate.toISOString(),
-                                comment: safeComment,
-                                backgroundColor: color,
-                                borderColor: color,
-                                textColor: textColor,
-                                color: color,
-                                timeSpentSeconds: durationSeconds,
-                                classNames: ['worklog-event'],
-                                extendedProps: {
-                                    backgroundColor: color,
-                                    textColor: textColor
-                                }
-                            };
-                        });
-                    });
-                });
+                const determinedColor = await exports.determineIssueColor(req, issueKey);
+                if (determinedColor) {
+                    color = determinedColor;
+                    console.log('Using determined color ' + color + ' for issue ' + issueKey);
+                }
             } catch (error) {
                 console.warn('Could not determine color for issue ' + issueKey + ', using default:', error);
             }
         }
         
-        var textColor = calculateContrastingTextColor(color);
+        const textColor = calculateContrastingTextColor(color);
         
-        return jiraAPIController.createWorkLog(req, issueId, startDate, durationSeconds, safeComment, color).then(function(result) {
-            if (result.errorMessages && result.errorMessages.length > 0) {
-                throw new Error(result.errorMessages.join(', '));
-            }
-            
-            if (result.errors) {
-                throw new Error(Object.values(result.errors).join(', '));
-            }
-            
-            exports.clearWorklogCache();
-            
-            return {
-                id: result.id,
+        // Create the worklog
+        const result = await jiraAPIController.createWorkLog(req, issueId, startDate, durationSeconds, safeComment, color);
+        
+        
+        if (result.errorMessages && result.errorMessages.length > 0) {
+            throw new Error(result.errorMessages.join(', '));
+        }
+        
+        if (result.errors) {
+            throw new Error(Object.values(result.errors).join(', '));
+        }
+        
+        // Clear cache to ensure fresh data on next load
+        exports.clearWorklogCache();
+        
+        // Also clear cache for the specific date range to ensure immediate refresh
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
+        exports.clearWorklogCacheForDateRange(startDateStr, endDateStr);
+        
+        // Try to get issue details for better response data
+        let issueDetails = null;
+        try {
+            issueDetails = await jiraAPIController.getIssue(req, issueId);
+        } catch (error) {
+            console.warn('Could not fetch issue details for response:', error);
+        }
+        
+        const responseData = {
+            id: result.id,
+            issueId: issueId,
+            issueKey: issueKey || (issueDetails ? issueDetails.key : null),
+            issueSummary: issueDetails ? issueDetails.fields.summary : null,
+            title: (issueKey || 'Unknown') + (issueDetails ? ': ' + issueDetails.fields.summary : ''),
+            start: startDate.toISOString(),
+            end: endDate.toISOString(),
+            startTime: startDate.toISOString(),
+            endTime: endDate.toISOString(),
+            comment: safeComment,
+            backgroundColor: color,
+            borderColor: color,
+            textColor: textColor,
+            color: color,
+            timeSpentSeconds: durationSeconds,
+            author: result.author || 'Current User',
+            classNames: ['worklog-event'],
+            extendedProps: {
                 issueId: issueId,
-                title: 'Unknown Issue',
-                start: startDate.toISOString(),
-                end: endDate.toISOString(),
+                issueKey: issueKey,
                 comment: safeComment,
-                backgroundColor: color,
-                borderColor: color,
-                textColor: textColor,
-                color: color,
                 timeSpentSeconds: durationSeconds,
-                classNames: ['worklog-event']
-            };
-        });
+                backgroundColor: color,
+                textColor: textColor,
+                calculatedTextColor: textColor
+            }
+        };
+        
+        if (issueDetails && issueDetails.fields.issuetype && issueDetails.fields.issuetype.id) {
+            responseData.issueTypeIcon = '/avatars/issuetype/' + issueDetails.fields.issuetype.id + '?size=small';
+            responseData.issueType = issueDetails.fields.issuetype.name;
+            responseData.extendedProps.issueType = issueDetails.fields.issuetype.name;
+            responseData.extendedProps.issueTypeIcon = responseData.issueTypeIcon;
+        }
+        
+        console.log('Worklog created successfully with id: ' + result.id + ', background: ' + color + ', text: ' + textColor + ' for issue: ' + issueKey);
+        
+        return responseData;
         
     } catch (error) {
         console.error('Error creating worklog:', error);
         throw error;
     }
 };
+
+/**
+ * Calculate the luminance of a color
+ * @param {string} color - Color in hex format (e.g., "#FF0000")
+ * @returns {number} - Luminance value between 0 and 1
+ */
+function calculateLuminance(color) {
+    // Remove the hash if present
+    const hex = color.replace('#', '');
+    
+    // Parse RGB values
+    const r = parseInt(hex.substr(0, 2), 16) / 255;
+    const g = parseInt(hex.substr(2, 2), 16) / 255;
+    const b = parseInt(hex.substr(4, 2), 16) / 255;
+    
+    // Apply gamma correction
+    const sR = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+    const sG = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+    const sB = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+    
+    // Calculate luminance
+    return 0.2126 * sR + 0.7152 * sG + 0.0722 * sB;
+}
+
+/**
+ * Calculate contrast ratio between two colors
+ * @param {number} luminance1 - Luminance of first color
+ * @param {number} luminance2 - Luminance of second color
+ * @returns {number} - Contrast ratio
+ */
+function calculateContrastRatio(luminance1, luminance2) {
+    const lighter = Math.max(luminance1, luminance2);
+    const darker = Math.min(luminance1, luminance2);
+    return (lighter + 0.05) / (darker + 0.05);
+}
 
 /**
  * Calculate contrasting text color (white or black) for a given background color
@@ -322,19 +334,25 @@ exports.createWorkLog = function(req, issueId, started, ended, comment, issueKey
 function calculateContrastingTextColor(backgroundColor) {
     if (!backgroundColor) return '#000000';
     
-    // Remove the hash if present
-    const hex = backgroundColor.replace('#', '');
+    // Ensure we have a valid hex color
+    if (!backgroundColor.startsWith('#') || backgroundColor.length !== 7) {
+        return '#000000'; // Default to black for invalid colors
+    }
     
-    // Parse RGB values
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-    
-    // Calculate luminance using the standard formula
-    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
-    // Return white text for dark backgrounds, black text for light backgrounds
-    return luminance > 0.5 ? '#000000' : '#FFFFFF';
+    try {
+        const backgroundLuminance = calculateLuminance(backgroundColor);
+        const whiteLuminance = 1.0; // White luminance
+        const blackLuminance = 0.0; // Black luminance
+        
+        const contrastWithWhite = calculateContrastRatio(backgroundLuminance, whiteLuminance);
+        const contrastWithBlack = calculateContrastRatio(backgroundLuminance, blackLuminance);
+        
+        // Choose the color with better contrast (WCAG recommends minimum 4.5:1 for normal text)
+        return contrastWithWhite > contrastWithBlack ? '#FFFFFF' : '#000000';
+    } catch (error) {
+        console.warn('Error calculating contrasting text color for', backgroundColor, error);
+        return '#000000'; // Default to black on error
+    }
 }
 
 exports.deleteWorkLog = function(req, issueId, worklogId) {

@@ -5,6 +5,70 @@ const colorUtils = require('./colorUtils');
 const { determineIssueColor } = require('./issueColorHelper');
 
 /**
+ * Calculate the luminance of a color
+ * @param {string} color - Color in hex format (e.g., "#FF0000")
+ * @returns {number} - Luminance value between 0 and 1
+ */
+function calculateLuminance(color) {
+    // Remove the hash if present
+    const hex = color.replace('#', '');
+    
+    // Parse RGB values
+    const r = parseInt(hex.substr(0, 2), 16) / 255;
+    const g = parseInt(hex.substr(2, 2), 16) / 255;
+    const b = parseInt(hex.substr(4, 2), 16) / 255;
+    
+    // Apply gamma correction
+    const sR = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
+    const sG = g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4);
+    const sB = b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4);
+    
+    // Calculate luminance
+    return 0.2126 * sR + 0.7152 * sG + 0.0722 * sB;
+}
+
+/**
+ * Calculate contrast ratio between two colors
+ * @param {number} luminance1 - Luminance of first color
+ * @param {number} luminance2 - Luminance of second color
+ * @returns {number} - Contrast ratio
+ */
+function calculateContrastRatio(luminance1, luminance2) {
+    const lighter = Math.max(luminance1, luminance2);
+    const darker = Math.min(luminance1, luminance2);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Calculate contrasting text color (white or black) for a given background color
+ * @param {string} backgroundColor - Background color in hex format
+ * @returns {string} - Either "#FFFFFF" for white text or "#000000" for black text
+ */
+function calculateContrastingTextColor(backgroundColor) {
+    if (!backgroundColor) return '#000000';
+    
+    // Ensure we have a valid hex color
+    if (!backgroundColor.startsWith('#') || backgroundColor.length !== 7) {
+        return '#000000'; // Default to black for invalid colors
+    }
+    
+    try {
+        const backgroundLuminance = calculateLuminance(backgroundColor);
+        const whiteLuminance = 1.0; // White luminance
+        const blackLuminance = 0.0; // Black luminance
+        
+        const contrastWithWhite = calculateContrastRatio(backgroundLuminance, whiteLuminance);
+        const contrastWithBlack = calculateContrastRatio(backgroundLuminance, blackLuminance);
+        
+        // Choose the color with better contrast (WCAG recommends minimum 4.5:1 for normal text)
+        return contrastWithWhite > contrastWithBlack ? '#FFFFFF' : '#000000';
+    } catch (error) {
+        console.warn('Error calculating contrasting text color for', backgroundColor, error);
+        return '#000000'; // Default to black on error
+    }
+}
+
+/**
  * Extract text content from a comment field that might be a string or ProseMirror document
  * @param {any} comment - The comment field (string, object, or null)
  * @returns {string} - Extracted text content
@@ -131,6 +195,10 @@ exports.getSingleEvent = async function(req, issueId, worklogId) {
             issueKeyColor = await determineIssueColor(settings, req, issueData, null);
         }
           console.log(`Final color for issue ${issue.key || 'unknown'}: ${issueKeyColor}`);
+          
+          // Calculate proper contrasting text color
+          const textColor = calculateContrastingTextColor(issueKeyColor);
+          
           // Create event object with safe date handling
         return {
             title: `${issue.key || 'Unknown'}: ${issue.fields?.summary || 'No summary'}`,
@@ -139,7 +207,7 @@ exports.getSingleEvent = async function(req, issueId, worklogId) {
             id: worklog.id,
             backgroundColor: issueKeyColor,
             borderColor: issueKeyColor,
-            textColor: issueKeyColor === '#ffffff' || issueKeyColor === '#FFFFFF' ? '#000000' : undefined,
+            textColor: textColor,
             extendedProps: {
                 issueId: issue.id,
                 issueKey: issue.key,
@@ -151,7 +219,9 @@ exports.getSingleEvent = async function(req, issueId, worklogId) {
                 author: worklog.author.displayName,
                 issueType: issue.fields.issuetype?.name,
                 issueStatus: issue.fields.status?.name,
-                issueColor: issueKeyColor
+                issueColor: issueKeyColor,
+                issueTypeIcon: settings.showIssueTypeIcons && issue.fields.issuetype && issue.fields.issuetype.id ? `/avatars/issuetype/${issue.fields.issuetype.id}?size=small` : null,
+                showIssueTypeIcons: settings.showIssueTypeIcons !== false
             }
         };
     } catch (error) {

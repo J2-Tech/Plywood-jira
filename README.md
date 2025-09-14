@@ -1,60 +1,45 @@
 # Plywood
-A modern NodeJS application for managing Jira worklogs with a calendar-based interface.
+A modern calendar-based interface for managing Jira worklogs.
 
 *work logs... timesheets... wood sheets... plywood... you get it :)*
 
 ## Overview
 
-Plywood provides a visual, calendar-based interface for managing your Jira worklogs. Instead of manually entering time through Jira's interface, you can drag and drop, resize, and easily manage your work entries directly on a calendar view.
+Plywood transforms Jira worklog management with a visual calendar interface. Drag, drop, and resize work entries directly on the calendar instead of manually entering time through Jira's interface.
 
-The application supports both OAuth2 (recommended) and Basic Authentication, works with Jira Cloud and Server instances, and provides features like timers, project filtering, and customizable themes.
+## Key Features
 
-## Features
+- **📅 Visual Calendar**: Drag, drop, and resize worklogs on a calendar view
+- **⏱️ Built-in Timer**: Track time with automatic worklog creation
+- **🎨 Customizable Colors**: Set colors by issue type, key, or hierarchy
+- **📝 Notes System**: Global and sprint-specific notes with auto-save
+- **🔐 Secure Authentication**: OAuth2 (recommended) or API token support
+- **🌙 Multiple Themes**: Light, dark, and auto themes
+- **📱 Responsive Design**: Works on desktop and mobile
 
-### Core Features
-- **Visual Calendar Interface**: Drag, drop, and resize worklogs directly on the calendar
-- **Timer Functionality**: Built-in timer with automatic worklog creation
-- **Project Filtering**: Filter calendar view by specific Jira projects
-- **Multiple Themes**: Light, dark, and auto (system-based) themes
-- **Issue Integration**: Full integration with Jira issues, including subtasks and hierarchy
-
-### Advanced Features
-- **Sprint Management**: View current sprint information and manage sprint notes
-- **Notes System**: Global and sprint-specific note-taking with auto-save
-- **Color Management**: Customizable colors by issue type, key, or hierarchy
-- **Issue Type Icons**: Display actual issue type icons from your Jira instance
-- **Multi-user Support**: Per-user configuration and data isolation
-- **Responsive Design**: Works on desktop and mobile devices
-
-### Authentication & Security
-- **OAuth2 Support**: Secure authentication with automatic token refresh (recommended)
-- **Basic Auth Support**: Legacy support for API token authentication
-- **Session Management**: Encrypted sessions with secure data isolation
-- **Error Handling**: Automatic retry logic and graceful error recovery
-
-## Instructions
+## Quick Setup
 
 ### Prerequisites
-- Node.js (v14 or higher)
-- Jira Cloud or Server instance with API access
-- OAuth2 app credentials (recommended) or API token (legacy)
+- Node.js (v14+)
+- Jira Cloud or Server instance
+- OAuth2 app credentials (recommended)
 
-### Quick Setup
+### Installation
 
 1. **Install Node.js** from [nodejs.org](https://nodejs.org/)
 
-2. **Download and Extract** this application to your desired folder
+2. **Download and extract** this application
 
-3. **Configure Authentication** by copying `example.env` to `.env`:
+3. **Configure authentication** by copying `example.env` to `.env`:
 
-   **Option A: OAuth2 (Recommended)**
+   **OAuth2 (Recommended)**
    ```env
    JIRA_AUTH_TYPE=OAUTH
    JIRA_OAUTH_CLIENT_ID=your-oauth-client-id
    JIRA_OAUTH_CLIENT_SECRET=your-oauth-client-secret
    ```
 
-   **Option B: Basic Auth (Legacy)**
+   **Basic Auth (Legacy)**
    ```env
    JIRA_AUTH_TYPE=BASIC
    JIRA_URL=your-domain.atlassian.net
@@ -62,35 +47,39 @@ The application supports both OAuth2 (recommended) and Basic Authentication, wor
    JIRA_BASIC_AUTH_API_TOKEN=your-api-token
    ```
 
-4. **Install Dependencies**: Run `npm install` in the application folder
+4. **Install dependencies**: `npm install`
 
-5. **Start the Application**: 
+5. **Start the application**:
    - Windows: Double-click `start.bat`
-   - Mac/Linux: Run `npm start`
+   - Mac/Linux: `npm start`
 
-6. **Open in Browser**: Navigate to `http://localhost:3000`
+6. **Open browser**: Navigate to `http://localhost:3000`
 
-### OAuth2 Setup (Recommended)
+### OAuth2 Setup
 
 1. Go to [Atlassian Developer Console](https://developer.atlassian.com/console)
 2. Create a new OAuth 2.0 app
-3. Set redirect URI to: `http://localhost:3000/auth/callback`
-4. Copy the Client ID and Client Secret to your `.env` file
-5. Users will authenticate through Atlassian's secure login
+3. Set redirect URI: `http://localhost:3000/auth/callback`
+4. Copy Client ID and Client Secret to `.env`
 
-### Basic Usage
+## Usage
 
-- **Create Worklog**: Click and drag on the calendar to select a time range
+- **Create Worklog**: Click and drag on calendar to select time range
 - **Edit Worklog**: Click on any existing worklog entry
-- **Timer**: Use the timer button to track time in real-time
-- **Configuration**: Click the gear icon to customize colors, themes, and settings
-- **Notes**: Press `Ctrl+N` (or `Cmd+N` on Mac) to open the notes panel
+- **Timer**: Use timer button for real-time tracking
+- **Settings**: Click gear icon to customize colors and themes
+- **Notes**: Press `Ctrl+N` (or `Cmd+N` on Mac) for notes panel
 
-### Troubleshooting
+## Screenshots
 
-- **Authentication Issues**: Ensure your OAuth2 credentials or API token are correct
-- **Connection Problems**: Verify your Jira URL and network connectivity
-- **Performance Issues**: Try clearing the browser cache or using the cache cleanup in settings
-- **Error Messages**: Check the browser console (F12) for detailed error information
+![Light mode](/docs/light.png)
+![Dark mode](/docs/dark.png)
+![Stats](/docs/stats.png)
+## Troubleshooting
+
+- **Authentication Issues**: Verify OAuth2 credentials or API token
+- **Connection Problems**: Check Jira URL and network connectivity
+- **Performance Issues**: Clear browser cache or use cache cleanup in settings
+- **Error Messages**: Check browser console (F12) for details
 
 For additional support, check the GitHub repository for issues and documentation.

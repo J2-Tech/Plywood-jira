@@ -26,6 +26,17 @@ function globalOpenSprintNotes(sprintId) {
 window.globalOpenGlobalNotes = globalOpenGlobalNotes;
 window.globalOpenSprintNotes = globalOpenSprintNotes;
 
+// Function to get editor content
+function getEditorContent() {
+    if (window.tiptapNotesManager && window.tiptapNotesManager.getContent) {
+        return window.tiptapNotesManager.getContent();
+    }
+    return '';
+}
+
+// Make getEditorContent available globally
+window.getEditorContent = getEditorContent;
+
 // Toggle notes panel for side-by-side layout
 function toggleNotesPanel() {
     const notesPanel = document.getElementById('notesSidePanel');
