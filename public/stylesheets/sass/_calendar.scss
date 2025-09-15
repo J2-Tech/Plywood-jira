@@ -6,9 +6,10 @@
   
   // Calendar events
   .fc-event {
-    color: #fff !important;
+    // Use calculated contrasting text color instead of forcing white
+    color: inherit !important;
     
-    // Override color when explicitly set
+    // Ensure text color is properly applied
     &[style*="color"] {
         color: inherit !important;
     }
@@ -221,6 +222,12 @@
   .fc-dayGridMonth-view {
     .fc-event-content-container {
       padding: 1px 2px;
+      overflow: hidden; // Prevent content from overflowing
+    }
+    
+    .fc-event-header {
+      overflow: hidden; // Prevent header content from overflowing
+      white-space: nowrap; // Keep header on single line
     }
     
     .fc-event-summary {
@@ -228,6 +235,10 @@
       margin-left: 4px;
       font-size: 0.8em;
       opacity: 0.8;
+      overflow: hidden; // Prevent summary from overflowing
+      text-overflow: ellipsis; // Show ellipsis for overflow
+      white-space: nowrap; // Keep summary on single line
+      max-width: calc(100% - 60px); // Limit width to prevent overflow
     }
     
     .fc-event-comment {

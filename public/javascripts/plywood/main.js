@@ -6,6 +6,7 @@ import { loadConfig } from './config.js';
 import { initializeSprint } from './sprint.js';
 import { initializeNotesPanel } from './notes.js';
 import './notesList.js'; // Import notes list functionality
+import { executeWithTokenRefresh, isAuthError } from './apiClient.js';
 
 // Main application JavaScript
 
@@ -16,6 +17,17 @@ window.appState = {
 
 // Add loading state management
 let isLoadingData = false;
+
+// Error handling functions
+function showAuthError() {
+    console.log('Authentication error detected - redirecting to login');
+    window.location.href = '/auth/login';
+}
+
+function showErrorMessage(message) {
+    console.error('Error:', message);
+    alert(message);
+}
 
 // Date formatting utility function
 function formatDateForAPI(date) {
@@ -131,10 +143,10 @@ async function loadCalendarData() {
         console.error('Error loading calendar data:', error);
         
         // Show user-friendly error message
-        if (error.message && error.message.includes('401')) {
+        if (isAuthError(error) || (error.message && error.message.includes('Authentication required'))) {
             showAuthError();
         } else {
-            showErrorMessage('Failed to load calendar data. Please refresh the page.');
+            showErrorMessage('Error fetching worklogs, please refresh the page');
         }
     } finally {
         hideLoading();
@@ -148,16 +160,15 @@ async function fetchWorklogs(start, end) {
     
     console.log('Fetching worklogs from: ' + url);
     
-    var response = await fetch(url);
-    
-    if (!response.ok) {
-        if (response.status == 401) {
+    try {
+        var response = await executeWithTokenRefresh(url);
+        var data = await response.json();
+    } catch (error) {
+        if (isAuthError(error)) {
             throw new Error('Authentication required');
         }
-        throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+        throw error;
     }
-    
-    var data = await response.json();
     
     // Ensure events have proper color properties
     if (data && Array.isArray(data)) {

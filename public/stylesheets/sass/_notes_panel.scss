@@ -48,6 +48,35 @@
     }
 }
 
+// Notes panel top header with close button
+.notes-panel-top-header {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--secondary-bg);
+    flex-shrink: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+
+    .close-panel-button {
+        background: none;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-color);
+        cursor: pointer;
+        font-size: 18px;
+        font-weight: bold;
+        padding: 4px 8px;
+        transition: all 0.2s ease;
+
+        &:hover {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+    }
+}
+
 // Notes panel header - use footer-style theming
 .notes-panel-header {
     padding: 0;
@@ -71,23 +100,6 @@
                 font-weight: 400;
                 color: var(--text-muted);
                 font-size: 14px;
-            }
-        }
-
-        .close-panel-button {
-            background: none;
-            border: 1px solid var(--border-color);
-            font-size: 20px;
-            cursor: pointer;
-            color: var(--text-color);
-            padding: 4px 8px;
-            border-radius: 4px;
-            line-height: 1;
-            transition: all 0.2s ease;
-
-            &:hover {
-                background: var(--hover-bg);
-                border-color: var(--primary-color, #007bff);
             }
         }
     }

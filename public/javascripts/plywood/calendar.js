@@ -269,6 +269,7 @@ export function initializeCalendar() {
             // Create header with issue key and icon
             const header = document.createElement('div');
             header.className = 'fc-event-header';
+            header.style.color = textColor; // Apply text color to header
             
             // Add issue type icon if available and enabled
             if (showIssueTypeIcons && props.issueTypeIcon) {

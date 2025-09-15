@@ -260,3 +260,6 @@ export const apiClient = {
 
 // Make it available globally
 window.apiClient = apiClient;
+
+// Export functions for use in other modules
+export { executeWithTokenRefresh, isAuthError, refreshToken };
