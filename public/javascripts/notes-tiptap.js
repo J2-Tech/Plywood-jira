@@ -7,6 +7,7 @@ import { Link } from 'https://esm.sh/@tiptap/extension-link'
 import { TaskList } from 'https://esm.sh/@tiptap/extension-task-list'
 import { TaskItem } from 'https://esm.sh/@tiptap/extension-task-item'
 import { Underline } from 'https://esm.sh/@tiptap/extension-underline'
+import { IssueReference } from './plywood/issueReferenceExtension.js'
 class TiptapNotesManager {
     constructor() {
         this.editor = null;
@@ -43,6 +44,7 @@ class TiptapNotesManager {
                     TaskItem.configure({
                         nested: true,
                     }),
+                    IssueReference,
                 ],
                 content: '<p>Start writing your notes...</p>',
                 onUpdate: ({ editor }) => {
@@ -116,6 +118,12 @@ class TiptapNotesManager {
             case 'codeBlock':
                 this.editor.chain().focus().toggleCodeBlock().run();
                 break;
+            case 'link':
+                this.insertLink();
+                break;
+            case 'issueReference':
+                this.insertIssueReference();
+                break;
             case 'undo':
                 this.editor.chain().focus().undo().run();
                 break;
@@ -152,6 +160,8 @@ class TiptapNotesManager {
             { action: 'orderedList', isActive: this.editor.isActive('orderedList') },
             { action: 'taskList', isActive: this.editor.isActive('taskList') },
             { action: 'codeBlock', isActive: this.editor.isActive('codeBlock') },
+            { action: 'link', isActive: this.editor.isActive('link') },
+            { action: 'issueReference', isActive: this.editor.isActive('issueReference') },
         ];
 
         activeButtons.forEach(({ action, isActive }) => {
@@ -160,6 +170,115 @@ class TiptapNotesManager {
                 if (button) button.classList.add('active');
             }
         });
+    }
+
+    insertLink() {
+        if (!this.editor) return;
+
+        // Check if text is selected
+        const { from, to } = this.editor.state.selection;
+        
+        if (from !== to) {
+            // Text is selected, check if it contains a URL
+            const selectedText = this.editor.state.doc.textBetween(from, to);
+            const urlRegex = /(https?:\/\/[^\s]+)/i;
+            const urlMatch = selectedText.match(urlRegex);
+            
+            if (urlMatch) {
+                // Found URL in selected text, use it automatically
+                const url = urlMatch[1];
+                this.editor.chain().focus().setLink({ href: url }).run();
+                return;
+            }
+        }
+
+        // No URL found in selection or no text selected, prompt for URL
+        const url = prompt('Enter URL:');
+        if (url) {
+            if (from === to) {
+                // No text selected, insert URL as link text
+                this.editor.chain().focus().setLink({ href: url }).insertContent(url).run();
+            } else {
+                // Text is selected, make it a link
+                this.editor.chain().focus().setLink({ href: url }).run();
+            }
+        }
+    }
+
+    async insertIssueReference() {
+        if (!this.editor) return;
+
+        // Check if text is selected
+        const { from, to } = this.editor.state.selection;
+        let issueKey = '';
+        
+        if (from !== to) {
+            // Text is selected, use it as potential issue key
+            issueKey = this.editor.state.doc.textBetween(from, to).trim();
+            console.log('Using selected text as issue key:', issueKey);
+        }
+        
+        // If no text selected or selected text is empty, prompt for issue key
+        if (!issueKey) {
+            issueKey = prompt('Enter issue key (e.g., PROJ-123):');
+            if (!issueKey) return;
+        }
+
+        // Try to search for the issue to get more details
+        try {
+            const searchResults = await window.searchIssues(issueKey);
+            const matchingIssue = searchResults.find(issue => 
+                issue.customProperties.key.toLowerCase() === issueKey.toLowerCase()
+            );
+
+            if (matchingIssue) {
+                // Insert issue reference with full details
+                const attrs = {
+                    issueKey: matchingIssue.customProperties.key || issueKey.toUpperCase(),
+                    issueSummary: matchingIssue.customProperties.summary || '',
+                    issueId: matchingIssue.customProperties.issueId || ''
+                };
+                console.log('Inserting issue reference with matching issue:', attrs);
+                this.editor.chain().focus().setIssueReference(attrs).run();
+            } else {
+                // Issue not found in search results
+                if (from !== to) {
+                    // If text was selected but no matching issue found, ask user
+                    const confirmUse = confirm(`No issue found for "${issueKey}". Use it as issue reference anyway?`);
+                    if (!confirmUse) {
+                        // User cancelled, prompt for different issue key
+                        const newIssueKey = prompt('Enter issue key (e.g., PROJ-123):');
+                        if (newIssueKey) {
+                            // Recursively call with new issue key
+                            this.editor.chain().focus().setTextSelection({ from, to }).run();
+                            setTimeout(() => this.insertIssueReference(), 100);
+                            return;
+                        } else {
+                            return;
+                        }
+                    }
+                }
+                
+                // Insert basic issue reference
+                const attrs = {
+                    issueKey: issueKey.toUpperCase(),
+                    issueSummary: '',
+                    issueId: ''
+                };
+                console.log('Inserting issue reference without matching issue:', attrs);
+                this.editor.chain().focus().setIssueReference(attrs).run();
+            }
+        } catch (error) {
+            console.error('Error searching for issue:', error);
+            // Insert basic issue reference as fallback
+            const attrs = {
+                issueKey: issueKey.toUpperCase(),
+                issueSummary: '',
+                issueId: ''
+            };
+            console.log('Inserting issue reference as fallback:', attrs);
+            this.editor.chain().focus().setIssueReference(attrs).run();
+        }
     }
 
     async loadNotes() {

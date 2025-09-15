@@ -26,7 +26,6 @@ function formatDateForAPI(date) {
     
     // Check if date is valid
     if (isNaN(dateObj.getTime())) {
-        console.error('Invalid date provided to formatDateForAPI:', date);
         return null;
     }
     

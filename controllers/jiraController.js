@@ -3,6 +3,7 @@ const configController = require('./configController');
 const colorUtils = require('./colorUtils');
 const dayjs = require('dayjs');
 const path = require('path');
+const { log } = require('../utils/logger');
 
 // Import functionality from separate modules
 const getSingleEventModule = require('./getSingleEvent');
@@ -29,7 +30,6 @@ exports.determineIssueColor = async function(req, issueKey) {
         
         return await determineIssueColor(settings, req, issueData, null);
     } catch (error) {
-        console.error('Error determining issue color:', error);
         return '#2a75fe'; // Default color
     }
 };
@@ -97,7 +97,7 @@ const mapIssuesFunction = issue => {
 };
 
 exports.updateWorkLog = async function(req, issueId, worklogId, comment, startTime, endTime, issueKeyColor) {
-    console.log(`Updating worklog ${worklogId} for issue ${issueId}`);
+    log.info(`Updating worklog ${worklogId} for issue ${issueId}`);
     
     try {
         // Validate inputs
@@ -139,7 +139,7 @@ exports.updateWorkLog = async function(req, issueId, worklogId, comment, startTi
         // Only clear worklog cache selectively - don't force full refresh
         exports.clearWorklogCache();
         
-        console.log(`Worklog ${worklogId} updated successfully`);
+        log.info(`Worklog ${worklogId} updated successfully`);
         
         // Return additional data for client-side optimistic updates
         return {
@@ -153,7 +153,7 @@ exports.updateWorkLog = async function(req, issueId, worklogId, comment, startTi
             timeSpentSeconds: durationSeconds
         };
     } catch (error) {
-        console.error('Error updating worklog:', error);
+        log.error('Error updating worklog:', error);
         throw error;
     }
 };
@@ -173,7 +173,7 @@ function calculateContrastingTextColor(backgroundColor) {
 }
 
 exports.createWorkLog = async function(req, issueId, started, ended, comment, issueKeyColor) {
-    console.log('Creating worklog for issue ' + issueId);
+    log.info('Creating worklog for issue ' + issueId);
     
     try {
         if (!issueId || !started || !ended) {
@@ -208,10 +208,10 @@ exports.createWorkLog = async function(req, issueId, started, ended, comment, is
                 const determinedColor = await exports.determineIssueColor(req, issueKey);
                 if (determinedColor) {
                     color = determinedColor;
-                    console.log('Using determined color ' + color + ' for issue ' + issueKey);
+                    log.debug('Using determined color ' + color + ' for issue ' + issueKey);
                 }
             } catch (error) {
-                console.warn('Could not determine color for issue ' + issueKey + ', using default:', error);
+                log.warn('Could not determine color for issue ' + issueKey + ', using default:', error);
             }
         }
         
@@ -242,7 +242,7 @@ exports.createWorkLog = async function(req, issueId, started, ended, comment, is
         try {
             issueDetails = await jiraAPIController.getIssue(req, issueId);
         } catch (error) {
-            console.warn('Could not fetch issue details for response:', error);
+            log.warn('Could not fetch issue details for response:', error);
         }
         
         const responseData = {
@@ -281,12 +281,12 @@ exports.createWorkLog = async function(req, issueId, started, ended, comment, is
             responseData.extendedProps.issueTypeIcon = responseData.issueTypeIcon;
         }
         
-        console.log('Worklog created successfully with id: ' + result.id + ', background: ' + color + ', text: ' + textColor + ' for issue: ' + issueKey);
+        log.info('Worklog created successfully with id: ' + result.id + ' for issue: ' + issueKey);
         
         return responseData;
         
     } catch (error) {
-        console.error('Error creating worklog:', error);
+        log.error('Error creating worklog:', error);
         throw error;
     }
 };
@@ -350,7 +350,7 @@ function calculateContrastingTextColor(backgroundColor) {
         // Choose the color with better contrast (WCAG recommends minimum 4.5:1 for normal text)
         return contrastWithWhite > contrastWithBlack ? '#FFFFFF' : '#000000';
     } catch (error) {
-        console.warn('Error calculating contrasting text color for', backgroundColor, error);
+        log.warn('Error calculating contrasting text color for', backgroundColor, error);
         return '#000000'; // Default to black on error
     }
 }
@@ -431,7 +431,7 @@ exports.getWorklogStats = async function(req, start, end, projectFilter) {
  * @returns {Object} The refreshed settings
  */
 exports.forceRefreshIssueColors = async function(req) {
-    console.log('Force refreshing all issue colors and clearing ALL caches');
+    log.info('Force refreshing all issue colors and clearing ALL caches');
     
     // Clear color caches
     colorUtils.clearColorCache();
@@ -441,7 +441,7 @@ exports.forceRefreshIssueColors = async function(req) {
     
     // IMPORTANT: Clear the worklog cache to force a fresh load with updated colors
     exports.clearWorklogCache();
-    console.log('Worklog cache cleared - will force fresh data load on next request');
+    log.info('Worklog cache cleared - will force fresh data load on next request');
     
     // Force load settings from disk
     const settings = await configController.loadConfig(req, true);
@@ -451,7 +451,7 @@ exports.forceRefreshIssueColors = async function(req) {
         Object.entries(settings.issueColors).forEach(([key, color]) => {
             colorUtils.cacheIssueColor(key, color);
         });
-        console.log(`Re-initialized color cache with ${Object.keys(settings.issueColors).length} colors from settings`);
+        log.info(`Re-initialized color cache with ${Object.keys(settings.issueColors).length} colors from settings`);
     }
     
     return settings;
@@ -467,7 +467,7 @@ exports.forceRefreshIssueColors = async function(req) {
 // Update updateWorklogsColorForIssue to handle issue-based colors
 async function updateWorklogsColorForIssue(req, issueKey, newColor) {
     try {
-        console.log(`Color system now uses issue-based configuration for ${issueKey}`);
+        log.debug(`Color system now uses issue-based configuration for ${issueKey}`);
         
         // Clear any cached data to ensure fresh color determination
         const getUsersWorkLogsModule = require('./getUsersWorkLogsAsEvent');
@@ -475,7 +475,7 @@ async function updateWorklogsColorForIssue(req, issueKey, newColor) {
         // Clear the worklog cache to force fresh data
         if (getUsersWorkLogsModule.clearWorklogCache) {
             getUsersWorkLogsModule.clearWorklogCache();
-            console.log(`Cleared worklog cache for issue ${issueKey} color update`);
+            log.debug(`Cleared worklog cache for issue ${issueKey} color update`);
         }
         
         // Clear color cache for this specific issue and related issues
@@ -493,14 +493,14 @@ async function updateWorklogsColorForIssue(req, issueKey, newColor) {
         };
         
     } catch (error) {
-        console.error(`Error updating color system for issue ${issueKey}:`, error);
+        log.error(`Error updating color system for issue ${issueKey}:`, error);
         throw error;
     }
 }
 
 exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
     const startTime = Date.now();
-    console.log(`Loading worklogs from ${start} to ${end}`);
+    log.info(`Loading worklogs from ${start} to ${end}`);
     
     try {
         // Use the optimized module function
@@ -508,12 +508,12 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
         const events = await getUsersWorkLogsModule.getUsersWorkLogsAsEvent(req, start, end);
         
         const duration = Date.now() - startTime;
-        console.log(`Worklogs loaded in ${duration}ms, found ${events.length} events`);
+        log.info(`Worklogs loaded in ${duration}ms, found ${events.length} events`);
         
         return events;
     } catch (error) {
         const duration = Date.now() - startTime;
-        console.error(`Worklog loading failed after ${duration}ms:`, error);
+        log.error(`Worklog loading failed after ${duration}ms:`, error);
         throw error;
     }
 };

@@ -58,7 +58,6 @@ export function createWorkLog(worklogData) {
         return response.json();
     })
     .catch(error => {
-        console.error('Error creating worklog:', error);
         throw error;
     });
 }
@@ -92,7 +91,6 @@ export function updateWorkLog(worklogId, worklogData) {
     .then(result => {
         // Don't automatically refresh the worklog here as it can corrupt data
         // Let the calling code handle the refresh appropriately
-        console.log('Worklog update completed, result:', result);
         return result;
     });
 }
@@ -107,13 +105,10 @@ export async function handleSubmit(event, url, method) {
     
     // Ensure comment is always a string
     if (data.comment && typeof data.comment !== 'string') {
-        console.warn('Comment field is not a string, converting:', data.comment, typeof data.comment);
         data.comment = String(data.comment);
     }
     
     // Debug: Log the form data to see what we're working with
-    console.log('Form data after processing:', data);
-    console.log('Comment field type:', typeof data.comment, 'Value:', data.comment);
 
     // Validate required fields
     if (!data.issueId) {
@@ -178,7 +173,6 @@ export async function handleSubmit(event, url, method) {
         }
     }
     
-    console.log(`Submitting worklog for issue ${issueKey} with color: ${selectedColor}`);
     
     // Remove issueKeyColor from worklog data - colors are now determined by issue configuration
     delete data.issueKeyColor;
@@ -200,7 +194,6 @@ export async function handleSubmit(event, url, method) {
  */
 function getIssueKeyFromChoices(choicesInstance, issueId) {
     try {
-        console.log('Extracting issue key for issueId:', issueId);
         
         // Method 1: Check current state choices
         if (choicesInstance._currentState && choicesInstance._currentState.choices) {
@@ -209,27 +202,22 @@ function getIssueKeyFromChoices(choicesInstance, issueId) {
             );
             
             if (choice) {
-                console.log('Found choice:', choice);
                 
                 // Try customProperties first
                 if (choice.customProperties) {
                     if (choice.customProperties.issueKey) {
-                        console.log('Got issueKey from customProperties:', choice.customProperties.issueKey);
                         return choice.customProperties.issueKey;
                     }
                     if (choice.customProperties.key) {
-                        console.log('Got issueKey from customProperties.key:', choice.customProperties.key);
                         return choice.customProperties.key;
                     }
                 }
                 
                 // Try direct properties
                 if (choice.issueKey) {
-                    console.log('Got issueKey from direct property:', choice.issueKey);
                     return choice.issueKey;
                 }
                 if (choice.key) {
-                    console.log('Got issueKey from key property:', choice.key);
                     return choice.key;
                 }
                 
@@ -237,7 +225,6 @@ function getIssueKeyFromChoices(choicesInstance, issueId) {
                 if (choice.label) {
                     const match = choice.label.match(/^([A-Z]+-\d+)/);
                     if (match) {
-                        console.log('Extracted issueKey from label:', match[1]);
                         return match[1];
                     }
                 }
@@ -250,7 +237,6 @@ function getIssueKeyFromChoices(choicesInstance, issueId) {
                 choice.value === issueId
             );
             if (storeChoice) {
-                console.log('Found in store:', storeChoice);
                 if (storeChoice.customProperties && storeChoice.customProperties.issueKey) {
                     return storeChoice.customProperties.issueKey;
                 }
@@ -261,11 +247,9 @@ function getIssueKeyFromChoices(choicesInstance, issueId) {
             }
         }
         
-        console.warn('Could not find issue key for issueId:', issueId);
         return null;
         
     } catch (error) {
-        console.error('Error extracting issue key:', error);
         return null;
     }
 }
@@ -296,10 +280,8 @@ async function submitWorklog(url, method, data, issueKey, selectedColor) {
                 });
                 
                 if (!colorResponse.ok) {
-                    console.warn('Failed to save color to issue configuration');
                 }
             } catch (error) {
-                console.error('Error saving color:', error);
             }
         }
 
@@ -319,7 +301,6 @@ async function submitWorklog(url, method, data, issueKey, selectedColor) {
             throw new Error(result.error || `HTTP error! status: ${response.status}`);
         }
         
-        console.log('Worklog submitted successfully:', result);
         
         // Handle calendar updates based on method
         if (method === 'POST') {
@@ -333,7 +314,6 @@ async function submitWorklog(url, method, data, issueKey, selectedColor) {
             
             // Close create modal
             hideModal('.modal-create');
-            console.log('Create modal closed after successful creation');
             
         } else if (method === 'PUT') {
             // For updates, use the calendar modal update handler from calendar.js
@@ -353,14 +333,11 @@ async function submitWorklog(url, method, data, issueKey, selectedColor) {
                 
                 // Close update modal
                 hideModal('.modal-update');
-                console.log('Update modal closed after successful update');
             }
         }
         
-        console.log('Worklog operation completed successfully');
         
     } catch (error) {
-        console.error('Error submitting worklog:', error);
         
         // Show user-friendly error message
         let errorMessage = error.message;
@@ -414,11 +391,9 @@ export function handleDelete(event, url) {
             throw new Error(errorMessage);
         }
         
-        console.log('Worklog deleted successfully');
         
         // Close the modal first
         hideModal('.modal-update');
-        console.log('Update modal closed after successful deletion');
         
         // Refresh the calendar
         if (window.calendar) {
@@ -428,7 +403,6 @@ export function handleDelete(event, url) {
         hideLoading();
         
     }).catch(error => {
-        console.error('Error deleting worklog:', error);
         hideLoading();
         alert(`Error: ${error.message}`);
     });

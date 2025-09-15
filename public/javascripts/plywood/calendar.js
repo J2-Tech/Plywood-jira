@@ -49,7 +49,6 @@ export function updateTotalTime(events) {
  * @param {string} worklogId - The ID of the worklog to refresh.
  */
 export function refreshWorklog(issueId, worklogId) {
-    console.log(`Refreshing worklog ${worklogId} for issue ${issueId}`);
     showLoading();
     
     // Check if event already exists to prevent duplicates
@@ -63,16 +62,13 @@ export function refreshWorklog(issueId, worklogId) {
             return response.json();
         })
         .then(data => {
-            console.log('Received worklog data:', data);
             
             if (!existingEvent) {
                 // Create new event if it doesn't exist
-                console.log('Creating new calendar event');
                 existingEvent = window.calendar.addEvent(data, true);
                 window.calendar.unselect();
             } else {
                 // Update existing event with complete data
-                console.log('Updating existing calendar event');
                 existingEvent.setProp('start', data.start);
                 existingEvent.setProp('end', data.end);
                 existingEvent.setProp('backgroundColor', data.backgroundColor);
@@ -101,15 +97,12 @@ export function refreshWorklog(issueId, worklogId) {
                 }
             }
             
-            console.log('Worklog refresh completed successfully');
             updateTotalTime();
             hideLoading();
         })
         .catch(error => {
-            console.error('Error refreshing worklog:', error);
             hideLoading();
             // If refresh fails, do a full calendar refresh as fallback
-            console.log('Worklog refresh failed, doing full calendar refresh');
             window.calendar.refetchEvents();
         });
 }
@@ -123,7 +116,6 @@ export function initializeCalendar() {
     // Check if we need to force a fresh load because of a color change
     const forceRefresh = sessionStorage.getItem('forceWorklogRefresh') === 'true';
     if (forceRefresh) {
-        console.log('Color was changed in previous session - forcing fresh data load');
         // Clear the flag
         sessionStorage.removeItem('forceWorklogRefresh');
         // Force clear server caches through a special endpoint
@@ -200,12 +192,10 @@ export function initializeCalendar() {
                     }
                     event.extendedProps.calculatedTextColor = textColor;
                     
-                    console.log(`Event ${event.id}: Background ${event.backgroundColor}, Text ${textColor}`);
                 }
                 return event;
             },
             failure: function (error) {
-                console.error("FullCalendar failure handler called with:", error);
                 
                 // Enhanced authentication error detection
                 const isAuthError = 
@@ -222,13 +212,11 @@ export function initializeCalendar() {
                     (error && error.authFailure);
                 
                 if (isAuthError) {
-                    console.log("Authentication error detected, attempting to refresh token automatically");
                     
                     // Try to refresh token via a separate request
                     fetch("/auth/refresh-token")
                         .then(response => {
                             if (response.ok) {
-                                console.log("Token refreshed successfully, reloading calendar");
                                 // Show success message and retry
                                 if (typeof showNotification === 'function') {
                                     showNotification('Session refreshed. Reloading calendar...', 'info');
@@ -237,7 +225,6 @@ export function initializeCalendar() {
                                     window.calendar.refetchEvents(); // Retry loading events
                                 }, 1000);
                             } else {
-                                console.log("Token refresh failed, redirecting to login");
                                 if (typeof showNotification === 'function') {
                                     showNotification('Session expired. Redirecting to login...', 'warning');
                                 }
@@ -247,7 +234,6 @@ export function initializeCalendar() {
                             }
                         })
                         .catch(refreshError => {
-                            console.error("Error during token refresh:", refreshError);
                             if (typeof showNotification === 'function') {
                                 showNotification('Session expired. Please log in again.', 'warning');
                             }
@@ -256,7 +242,6 @@ export function initializeCalendar() {
                             }, 2000);
                         });
                 } else {
-                    console.error("Non-auth error fetching events:", error);
                     alert("There was an error while fetching events. Please refresh the page and try again.");
                 }
                 hideLoading();
@@ -295,7 +280,6 @@ export function initializeCalendar() {
                 
                 // Handle icon load errors
                 icon.onerror = function() {
-                    console.warn('Failed to load issue type icon:', props.issueTypeIcon);
                     this.style.display = 'none';
                 };
                 
@@ -387,13 +371,10 @@ export function initializeCalendar() {
 export function forceRefreshAllEvents() {
     if (!window.calendar) return;
     
-    console.log("Forcing complete calendar event refresh");
     
     // First refresh the issue colors from the server to ensure they're all up-to-date
     if (window.refreshIssueColors) {
-        console.log("Refreshing issue colors first");
         window.refreshIssueColors().catch(err => {
-            console.error("Error refreshing issue colors:", err);
             // Continue with refresh anyway
         });
     }
@@ -403,7 +384,6 @@ export function forceRefreshAllEvents() {
     colorCacheKeys.forEach(key => localStorage.removeItem(key));
     
     // Safely flush any browser caches, handling errors gracefully
-    console.log("Flushing browser caches...");
     
     // Skip the HEAD request that was causing errors - it's not necessary
     // since we're going to do a full refetch anyway
@@ -439,7 +419,6 @@ export function forceRefreshAllEvents() {
         // Force redraw
         window.calendar.updateSize();
         
-        console.log("Calendar event refresh completed");
     }, 100);
 }
 
@@ -449,7 +428,6 @@ export function forceRefreshAllEvents() {
  * @returns {Promise} Promise that resolves when colors are refreshed
  */
 export function refreshIssueColors() {
-    console.log("Forcing server to refresh issue colors");
     
     return apiClient.get(`/config/refreshColors?_t=${Date.now()}`)
         .then(response => {
@@ -459,11 +437,9 @@ export function refreshIssueColors() {
             return response.json();
         })
         .then(data => {
-            console.log("Server issue colors refreshed:", data);
             return data;
         })
         .catch(error => {
-            console.error("Error refreshing issue colors:", error);
             throw error;
         });
 }
@@ -483,7 +459,6 @@ window.updateTotalTime = updateTotalTime;
  * @param {Object} info - FullCalendar resize info
  */
 export function handleEventResize(info) {
-    console.log('Event resized:', info);
     
     const event = info.event;
     
@@ -504,7 +479,6 @@ export function handleEventResize(info) {
         issueKeyColor: backgroundColor
     };
     
-    console.log('Updating resized worklog with data:', updateData);
     
     // Apply optimistic update with proper text color
     const rollbackData = optimisticallyUpdateEvent(event, {
@@ -526,7 +500,6 @@ export function handleEventResize(info) {
             return response.json();
         })
         .then(data => {
-            console.log('Worklog resize updated successfully:', data);
             
             // Confirm optimistic update
             confirmOptimisticUpdate(event.id);
@@ -551,7 +524,6 @@ export function handleEventResize(info) {
             hideLoading();
         })
         .catch((error) => {
-            console.error('Error updating resized worklog:', error);
             
             // Rollback the optimistic update
             rollbackOptimisticUpdate(event.id);
@@ -567,7 +539,6 @@ export function handleEventResize(info) {
  * @param {Object} info - FullCalendar drop info
  */
 export function handleEventDrop(info) {
-    console.log('Event dropped:', info);
     
     const event = info.event;
     
@@ -588,7 +559,6 @@ export function handleEventDrop(info) {
         issueKeyColor: backgroundColor
     };
     
-    console.log('Updating dropped worklog with data:', updateData);
     
     // Apply optimistic update with proper text color
     const rollbackData = optimisticallyUpdateEvent(event, {
@@ -610,7 +580,6 @@ export function handleEventDrop(info) {
             return response.json();
         })
         .then(data => {
-            console.log('Worklog drop updated successfully:', data);
             
             // Confirm optimistic update
             confirmOptimisticUpdate(event.id);
@@ -635,7 +604,6 @@ export function handleEventDrop(info) {
             hideLoading();
         })
         .catch((error) => {
-            console.error('Error updating dropped worklog:', error);
             
             // Rollback the optimistic update
             rollbackOptimisticUpdate(event.id);
@@ -653,7 +621,6 @@ export function handleEventDrop(info) {
  * @param {string} worklogId - The worklog ID that was updated
  */
 export function handleModalWorklogUpdate(updatedData, worklogId) {
-    console.log('Handling modal worklog update - refreshing all events');
     
     // Simply refresh all calendar events instead of trying to update individual ones
     if (window.calendar) {
@@ -664,7 +631,6 @@ export function handleModalWorklogUpdate(updatedData, worklogId) {
     const updateModal = document.querySelector('.modal-update');
     if (updateModal) {
         updateModal.style.display = 'none';
-        console.log('Update modal closed after successful update');
     }
 }
 

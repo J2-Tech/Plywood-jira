@@ -1,6 +1,7 @@
 // Notes panel functionality
 import { showLoading, hideLoading } from './ui.js';
 import { showModal, hideModal } from './modal.js';
+import { objectivesManager } from './objectives.js';
 
 let currentSprintId = null;
 let isGlobalNotes = true;  // Default to global notes if no sprint is active
@@ -14,6 +15,9 @@ export function initializeNotesPanel() {
     
     // Check active sprint
     checkActiveSprintForNotes();
+    
+    // Initialize objectives manager
+    objectivesManager.init();
 }
 
 /**
@@ -33,15 +37,12 @@ async function checkActiveSprintForNotes() {
                 if (sprint && sprint.id) {
                     currentSprintId = sprint.id;
                     isGlobalNotes = false;
-                    console.log(`Active sprint found: ${sprint.name} (${sprint.id})`);
                 }
             }
         } catch (error) {
-            console.log('No active sprint found, using global notes');
             // Intentionally not re-throwing - we'll use global notes instead
         }
     } catch (error) {
-        console.error('Error in checkActiveSprintForNotes:', error);
     }
 }
 
@@ -119,7 +120,6 @@ function handleNotesOpening() {
     
     if (notesType === 'global') {
         // Open global notes directly
-        console.log('Opening global notes from local storage flag');
         isGlobalNotes = true;
         currentSprintId = null;
         
@@ -129,13 +129,15 @@ function handleNotesOpening() {
         
         // Load the notes
         loadNotes();
+        
+        // Update objectives context
+        objectivesManager.updateContext(isGlobalNotes, currentSprintId);
     } 
     else if (notesType === 'sprint') {
         // Open sprint notes directly
         const sprintId = localStorage.getItem('openSprintId');
         
         if (sprintId) {
-            console.log(`Opening sprint ${sprintId} notes from local storage flag`);
             isGlobalNotes = false;
             currentSprintId = sprintId;
             
@@ -145,6 +147,9 @@ function handleNotesOpening() {
             
             // Load the notes
             loadNotes();
+            
+            // Update objectives context
+            objectivesManager.updateContext(isGlobalNotes, currentSprintId);
         } else {
             // Fall back to normal behavior if no sprint ID
             checkActiveSprintForNotes().then(() => {
@@ -156,6 +161,8 @@ function handleNotesOpening() {
         // Default behavior - check for active sprint and load notes
         checkActiveSprintForNotes().then(() => {
             loadNotes();
+            // Update objectives context
+            objectivesManager.updateContext(isGlobalNotes, currentSprintId);
         });
     }
 }
@@ -228,7 +235,6 @@ async function loadNotes() {
                 }
             }
         } catch (error) {
-            console.warn('Error fetching notes, using blank content:', error);
             if (window.loadNotesIntoEditor) {
                 window.loadNotesIntoEditor('');
             }
@@ -238,7 +244,6 @@ async function loadNotes() {
             notesLoading.style.display = 'none';
         }
     } catch (error) {
-        console.error('Critical error in notes loading:', error);
         if (notesLoading) {
             notesLoading.style.display = 'none';
         }
@@ -271,7 +276,6 @@ async function saveNotes(content) {
         });
         
         if (!response.ok) {
-            console.warn(`Notes save returned status: ${response.status}`);
             // If saving fails with sprint notes, try global notes as fallback
             if (!isGlobalNotes && currentSprintId) {
                 try {
@@ -282,14 +286,11 @@ async function saveNotes(content) {
                         },
                         body: JSON.stringify({ content })
                     });
-                    console.log('Saved to global notes as fallback');
                 } catch (fallbackError) {
-                    console.error('Failed to save to global notes fallback:', fallbackError);
                 }
             }
         }
     } catch (error) {
-        console.error('Error saving notes:', error);
     }
 }
 

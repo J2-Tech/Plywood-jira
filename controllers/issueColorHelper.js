@@ -16,7 +16,7 @@ exports.determineIssueColor = async function(settings, req, issue, pendingColorR
     
     // Handle case where issueKey is undefined
     if (!issue || !issue.issueKey) {
-        console.warn('determineIssueColor called with invalid issue object:', issue);
+        log.warn('determineIssueColor called with invalid issue object');
         return defaultColor;
     }
     
@@ -42,7 +42,7 @@ exports.determineIssueColor = async function(settings, req, issue, pendingColorR
             const colorPromise = pendingColorRequests.get(issueKey);
             return await colorPromise;
         } catch (error) {
-            console.error(`Error waiting for pending color request for ${issueKey}:`, error);
+            log.error(`Error waiting for pending color request for ${issueKey}:`, error);
         }
     }
     
@@ -74,7 +74,7 @@ exports.determineIssueColor = async function(settings, req, issue, pendingColorR
             try {
                 // Skip parent issue lookup to avoid circular dependency
                 // We'll just use the default color in this case
-                console.log(`Using default color for ${issueKey} to avoid circular dependency`);
+                log.debug(`Using default color for ${issueKey} to avoid circular dependency`);
                 
                 // This is commented out to avoid circular dependencies with jiraAPIController
                 // const jiraAPIController = require('./jiraAPIController');
@@ -87,7 +87,7 @@ exports.determineIssueColor = async function(settings, req, issue, pendingColorR
                 //     }
                 // }
             } catch (error) {
-                console.error(`Error getting parent issue for ${issueKey}:`, error);
+                log.error(`Error getting parent issue for ${issueKey}:`, error);
                 // Failed to get parent - fall through to default
             }
             

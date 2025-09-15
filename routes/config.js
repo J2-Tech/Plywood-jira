@@ -2,13 +2,13 @@ const express = require('express');
 const router = express.Router();
 const configController = require('../controllers/configController');
 const settingsService = require('../controllers/settingsService');
+const { log } = require('../utils/logger');
 
 router.get('/getConfig', async (req, res) => {
     try {
         const config = await configController.loadConfig(req);
         res.json(config);
     } catch (error) {
-        console.error('Error in /config/getConfig:', error);
         
         // Check for auth errors
         if (error.authFailure || error.status === 401 || error.code === 401) {
@@ -30,7 +30,6 @@ router.post('/saveConfig', async (req, res) => {
         await settingsService.updateSettings(req, newSettings);
         res.json({ message: 'Configuration saved successfully' });
     } catch (error) {
-        console.error('Error saving config:', error);
         res.status(500).json({ error: 'Failed to save configuration' });
     }
 });
@@ -43,7 +42,6 @@ router.post('/saveIssueColor', async (req, res) => {
             return res.status(400).json({ error: 'Missing issueKey or color' });
         }
         
-        console.log(`Saving color ${color} for issue ${issueKey}`);
         
         // Get current settings
         const settings = await configController.loadConfig(req, true);
@@ -67,7 +65,7 @@ router.post('/saveIssueColor', async (req, res) => {
         const jiraController = require('../controllers/jiraController');
         jiraController.clearWorklogCache();
         
-        console.log(`Successfully saved color ${color} for issue ${issueKey}`);
+        log.info(`Successfully saved color ${color} for issue ${issueKey}`);
         
         res.json({ 
             success: true, 
@@ -77,7 +75,7 @@ router.post('/saveIssueColor', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Error saving issue color:', error);
+        log.error('Error saving issue color:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -100,7 +98,7 @@ router.get('/refreshColors', async (req, res) => {
         const issueColors = refreshedSettings.issueColors || {};
         const colorCount = Object.keys(issueColors).length;
         
-        console.log(`Refreshed all issue colors (${colorCount} colors)`);
+        log.info(`Refreshed all issue colors (${colorCount} colors)`);
         
         res.set({
             'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -114,7 +112,7 @@ router.get('/refreshColors', async (req, res) => {
             timestamp: Date.now()
         });
     } catch (error) {
-        console.error('Error refreshing issue colors:', error);
+        log.error('Error refreshing issue colors:', error);
         res.status(500).json({ error: 'Failed to refresh issue colors' });
     }
 });
@@ -152,7 +150,7 @@ router.get('/debugIssueColor/:issueKey', async (req, res) => {
             cacheState: cachedColor ? 'found' : 'not in cache'
         });
     } catch (error) {
-        console.error('Error in debug issue color:', error);
+        log.error('Error in debug issue color:', error);
         res.status(500).json({ error: 'Failed to debug issue color' });
     }
 });

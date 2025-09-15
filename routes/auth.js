@@ -2,13 +2,14 @@ const express = require('express');
 const router = express.Router();
 const passport = require('passport');
 const jiraAuthController = require('../controllers/jiraAuthController');
-const jiraAPIController = require('../controllers/jiraAPIController');  
+const jiraAPIController = require('../controllers/jiraAPIController');
+const { log } = require('../utils/logger');  
 const configController = require('../controllers/configController');
 
 router.get('/login', passport.authenticate('atlassian'));
 
 router.get('/refreshToken', (req, res) => {
-    console.log('refreshToken');
+    log.info('refreshToken');
     jiraAPIController.refreshToken(req).then(()=>{
         res.redirect('/');
     })
@@ -28,7 +29,7 @@ router.get('/logout', jiraAuthController.logout);
  * Returns JSON instead of redirecting
  */
 router.get('/refresh-token', async (req, res) => {
-    console.log('Token refresh requested via AJAX');
+    log.info('Token refresh requested via AJAX');
     
     try {
         // Check if the user is authenticated
@@ -40,14 +41,14 @@ router.get('/refresh-token', async (req, res) => {
         const refreshed = await jiraAPIController.refreshToken(req);
         
         if (refreshed) {
-            console.log('Token refreshed successfully via AJAX');
+            log.info('Token refreshed successfully via AJAX');
             return res.json({ success: true, message: 'Token refreshed successfully' });
         } else {
-            console.log('Token refresh failed via AJAX');
+            log.warn('Token refresh failed via AJAX');
             return res.status(401).json({ success: false, message: 'Token refresh failed' });
         }
     } catch (error) {
-        console.error('Error refreshing token via AJAX:', error);
+        log.error('Error refreshing token via AJAX:', error);
         return res.status(500).json({ success: false, message: 'Error refreshing token' });
     }
 });
@@ -57,12 +58,12 @@ router.get('/refresh-token', async (req, res) => {
  * Returns JSON instead of redirecting
  */
 router.post('/refresh-token', async (req, res) => {
-    console.log('Token refresh requested via AJAX (POST)');
+    log.info('Token refresh requested via AJAX (POST)');
     
     try {
         // Check if the user is authenticated
         if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
-            console.log('No authenticated user found for token refresh');
+            log.warn('No authenticated user found for token refresh');
             return res.status(401).json({ success: false, message: 'Not authenticated' });
         }
         

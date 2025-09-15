@@ -28,7 +28,6 @@ exports.accumulateIssueColor = async function(req, issueKey, color) {
         
         // Store the new color and log it
         issueColorsToUpdate.get(userId)[normalizedIssueKey] = color;
-        console.log(`Accumulated color ${color} for issue ${normalizedIssueKey} (user: ${userId})`);
     }
 };
 
@@ -61,7 +60,6 @@ exports.saveAccumulatedIssueColors = async function(req) {
         }
         
         // Log the colors being saved
-        console.log(`Saved accumulated issue colors for user ${userId}:`, userColors);
         
         // Clear the pending updates
         issueColorsToUpdate.delete(userId);
@@ -85,7 +83,6 @@ exports.ensureConfigDirExists = async function(req) {
     try {
         await fs.mkdir(configDir, { recursive: true });
     } catch (error) {
-        console.error('Error creating config directory:', error);
     }
     
     return configDir;
@@ -105,7 +102,6 @@ exports.determineIssueColor = async function(settings, req, issue, parentIssue =
     // Try to get color for specific issue key first
     let color = settings.issueColors && settings.issueColors[issue.issueKey.toLowerCase()];
     if (color) {
-        console.log(`Found color ${color} for issue ${issue.issueKey}`);
         return color;
     }
 
@@ -113,7 +109,6 @@ exports.determineIssueColor = async function(settings, req, issue, parentIssue =
     if (parentIssue && parentIssue.key) {
         const parentColor = settings.issueColors && settings.issueColors[parentIssue.key.toLowerCase()];
         if (parentColor) {
-            console.log(`Using parent issue ${parentIssue.key} color ${parentColor} for issue ${issue.issueKey}`);
             return parentColor;
         }
         
@@ -122,7 +117,6 @@ exports.determineIssueColor = async function(settings, req, issue, parentIssue =
             const parentIssueTypeLower = parentIssue.issueType.toLowerCase();
             const parentTypeColor = settings.issueColors && settings.issueColors[parentIssueTypeLower];
             if (parentTypeColor) {
-                console.log(`Using parent issue type ${parentIssue.issueType} color ${parentTypeColor} for issue ${issue.issueKey}`);
                 return parentTypeColor;
             }
         }
@@ -133,12 +127,10 @@ exports.determineIssueColor = async function(settings, req, issue, parentIssue =
         const issueTypeLower = issue.issueType.toLowerCase();
         color = settings.issueColors && settings.issueColors[issueTypeLower];
         if (color) {
-            console.log(`Using issue type ${issue.issueType} color ${color} for issue ${issue.issueKey}`);
             return color;
         }
     }
 
-    console.log(`Using default color ${defaultColor} for issue ${issue.issueKey}`);
     return defaultColor;
 };
 
@@ -149,9 +141,7 @@ exports.clearSettingsCache = function(req) {
 // Utility function for debugging - only used when troubleshooting
 exports.debugDumpSettings = async function(req, issueKey) {
     try {
-        console.log('==== SETTINGS DEBUG INFO ====');
         const userId = settingsService._getUserId(req);
-        console.log(`User ID: ${userId}`);
         
         // Get current settings with force refresh
         const settings = await settingsService.getSettings(req, true);
@@ -160,21 +150,16 @@ exports.debugDumpSettings = async function(req, issueKey) {
         if (issueKey) {
             const normalizedKey = issueKey.toLowerCase();
             const colorInSettings = settings.issueColors && settings.issueColors[normalizedKey];
-            console.log(`Color for ${issueKey} in settings: ${colorInSettings || 'not found'}`);
             
             // Check color cache
             const colorUtils = require('./colorUtils');
             const cachedColor = colorUtils.getIssueColorFromCache(issueKey, true);
-            console.log(`Color for ${issueKey} in cache: ${cachedColor || 'not found'}`);
         }
         
         // Check pending updates
         const pendingUpdates = issueColorsToUpdate.get(userId);
-        console.log('Pending color updates:', pendingUpdates || 'none');
         
-        console.log('==== END DEBUG INFO ====');
     } catch (error) {
-        console.error('Error in debugDumpSettings:', error);
     }
 };
 

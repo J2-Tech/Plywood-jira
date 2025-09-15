@@ -24,6 +24,25 @@
         
         <!-- Notes Side Panel -->
         <div id="notesSidePanel" class="notes-side-panel">
+            <!-- Objectives Area -->
+            <div id="objectivesArea" class="objectives-area">
+                <div class="objectives-header">
+                    <h4>Objectives</h4>
+                    <button id="toggleObjectives" class="toggle-objectives-btn" title="Toggle Objectives">▼</button>
+                </div>
+                <div id="objectivesContent" class="objectives-content collapsed">
+                    <div class="objectives-controls">
+                        <div class="objective-input-group">
+                            <input type="text" id="objectiveIssueSearch" placeholder="Search issues..." class="objective-search-input">
+                            <button id="addObjective" class="add-objective-btn" title="Add Objective">+</button>
+                        </div>
+                    </div>
+                    <div id="objectivesList" class="objectives-list">
+                        <!-- Objectives will be added here dynamically -->
+                    </div>
+                </div>
+            </div>
+            
             <div class="notes-panel-header">
                 <div class="notes-header-top">
                     <h3>Notes <span id="notesPanelContext"></span></h3>
@@ -46,6 +65,9 @@
                     <button type="button" data-action="taskList" title="Task List">☐</button>
                     <span class="toolbar-divider"></span>
                     <button type="button" data-action="codeBlock" title="Code Block">&lt;/&gt;</button>
+                    <span class="toolbar-divider"></span>
+                    <button type="button" data-action="link" title="Insert Link">🔗</button>
+                    <button type="button" data-action="issueReference" title="Insert Issue Reference">🎫</button>
                     <span class="toolbar-divider"></span>
                     <button type="button" data-action="undo" title="Undo">↶</button>
                     <button type="button" data-action="redo" title="Redo">↷</button>
@@ -168,6 +190,7 @@
         </script>
         <script src="/javascripts/plywood/ui.js" type="module"></script>
         <script src="/javascripts/plywood/modal.js" type="module"></script>
+        <script src="/javascripts/plywood/objectives.js" type="module"></script>
         {% block scripts %}{% endblock %}
     </body>
 </html>

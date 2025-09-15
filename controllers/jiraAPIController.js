@@ -5,6 +5,7 @@ const configController = require('./configController');
 const fs = require('fs').promises;
 const path = require('path');
 const authErrorHandler = require('../utils/authErrorHandler');
+const { log } = require('../utils/logger');
 
 // Cache for API data
 const issueCache = new Map();
@@ -24,13 +25,11 @@ const ICON_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 // global.selectedProject = 'all';
 
 const disableValidation = process.env.JIRA_API_DISABLE_HTTPS_VALIDATION;
-console.log(`JIRA_API_DISABLE_HTTPS_VALIDATION environment variable: "${disableValidation}"`);
 const shouldValidateHttps = !(disableValidation === 'true' || disableValidation === 'True' || disableValidation === 'TRUE' || disableValidation === '1');
 const httpsAgent = new https.Agent({
     rejectUnauthorized: shouldValidateHttps
 });
 
-console.log(`HTTPS certificate validation: ${shouldValidateHttps ? 'ENABLED' : 'DISABLED'}`);
 
 function getDefaultHeaders(req) {
     if (!req.user && process.env.JIRA_AUTH_TYPE === "OAUTH") {
@@ -86,18 +85,14 @@ async function withRetry(fetchFn, req, ...args) {
             // Use centralized auth error detection
             if (authErrorHandler.isAuthError(data)) {
                 if (process.env.JIRA_AUTH_TYPE === "OAUTH" && attempt < maxRetries) {
-                    console.log(`Token expired or auth error detected. Attempting to refresh token... (attempt ${attempt + 1})`);
                     const tokenRefreshed = await refreshToken(req);
                     
                     if (tokenRefreshed) {
-                        console.log('Token refreshed successfully, retrying request');
                         continue; // Retry the request
                     } else {
-                        console.log('Token refresh failed, authentication required');
                         throw authErrorHandler.createAuthError();
                     }
                 } else {
-                    console.log('Error - unauthorized. Check your credentials.');
                     throw authErrorHandler.createAuthError('Unauthorized');
                 }
             }
@@ -107,20 +102,16 @@ async function withRetry(fetchFn, req, ...args) {
             
             // Use centralized auth error detection
             if (authErrorHandler.isAuthError(error)) {
-                console.log(`Authentication error detected in API call: ${error.message} (attempt ${attempt + 1})`);
                 
                 // Try to refresh token if OAuth is enabled and we have retries left
                 if (process.env.JIRA_AUTH_TYPE === "OAUTH" && attempt < maxRetries) {
                     try {
-                        console.log('Attempting to refresh token due to error...');
                         const tokenRefreshed = await refreshToken(req);
                         
                         if (tokenRefreshed) {
-                            console.log('Token refreshed successfully, retrying request');
                             continue; // Retry the request
                         }
                     } catch (refreshError) {
-                        console.log('Token refresh failed:', refreshError.message);
                         lastError = authErrorHandler.createAuthError();
                     }
                 }
@@ -133,7 +124,7 @@ async function withRetry(fetchFn, req, ...args) {
                 error.code === 'ENOTFOUND' ||
                 error.message.includes('fetch')
             )) {
-                console.log(`Network error, retrying... (attempt ${attempt + 1}): ${error.message}`);
+                log.warn(`Network error, retrying... (attempt ${attempt + 1}): ${error.message}`);
                 await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1))); // Exponential backoff
                 continue;
             }
@@ -143,7 +134,7 @@ async function withRetry(fetchFn, req, ...args) {
         }
     }
     
-    console.error('API call failed after all retries:', lastError);
+    log.error('API call failed after all retries:', lastError);
     throw lastError;
 }
 
@@ -151,7 +142,7 @@ async function refreshToken(req) {
     if (req.user) {
         const refreshToken = req.user.refreshToken;
         try {
-            console.log('Refreshing token');
+            log.info('Refreshing token');
             const response = await fetch('https://auth.atlassian.com/oauth/token', {
                 method: 'POST',
                 headers: {
@@ -172,7 +163,7 @@ async function refreshToken(req) {
             return true;
     
         } catch (error) {
-            console.error('Error refreshing token:', error);
+            log.error('Error refreshing token:', error);
             throw new Error('Failed to refresh authentication token');
         }
     }
@@ -246,7 +237,7 @@ function suggestIssuesInternal(req, query) {
         agent: httpsAgent
     }).then(res => {
         if (!res.ok) {
-            console.error(`Issue picker API error: ${res.status} ${res.statusText}`);
+            log.error(`Issue picker API error: ${res.status} ${res.statusText}`);
             // Return empty result instead of throwing
             return { sections: [] };
         }
@@ -254,19 +245,19 @@ function suggestIssuesInternal(req, query) {
     }).then(data => {
         // Check for API errors and return empty result
         if (data.errorMessages || data.errors) {
-            console.warn('Issue picker returned errors:', data.errorMessages || data.errors);
+            log.warn('Issue picker returned errors:', data.errorMessages || data.errors);
             return { sections: [] };
         }
         
         // Ensure sections exist
         if (!data.sections) {
-            console.warn('Issue picker returned unexpected format, creating empty sections');
+            log.warn('Issue picker returned unexpected format, creating empty sections');
             return { sections: [] };
         }
         
         return data;
     }).catch(error => {
-        console.error('Issue picker error:', error);
+        log.error('Issue picker error:', error);
         // Return empty result instead of throwing
         return { sections: [] };
     });
@@ -326,7 +317,7 @@ exports.getWorkLog = function(req, issueId, worklogId) {
 }
 
 function updateWorkLogInternal(req, issue, worklogId, started, timeSpentSeconds, comment, issueKeyColor) {
-    console.log(`Updating worklog ${worklogId} for issue ${issue} with comment: "${comment}" (type: ${typeof comment})`);
+    log.debug(`Updating worklog ${worklogId} for issue ${issue}`);
     
     // Clean comment to remove any color information that might have been stored previously
     const cleanedComment = cleanWorklogComment(comment || "");
@@ -351,7 +342,7 @@ exports.updateWorkLog = function(req, issue, worklogId, started, timeSpentSecond
 }
 
 function createWorkLogInternal(req, issue, started, timeSpentSeconds, comment, issueKeyColor) {
-    console.log(`Creating worklog for issue ${issue} with comment: "${comment}"`);
+    log.debug(`Creating worklog for issue ${issue}`);
     
     // Clean comment to remove any color information
     const cleanedComment = cleanWorklogComment(comment || "");
@@ -384,7 +375,7 @@ function deleteWorkLogInternal(req, issue, worklogId) {
         },
         agent:httpsAgent
     }).then(res => res.text()).catch(err => {
-        console.log(err);
+        log.error(err);
         res.status(500).json({status: 'error', message: err});
     });
 }
@@ -434,8 +425,8 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
         jql += ` AND worklogAuthor = currentUser()`;
     }
     
-    console.log(`JQL Query: ${jql}`);
-    console.log(`Date range: ${start} to ${end}`);
+    log.debug(`JQL Query: ${jql}`);
+    log.debug(`Date range: ${start} to ${end}`);
     
     // Get project from query params and apply filter
     const projectKey = req.query.project;
@@ -483,16 +474,11 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const issuesData = await response.json();
     
     if (!issuesData.issues || !Array.isArray(issuesData.issues)) {
-        console.log('No issues found with worklogs in date range');
         return { issues: [] };
     }
     
-    console.log(`Found ${issuesData.issues.length} issues with worklogs in date range`);
     
     // Debug: Log all found issues
-    issuesData.issues.forEach((issue, index) => {
-        console.log(`  Issue ${index + 1}: ${issue.key} (${issue.fields.issuetype?.name || 'unknown type'})`);
-    });
     
     // Process the issues - the worklogs should already be included in the response
     const issuesWithWorklogs = [];
@@ -513,7 +499,7 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
                     return true;
                 });
                 
-                console.log(`Issue ${issue.key}: Found ${issue.fields.worklog.worklogs.length} total worklogs, ${filteredWorklogs.length} filtered for user`);
+                log.debug(`Issue ${issue.key}: Found ${issue.fields.worklog.worklogs.length} total worklogs, ${filteredWorklogs.length} filtered for user`);
                 
                 if (filteredWorklogs.length > 0) {
                     // Update the issue with filtered worklogs
@@ -528,16 +514,16 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
                     };
                     
                     issuesWithWorklogs.push(issueWithWorklogs);
-                    console.log(`Issue ${issue.key}: ${filteredWorklogs.length} worklogs in date range`);
+                    log.debug(`Issue ${issue.key}: ${filteredWorklogs.length} worklogs in date range`);
                 }
             }
         } catch (error) {
-            console.error(`Error processing issue ${issue.key}:`, error.message);
+            log.error(`Error processing issue ${issue.key}:`, error.message);
             continue;
         }
     }
     
-    console.log(`Successfully processed ${issuesWithWorklogs.length} issues with relevant worklogs`);
+    log.info(`Successfully processed ${issuesWithWorklogs.length} issues with relevant worklogs`);
     
     return { issues: issuesWithWorklogs };
 };
@@ -600,14 +586,14 @@ exports.getSprintIssues = async function(req, sprintId) {
             });
             
             if (!worklogResponse.ok) {
-                console.warn(`Failed to fetch worklogs for issue ${issue.key}: ${worklogResponse.status}`);
+                log.warn(`Failed to fetch worklogs for issue ${issue.key}: ${worklogResponse.status}`);
                 continue;
             }
             
             const worklogData = await worklogResponse.json();
             
             if (!worklogData.worklogs || !Array.isArray(worklogData.worklogs)) {
-                console.warn(`No worklogs found for issue ${issue.key}`);
+                log.warn(`No worklogs found for issue ${issue.key}`);
                 continue;
             }
             
@@ -625,7 +611,7 @@ exports.getSprintIssues = async function(req, sprintId) {
             issuesWithWorklogs.push(issueWithWorklogs);
             
         } catch (error) {
-            console.error(`Error fetching worklogs for issue ${issue.key}:`, error.message);
+            log.error(`Error fetching worklogs for issue ${issue.key}:`, error.message);
             continue;
         }
     }
@@ -634,7 +620,7 @@ exports.getSprintIssues = async function(req, sprintId) {
 };
 
 exports.getProjectAvatar = async function(req, projectKey) {
-    console.log(`Fetching avatar for project ${projectKey}`);
+    log.debug(`Fetching avatar for project ${projectKey}`);
     const url = getCallURL(req);
     try {
         // First try to get project details to get avatar URLs
@@ -645,12 +631,12 @@ exports.getProjectAvatar = async function(req, projectKey) {
         });
         
         if (!projectResponse.ok) {
-            console.error(`Failed to fetch project details: ${projectResponse.status}`);
+            log.error(`Failed to fetch project details: ${projectResponse.status}`);
             throw new Error('Failed to fetch project details');
         }
         
         const projectData = await projectResponse.json();
-        console.log('Project avatar URLs:', projectData.avatarUrls);
+        log.trace('Project avatar URLs:', projectData.avatarUrls);
         
         // Try to get the largest avatar available
         const avatarUrl = projectData.avatarUrls['48x48'] || 
@@ -659,17 +645,17 @@ exports.getProjectAvatar = async function(req, projectKey) {
                          projectData.avatarUrls['16x16'];
                          
         if (!avatarUrl) {
-            console.error('No avatar URLs found in project data');
+            log.error('No avatar URLs found in project data');
             return '#2684FF'; // Default color
         }
 
         // Get color from avatar
         const color = await exports.getMainColorFromIcon(avatarUrl);
-        console.log(`Extracted color for project ${projectKey}:`, color);
+        log.debug(`Extracted color for project ${projectKey}:`, color);
         return color;
         
     } catch (error) {
-        console.error('Error fetching project avatar:', error);
+        log.error('Error fetching project avatar:', error);
         return '#2684FF'; // Default color
     }
 };
@@ -751,7 +737,7 @@ exports.getMainColorFromIcon = async function (imageUrl) {
             return `hsl(${hue}, 70%, 50%)`;
         }
     } catch (error) {
-        console.warn('Error fetching icon for color extraction:', error.message);
+        log.warn('Error fetching icon for color extraction:', error.message);
         return '#2684FF';
     }
 };
@@ -842,7 +828,7 @@ exports.getSprints = async function(req) {
         
         return { values: uniqueSprints };
     } catch (error) {
-        console.error('Error fetching sprints:', error);
+        log.error('Error fetching sprints:', error);
         throw error;
     }
 };
@@ -862,7 +848,7 @@ exports.getBoardSprints = async function(req, boardId) {
         
         return await response.json();
     } catch (error) {
-        console.error(`Error fetching sprints for board ${boardId}:`, error);
+        log.error(`Error fetching sprints for board ${boardId}:`, error);
         return { values: [] }; // Return empty array on error to continue processing other boards
     }
 };
@@ -882,7 +868,7 @@ exports.getSprintById = async function(req, sprintId) {
         
         return await response.json();
     } catch (error) {
-        console.error(`Error fetching sprint ${sprintId}:`, error);
+        log.error(`Error fetching sprint ${sprintId}:`, error);
         throw error;
     }
 };
@@ -897,7 +883,7 @@ function cleanWorklogComment(comment) {
     
     // Handle case where comment is an object (shouldn't happen, but defensive programming)
     if (typeof comment !== 'string') {
-        console.warn('cleanWorklogComment received non-string comment:', comment, typeof comment);
+        log.warn('cleanWorklogComment received non-string comment:', typeof comment);
         return '';
     }
     
@@ -944,7 +930,7 @@ exports.getIssueTypeAvatar = async function(req, issueTypeId) {
         });
         
         if (!issueTypeResponse.ok) {
-            console.error(`Failed to fetch issue type: ${issueTypeResponse.status}`);
+            log.error(`Failed to fetch issue type: ${issueTypeResponse.status}`);
             throw new Error('Failed to fetch issue type');
         }
         
@@ -972,7 +958,7 @@ exports.getIssueTypeAvatar = async function(req, issueTypeId) {
         return result;
         
     } catch (error) {
-        console.error('Error fetching issue type avatar info:', error);
+        log.error('Error fetching issue type avatar info:', error);
         
         // Return fallback data with our proxy URLs
         return {
@@ -1012,7 +998,7 @@ exports.proxyIssueTypeAvatarImage = async function(req, issueTypeId, size = 'med
         });
         
         if (!issueTypeResponse.ok) {
-            console.warn(`Failed to fetch issue type ${issueTypeId}: ${issueTypeResponse.status}`);
+            log.warn(`Failed to fetch issue type ${issueTypeId}: ${issueTypeResponse.status}`);
             return null;
         }
         
@@ -1025,7 +1011,7 @@ exports.proxyIssueTypeAvatarImage = async function(req, issueTypeId, size = 'med
             const avatarIdMatch = issueType.iconUrl.match(/avatar\/(\d+)/);
             if (avatarIdMatch) {
                 const avatarId = avatarIdMatch[1];
-                console.log(`Proxying avatar via universal API with ID ${avatarId} for issue type ${issueTypeId}`);
+                log.debug(`Proxying avatar via universal API with ID ${avatarId} for issue type ${issueTypeId}`);
                 
                 try {
                     const avatarResponse = await fetch(`${url}/rest/api/3/universal_avatar/view/type/issuetype/avatar/${avatarId}?size=${size}`, {
@@ -1040,19 +1026,19 @@ exports.proxyIssueTypeAvatarImage = async function(req, issueTypeId, size = 'med
                     if (avatarResponse.ok) {
                         avatarBuffer = await avatarResponse.buffer();
                         contentType = avatarResponse.headers.get('content-type') || 'image/png';
-                        console.log(`Successfully proxied avatar via universal API for issue type ${issueTypeId}`);
+                        log.debug(`Successfully proxied avatar via universal API for issue type ${issueTypeId}`);
                     } else {
-                        console.warn(`Universal avatar API returned ${avatarResponse.status} for issue type ${issueTypeId}`);
+                        log.warn(`Universal avatar API returned ${avatarResponse.status} for issue type ${issueTypeId}`);
                     }
                 } catch (error) {
-                    console.warn(`Universal avatar API failed for issue type ${issueTypeId}:`, error.message);
+                    log.warn(`Universal avatar API failed for issue type ${issueTypeId}:`, error.message);
                 }
             }
         }
         
         // Approach 2: Try direct iconUrl if universal API failed
         if (!avatarBuffer && issueType.iconUrl) {
-            console.log(`Proxying avatar via direct iconUrl for issue type ${issueTypeId}`);
+            log.debug(`Proxying avatar via direct iconUrl for issue type ${issueTypeId}`);
             try {
                 const directResponse = await fetch(issueType.iconUrl, {
                     method: 'GET',
@@ -1066,12 +1052,12 @@ exports.proxyIssueTypeAvatarImage = async function(req, issueTypeId, size = 'med
                 if (directResponse.ok) {
                     avatarBuffer = await directResponse.buffer();
                     contentType = directResponse.headers.get('content-type') || 'image/png';
-                    console.log(`Successfully proxied avatar via direct URL for issue type ${issueTypeId}`);
+                    log.debug(`Successfully proxied avatar via direct URL for issue type ${issueTypeId}`);
                 } else {
-                    console.warn(`Direct iconUrl returned ${directResponse.status} for issue type ${issueTypeId}`);
+                    log.warn(`Direct iconUrl returned ${directResponse.status} for issue type ${issueTypeId}`);
                 }
             } catch (error) {
-                console.warn(`Direct iconUrl failed for issue type ${issueTypeId}:`, error.message);
+                log.warn(`Direct iconUrl failed for issue type ${issueTypeId}:`, error.message);
             }
         }
         
@@ -1093,7 +1079,7 @@ exports.proxyIssueTypeAvatarImage = async function(req, issueTypeId, size = 'med
         return null;
         
     } catch (error) {
-        console.error(`Error proxying issue type avatar image for ${issueTypeId}:`, error);
+        log.error(`Error proxying issue type avatar image for ${issueTypeId}:`, error);
         return null;
     }
 };
@@ -1106,7 +1092,7 @@ async function ensureIconsDirectory() {
     try {
         await fs.mkdir(ICONS_DIR, { recursive: true });
     } catch (error) {
-        console.error('Error creating icons directory:', error);
+        log.error('Error creating icons directory:', error);
     }
 }
 
@@ -1121,10 +1107,10 @@ exports.cleanupIconCache = async function() {
         iconCache.clear();
         avatarCache.clear();
         
-        console.log('Icon cache cleanup completed');
+        log.info('Icon cache cleanup completed');
         return true;
     } catch (error) {
-        console.error('Error cleaning up icon cache:', error);
+        log.error('Error cleaning up icon cache:', error);
         throw error;
     }
 };
@@ -1171,7 +1157,7 @@ function wrapWithErrorHandling(fn) {
         try {
             return await fn.apply(this, args);
         } catch (error) {
-            console.error(`Error in ${fn.name}:`, error);
+            log.error(`Error in ${fn.name}:`, error);
             throw error;
         }
     };

@@ -33,8 +33,6 @@ export function showUpdateModal(event) {
     const modal = document.querySelector('.modal-update');
     const form = modal.querySelector('form');
     
-    console.log('Showing update modal for event:', event);
-    console.log('Event extended props:', event.extendedProps);
     
     // Helper function to safely get extended property with fallback
     const getExtendedProp = (propName) => {
@@ -66,20 +64,17 @@ export function showUpdateModal(event) {
     
     // If we're missing critical data, try to refresh the event first
     if (!worklogId || !issueId || !issueKey) {
-        console.warn('Event missing critical properties, attempting to refresh from server');
         
         // Try to extract IDs from available data
         const eventId = event.id || worklogId;
         const fallbackIssueId = issueId || getExtendedProp('issueId');
         
         if (eventId && fallbackIssueId) {
-            console.log(`Refreshing event ${eventId} for issue ${fallbackIssueId} before showing modal`);
             
             // Refresh the event and try again
             fetch(`/events/${eventId}?issueId=${fallbackIssueId}&_nocache=${Date.now()}`)
                 .then(response => response.json())
                 .then(refreshedData => {
-                    console.log('Refreshed event data:', refreshedData);
                     
                     // Update the event with fresh data
                     if (refreshedData.extendedProps) {
@@ -92,13 +87,10 @@ export function showUpdateModal(event) {
                     showUpdateModal(event);
                 })
                 .catch(error => {
-                    console.error('Failed to refresh event data:', error);
                     alert('Error: Could not load event details. Please refresh the page and try again.');
                 });
             return;
         } else {
-            console.error('Event missing required properties and cannot be refreshed. WorklogId:', worklogId, 'IssueId:', issueId);
-            console.error('Full event object:', event);
             alert('Error: Event data is incomplete. Please refresh the page and try again.');
             return;
         }
@@ -208,7 +200,6 @@ export function showColorPicker(event, jsEvent) {
     // Get the issue key from the event
     const issueKey = event.extendedProps?.issueKey || event._def?.extendedProps?.issueKey;
     if (!issueKey) {
-        console.error('No issue key found for color picker');
         return;
     }
 
@@ -241,22 +232,18 @@ export function saveColor() {
     const issueKey = window.currentIssueKey;
 
     if (!event || !issueKey) {
-        console.error('Event or issue key is undefined');
         hideColorPickerModal();
         hideLoading();
         return;
     }
     
-    console.log(`Saving color ${newColor} for issue ${issueKey}`);
     
     // Calculate contrasting text color
     const textColor = getContrastingTextColor(newColor);
-    console.log(`Calculated text color ${textColor} for background ${newColor}`);
     
     // Save the color to the issue configuration
     saveColorForIssue(issueKey, newColor)
         .then((data) => {
-            console.log('Color saved successfully to issue config:', data);
             
             // Update the current event immediately with both background and text color
             event.setProp('backgroundColor', newColor);
@@ -283,11 +270,9 @@ export function saveColor() {
             });
         })
         .then(() => {
-            console.log('Server caches cleared successfully');
             
             // Force calendar refresh with updated colors
             if (window.calendar) {
-                console.log('Refreshing calendar with new colors...');
                 window.calendar.refetchEvents();
             }
         })
@@ -331,12 +316,10 @@ function updateCalendarEventsColor(issueKey, newColor) {
             event.setExtendedProp('calculatedTextColor', textColor);
             updatedCount++;
             
-            console.log(`Updated calendar event ${event.id} with background ${newColor} and text ${textColor} for issue ${issueKey}`);
         }
     });
     
     if (updatedCount > 0) {
-        console.log(`Updated ${updatedCount} calendar events with new colors (bg: ${newColor}, text: ${textColor}) for issue ${issueKey}`);
     }
 }
 
@@ -356,7 +339,6 @@ function updateModalColors(issueKey, newColor) {
             const selectedIssueKey = getSelectedIssueKey(createIssueSelect);
             if (selectedIssueKey && selectedIssueKey.toUpperCase() === issueKey.toUpperCase()) {
                 createColorInput.value = newColor;
-                console.log(`Updated create modal color input to ${newColor} for issue ${issueKey}`);
             }
         }
     }
@@ -372,7 +354,6 @@ function updateModalColors(issueKey, newColor) {
             const labelIssueKey = labelText.split(' - ')[0];
             if (labelIssueKey && labelIssueKey.toUpperCase() === issueKey.toUpperCase()) {
                 updateColorInput.value = newColor;
-                console.log(`Updated update modal color input to ${newColor} for issue ${issueKey}`);
             }
         }
     }
@@ -386,7 +367,6 @@ function updateModalColors(issueKey, newColor) {
  * @param {string} issueKey - The issue key to clear from cache
  */
 function clearCachedChoicesForIssue(issueKey) {
-    console.log(`Clearing cached choices for issue ${issueKey}`);
     
     // Clear from create dropdown cache
     if (window.choicesCreate && window.choicesCreate._currentState && window.choicesCreate._currentState.choices) {
@@ -412,13 +392,11 @@ function clearCachedChoicesForIssue(issueKey) {
             }
             
             if (choiceIssueKey && choiceIssueKey.toUpperCase() === issueKey.toUpperCase()) {
-                console.log(`Removing cached choice for issue ${issueKey} from create dropdown:`, choice);
                 choices.splice(i, 1);
             }
         }
         
         if (choices.length !== originalLength) {
-            console.log(`Removed ${originalLength - choices.length} cached choices for issue ${issueKey} from create dropdown`);
             // Force re-render of choices
             window.choicesCreate._render();
         }
@@ -448,13 +426,11 @@ function clearCachedChoicesForIssue(issueKey) {
             }
             
             if (choiceIssueKey && choiceIssueKey.toUpperCase() === issueKey.toUpperCase()) {
-                console.log(`Removing cached choice for issue ${issueKey} from timer dropdown:`, choice);
                 choices.splice(i, 1);
             }
         }
         
         if (choices.length !== originalLength) {
-            console.log(`Removed ${originalLength - choices.length} cached choices for issue ${issueKey} from timer dropdown`);
             // Force re-render of choices
             window.choicesTimer._render();
         }
@@ -471,7 +447,6 @@ function clearCachedChoicesForIssue(issueKey) {
             }
         }
         keysToRemove.forEach(key => {
-            console.log(`Removing cached localStorage item: ${key}`);
             localStorage.removeItem(key);
         });
     }
@@ -518,7 +493,6 @@ function getSelectedIssueKey(selectElement) {
                 }
             }
         } catch (error) {
-            console.warn('Error accessing Choices.js instance:', error);
         }
     }
     
@@ -612,7 +586,6 @@ function debugIssueColor(issueKey) {
         return;
     }
     
-    console.log(`Debugging issue color for ${issueKey}...`);
     
     // First check local DOM for any elements with this issue
     const eventsWithThisIssue = [];
@@ -632,7 +605,6 @@ function debugIssueColor(issueKey) {
         });
     }
     
-    console.log(`Client-side events for issue ${issueKey}:`, eventsWithThisIssue);
     
     // Then check with server
     fetch(`/config/debugIssueColor/${issueKey}?_t=${Date.now()}`, {
@@ -643,18 +615,15 @@ function debugIssueColor(issueKey) {
     })
     .then(response => response.json())
     .then(data => {
-        console.log(`Server-side color info for ${issueKey}:`, data);
         
         // Analyze any discrepancies
         if (eventsWithThisIssue.length > 0) {
             const clientColor = eventsWithThisIssue[0].backgroundColor;
             if (clientColor !== data.determinedColor) {
-                console.warn(`Color mismatch! Client: ${clientColor}, Server: ${data.determinedColor}`);
             }
         }
     })
     .catch(error => {
-        console.error('Error getting debug color info:', error);
     });
 }
 
@@ -698,7 +667,6 @@ function convertToISOString(datetimeLocalValue) {
  * @param {string} worklogId - The worklog ID that was updated
  */
 export function handleWorklogUpdateSuccess(updatedData, worklogId) {
-    console.log('Handling successful worklog update - refreshing calendar');
     
     // Simply refresh all calendar events
     if (window.calendar) {
@@ -709,7 +677,6 @@ export function handleWorklogUpdateSuccess(updatedData, worklogId) {
     const updateModal = document.querySelector('.modal-update');
     if (updateModal) {
         updateModal.style.display = 'none';
-        console.log('Update modal closed');
     }
 }
 
@@ -759,13 +726,11 @@ function updateIssueDisplayWithAvatar(element, issueData) {
     
     // Handle avatar load errors with our fallback system
     avatarElement.onerror = function() {
-        console.warn(`Avatar failed to load for issue type ${issueTypeId}, trying fallback`);
         
         // Try fallback URL if not already using it
         if (!this.src.includes('fallback=true')) {
             this.src = `/avatars/issuetype/${issueTypeId || 'unknown'}?size=small&fallback=true`;
         } else {
-            console.error(`Even fallback avatar failed for issue type ${issueTypeId}`);
             // As last resort, hide the avatar
             this.style.display = 'none';
         }
@@ -773,7 +738,6 @@ function updateIssueDisplayWithAvatar(element, issueData) {
     
     // Add loading indicator
     avatarElement.onload = function() {
-        console.log(`Avatar loaded successfully for issue type ${issueTypeId}`);
         this.style.opacity = '1';
     };
     

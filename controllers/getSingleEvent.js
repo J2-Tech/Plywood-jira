@@ -3,6 +3,7 @@ const jiraAPIController = require('./jiraAPIController');
 const configController = require('./configController');
 const colorUtils = require('./colorUtils');
 const { determineIssueColor } = require('./issueColorHelper');
+const { log } = require('../utils/logger');
 
 /**
  * Calculate the luminance of a color
@@ -63,7 +64,7 @@ function calculateContrastingTextColor(backgroundColor) {
         // Choose the color with better contrast (WCAG recommends minimum 4.5:1 for normal text)
         return contrastWithWhite > contrastWithBlack ? '#FFFFFF' : '#000000';
     } catch (error) {
-        console.warn('Error calculating contrasting text color for', backgroundColor, error);
+        log.warn('Error calculating contrasting text color for', backgroundColor, error);
         return '#000000'; // Default to black on error
     }
 }
@@ -92,7 +93,7 @@ function extractCommentText(comment) {
     }
     
     // Fallback: try to stringify the object (for debugging)
-    console.warn('Unknown comment format:', comment);
+    log.warn('Unknown comment format:', typeof comment);
     return '';
 }
 
@@ -127,22 +128,22 @@ function extractProseMirrorText(content) {
 }
 
 exports.getSingleEvent = async function(req, issueId, worklogId) {
-    console.log(`Getting single event for worklog ${worklogId} on issue ${issueId}`);
+    log.info(`Getting single event for worklog ${worklogId} on issue ${issueId}`);
     
     try {
         const worklog = await jiraAPIController.getWorkLog(req, issueId, worklogId);
         
         if (!worklog) {
-            console.error(`Worklog ${worklogId} not found`);
+            log.error(`Worklog ${worklogId} not found`);
             throw new Error('Worklog not found');
         }
         
         // Get issue details
-        console.log(`Fetching issue details for ${issueId}`);
+        log.debug(`Fetching issue details for ${issueId}`);
         const issue = await jiraAPIController.getIssue(req, issueId);
         
         if (!issue || !issue.key) {
-            console.error(`Issue ${issueId} not found or missing key property`);
+            log.error(`Issue ${issueId} not found or missing key property`);
             throw new Error('Issue not found or invalid');
         }
           // Calculate end time with date validation
@@ -152,17 +153,17 @@ exports.getSingleEvent = async function(req, issueId, worklogId) {
         try {
             started = new Date(worklog.started);
             if (isNaN(started.getTime())) {
-                console.warn(`Invalid start date in worklog: ${worklog.started}`);
+                log.warn(`Invalid start date in worklog: ${worklog.started}`);
                 started = new Date(); // Use current date as fallback
             }
             
             endTime = new Date(started.getTime() + (worklog.timeSpentSeconds * 1000));
             if (isNaN(endTime.getTime())) {
-                console.warn(`Invalid end time calculation for worklog ${worklogId}`);
+                log.warn(`Invalid end time calculation for worklog ${worklogId}`);
                 endTime = new Date(started.getTime() + 3600000); // Add 1 hour as fallback
             }
         } catch (dateError) {
-            console.error(`Error parsing dates for worklog ${worklogId}:`, dateError);
+            log.error(`Error parsing dates for worklog ${worklogId}:`, dateError);
             // Fallback to current time with 1 hour duration
             started = new Date();
             endTime = new Date(started.getTime() + 3600000); // 1 hour
@@ -178,7 +179,7 @@ exports.getSingleEvent = async function(req, issueId, worklogId) {
             issueType: issue.fields && issue.fields.issuetype ? issue.fields.issuetype.name : 'unknown'
         };
         
-        console.log(`Determining color for issue ${issue.key}`);
+        log.debug(`Determining color for issue ${issue.key}`);
         
         // Check for color in worklog comment first (allows per-worklog color override)
         let issueKeyColor;
@@ -187,14 +188,14 @@ exports.getSingleEvent = async function(req, issueId, worklogId) {
             const colorMatch = commentText.match(/color:\s*([#0-9A-Fa-f]+)/);
             if (colorMatch && colorMatch[1]) {
                 issueKeyColor = colorMatch[1];
-                console.log(`Found color in worklog comment: ${issueKeyColor}`);
+                log.debug(`Found color in worklog comment: ${issueKeyColor}`);
             }
         }
           // If no color in comment, determine from issue settings
         if (!issueKeyColor) {
             issueKeyColor = await determineIssueColor(settings, req, issueData, null);
         }
-          console.log(`Final color for issue ${issue.key || 'unknown'}: ${issueKeyColor}`);
+          log.debug(`Final color for issue ${issue.key || 'unknown'}: ${issueKeyColor}`);
           
           // Calculate proper contrasting text color
           const textColor = calculateContrastingTextColor(issueKeyColor);
@@ -225,7 +226,7 @@ exports.getSingleEvent = async function(req, issueId, worklogId) {
             }
         };
     } catch (error) {
-        console.error('Error getting single event:', error);
+        log.error('Error getting single event:', error);
         throw error;
     }
 };

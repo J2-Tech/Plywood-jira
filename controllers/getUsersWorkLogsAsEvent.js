@@ -4,6 +4,7 @@ const configController = require('./configController');
 const colorUtils = require('./colorUtils');
 const { determineIssueColor } = require('./issueColorHelper');
 const authErrorHandler = require('../utils/authErrorHandler');
+const { log } = require('../utils/logger');
 
 // Add worklog caching system with improved management
 const worklogCache = new Map();
@@ -41,7 +42,6 @@ function extractCommentText(comment) {
     }
     
     // Fallback: try to stringify the object (for debugging)
-    console.warn('Unknown comment format:', comment);
     return '';
 }
 
@@ -75,7 +75,7 @@ function extractProseMirrorText(content) {
 
 // Helper to clear worklog cache when data changes
 function clearWorklogCache(reason = 'manual') {
-    console.log(`Clearing worklog cache (reason: ${reason})`);
+    log.info(`Clearing worklog cache (reason: ${reason})`);
     worklogCache.clear();
     cacheStats.clears++;
     cacheStats.lastClear = new Date().toISOString();
@@ -89,7 +89,7 @@ function clearWorklogCacheForDateRange(start, end) {
     for (const [key, value] of worklogCache.entries()) {
         if (key.includes(startStr) || key.includes(endStr)) {
             worklogCache.delete(key);
-            console.log(`Cleared cache entry: ${key}`);
+            log.debug(`Cleared cache entry: ${key}`);
         }
     }
 }
@@ -112,7 +112,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
     // Check if this is just a HEAD request for cache validation
     if (!start || !end || req.method === 'HEAD') {
         // For HEAD requests or missing dates, just return an empty array
-        console.log('Received request without valid date range or HEAD request, returning empty result');
+        log.debug('Received request without valid date range or HEAD request, returning empty result');
         return [];
     }
     
@@ -125,7 +125,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
         
         // Check if dates are valid
         if (isNaN(filterStartTime.getTime()) || isNaN(filterEndTime.getTime())) {
-            console.warn(`Invalid date parameters received: start=${start}, end=${end}`);
+            log.warn(`Invalid date parameters received: start=${start}, end=${end}`);
             return [];
         }
         
@@ -140,14 +140,14 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
         // Check if we have cached data for this date range
         const cached = worklogCache.get(cacheKey);
         if (cached && Date.now() - cached.timestamp < WORKLOG_CACHE_TTL) {
-            console.log(`Using cached worklogs for ${formattedStart} to ${formattedEnd}`);
+            log.debug(`Using cached worklogs for ${formattedStart} to ${formattedEnd}`);
             cacheStats.hits++;
             return cached.events;
         }
         
         cacheStats.misses++;
 
-        console.log(`Fetching worklogs for ${formattedStart} to ${formattedEnd}`);
+        log.info(`Fetching worklogs for ${formattedStart} to ${formattedEnd}`);
         
         // Enhanced error handling with token refresh
         let result;
@@ -160,30 +160,30 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
                 break; // Success, exit loop
             } catch (error) {
                 attempts++;
-                console.log(`Attempt ${attempts} failed:`, error.message);
+                log.warn(`Attempt ${attempts} failed:`, error.message);
                 
                 // Use centralized auth error detection
                 if (authErrorHandler.isAuthError(error)) {
                     if (process.env.JIRA_AUTH_TYPE === "OAUTH" && attempts < maxAttempts) {
-                        console.log('Authentication error detected, attempting to refresh token...');
+                        log.info('Authentication error detected, attempting to refresh token...');
                         
                         try {
                             const tokenRefreshed = await jiraAPIController.refreshToken(req);
                             
                             if (tokenRefreshed) {
-                                console.log('Token refreshed successfully, retrying request');
+                                log.info('Token refreshed successfully, retrying request');
                                 continue; // Retry the request
                             } else {
-                                console.log('Token refresh failed, authentication required');
+                                log.warn('Token refresh failed, authentication required');
                                 throw authErrorHandler.createAuthError();
                             }
                         } catch (refreshError) {
-                            console.error('Token refresh failed:', refreshError);
+                            log.error('Token refresh failed:', refreshError);
                             throw authErrorHandler.createAuthError();
                         }
                     } else {
                         // Auth error but not OAuth or max attempts reached
-                        console.log('Authentication failed - redirecting to login required');
+                        log.warn('Authentication failed - redirecting to login required');
                         throw authErrorHandler.createAuthError();
                     }
                 } else {
@@ -195,7 +195,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
         
         // Validate we have valid result data
         if (!result || !result.issues) {
-            console.error('Invalid response from JIRA API:', result);
+            log.error('Invalid response from JIRA API');
             // Check if result contains auth error info
             if (authErrorHandler.isAuthError(result)) {
                 throw authErrorHandler.createAuthError();
@@ -271,7 +271,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
                         if (isForceRefresh && settings && settings.issueColors && settings.issueColors[issueKey]) {
                             // Use the settings value directly for force refresh
                             issueKeyColor = settings.issueColors[issueKey];
-                            console.log(`Using direct color from settings for ${issueKey}: ${issueKeyColor}`);
+                            log.debug(`Using direct color from settings for ${issueKey}: ${issueKeyColor}`);
                         } else {
                             // Normal flow - determine color using the helper
                             issueKeyColor = await determineIssueColor(settings, req, {
@@ -310,7 +310,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
 
                     events.push(event);
                 } catch (worklogError) {
-                    console.error(`Error processing worklog ${worklog.id}:`, worklogError);
+                    log.error(`Error processing worklog ${worklog.id}:`, worklogError);
                     // Continue with other worklogs
                 }
             }
@@ -324,11 +324,11 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
 
         return events;
     } catch (error) {
-        console.error('Error in getUsersWorkLogsAsEvent:', error);
+        log.error('Error in getUsersWorkLogsAsEvent:', error);
         
         // Enhanced auth error detection and propagation
         if (authErrorHandler.isAuthError(error)) {
-            console.log('Propagating authentication error');
+            log.warn('Propagating authentication error');
             throw authErrorHandler.createAuthError();
         }
         

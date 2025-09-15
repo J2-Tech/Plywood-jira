@@ -9,6 +9,7 @@ var http = require('http');
 var https = require('https');
 var fs = require('fs');
 var { generateSelfSignedCert } = require('../utils/ssl');
+var { log } = require('../utils/logger');
 
 /**
  * Get port from environment and store in Express.
@@ -45,7 +46,7 @@ if (useHTTPS) {
     const httpServer = http.createServer((req, res) => {
         const host = req.headers.host.split(':')[0];
         const redirectPort = port === '443' ? '' : `:${port}`;
-        console.log(`Redirecting to https://${host}${redirectPort}${req.url}`);
+        log.http(`Redirecting to https://${host}${redirectPort}${req.url}`);
         res.writeHead(301, { Location: `https://${host}${redirectPort}${req.url}` });
         res.end();
     });
@@ -97,11 +98,11 @@ function onError(error) {
     // handle specific listen errors with friendly messages
     switch (error.code) {
         case 'EACCES':
-            console.error(bind + ' requires elevated privileges');
+            log.error(bind + ' requires elevated privileges');
             process.exit(1);
             break;
         case 'EADDRINUSE':
-            console.error(bind + ' is already in use');
+            log.error(bind + ' is already in use');
             process.exit(1);
             break;
         default:
@@ -116,5 +117,5 @@ function onError(error) {
 function onListening() {
     var addr = server.address();
     var bind = typeof addr === 'string' ? 'pipe ' + addr : 'port ' + addr.port;
-    console.log('Listening on ' + bind);
+    log.info('Listening on ' + bind);
 }

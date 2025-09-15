@@ -1,6 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const configController = require('./configController');
+const { log } = require('../utils/logger');
 
 /**
  * Get the path to the notes file
@@ -38,7 +39,7 @@ async function getGlobalNotes(req) {
         const data = await fs.readFile(notesPath, 'utf8');
         const notes = JSON.parse(data);
         
-        console.log('Loaded raw notes data:', notes);
+        log.trace('Loaded raw notes data');
         
         // Handle different data formats for backward compatibility
         let content = '';
@@ -55,14 +56,14 @@ async function getGlobalNotes(req) {
             content = notes;
         }
         
-        console.log('Processed notes content:', { content, lastModified });
+        log.debug('Processed notes content');
         
         return {
             content,
             lastModified
         };
     } catch (error) {
-        console.error('Error loading global notes:', error);
+        log.error('Error loading global notes:', error);
         throw new Error('Failed to load global notes');
     }
 }
@@ -84,14 +85,14 @@ async function saveGlobalNotes(req, content) {
             lastModified: new Date().toISOString()
         };
         
-        console.log('Saving notes data:', notesData);
+        log.trace('Saving notes data');
         
         await fs.writeFile(notesPath, JSON.stringify(notesData, null, 2), 'utf8');
         
-        console.log('Global notes saved successfully');
+        log.info('Global notes saved successfully');
         return notesData;
     } catch (error) {
-        console.error('Error saving global notes:', error);
+        log.error('Error saving global notes:', error);
         throw new Error('Failed to save global notes');
     }
 }

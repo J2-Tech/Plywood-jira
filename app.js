@@ -6,25 +6,25 @@ var nunjucks = require("nunjucks");
 const passport = require('passport');
 const AtlassianOAuth2Strategy = require('passport-atlassian-oauth2');
 const session = require('express-session');
-const winston = require('winston');
 const compression = require('compression');
+const { log } = require('./utils/logger');
 
 var fs = require('fs');
 
 if (!fs.existsSync('.env')) {
-  console.log("No .env file found. Please create one using the .env.example file as a template.");
+  log.error("No .env file found. Please create one using the .env.example file as a template.");
   process.exit(1);
 }
 
-console.log(`Loading .env file from: ${path.resolve('.env')}`);
-console.log(`JIRA_API_DISABLE_HTTPS_VALIDATION before dotenv: "${process.env.JIRA_API_DISABLE_HTTPS_VALIDATION}"`);
+log.info(`Loading .env file from: ${path.resolve('.env')}`);
+log.debug(`JIRA_API_DISABLE_HTTPS_VALIDATION before dotenv: "${process.env.JIRA_API_DISABLE_HTTPS_VALIDATION}"`);
 
 const dotenv = require('dotenv').config({
     override: true  // This forces .env to override system variables
 });
 
-console.log(`Dotenv config result:`, dotenv);
-console.log(`JIRA_API_DISABLE_HTTPS_VALIDATION after dotenv: "${process.env.JIRA_API_DISABLE_HTTPS_VALIDATION}"`);
+log.debug(`Dotenv config result:`, dotenv);
+log.debug(`JIRA_API_DISABLE_HTTPS_VALIDATION after dotenv: "${process.env.JIRA_API_DISABLE_HTTPS_VALIDATION}"`);
 
 const https = require('https');
 
@@ -49,25 +49,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(compression());
 
-// Create logger
-const winstonLogger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'logs/combined.log' })
-  ]
-});
-
-// Add console transport if not in production
-if (process.env.NODE_ENV !== 'production') {
-  winstonLogger.add(new winston.transports.Console({
-    format: winston.format.simple()
-  }));
-}
+// Logger is now imported from utils/logger.js
 
 if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
   
@@ -92,10 +74,7 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
   },
   function(accessToken, refreshToken, profile, cb) {
       try {
-          winstonLogger.info('Authentication attempt', { 
-            email: profile.email,
-            timestamp: new Date()
-          });
+          log.auth('attempt', profile.email);
 
           profile.accessToken = accessToken;
           profile.refreshToken = refreshToken;
@@ -104,7 +83,7 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
           )?.id;
           
           if (!cloudId) {
-              winstonLogger.error('No matching Jira site found', {
+              log.error('No matching Jira site found', {
                 url: process.env.JIRA_URL,
                 resources: profile.accessibleResources
               });
@@ -114,7 +93,7 @@ if (process.env.JIRA_AUTH_TYPE == "OAUTH") {
           profile.cloudId = cloudId;
           cb(null, profile);
       } catch (error) {
-          winstonLogger.error('Authentication error', {
+          log.error('Authentication error', {
             error: error.message,
             stack: error.stack
           });
@@ -157,7 +136,7 @@ const configController = require('./controllers/configController');
 
 // error handler
 app.use(function(err, req, res, next) {
-  winstonLogger.error('Application error', {
+  log.error('Application error', {
     error: err.message,
     stack: err.stack,
     path: req.path

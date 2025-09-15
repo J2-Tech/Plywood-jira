@@ -82,7 +82,6 @@ export function showLoading(status = 'Loading...') {
         el.textContent = loadingStatus;
     });
     
-    console.log(`Loading started: ${loadingStatus} (count: ${loadingCount})`);
 }
 
 /**
@@ -103,9 +102,7 @@ export function hideLoading() {
             container.style.visibility = 'hidden';
         }
         
-        console.log('All loading completed');
     } else {
-        console.log(`Loading continues (count: ${loadingCount})`);
     }
 }
 
@@ -129,7 +126,6 @@ export function setLoadingStatus(status) {
         el.textContent = loadingStatus;
     });
     
-    console.log(`Loading status updated: ${loadingStatus}`);
 }
 
 /**
@@ -255,7 +251,6 @@ export function initializeDropdown() {
                     choicesCreate.setChoices(options, 'value', 'label', true);
                 })
                 .catch(error => {
-                    console.error('Error fetching issue options:', error);
                 });
         }, 300);
 
@@ -291,7 +286,6 @@ export function initializeDropdown() {
                     choicesTimer.setChoices(options, 'value', 'label', true);
                 })
                 .catch(error => {
-                    console.error('Error fetching timer issue options:', error);
                 });
         }, 300);
 
@@ -342,20 +336,16 @@ async function fetchAndSetIssueColor(issueId, modalType) {
                     // Use our proxy URLs instead of original JIRA URLs
                     window.lastIssueTypeIcon = iconData.avatarUrls['24x24'] || iconData.avatarUrls['16x16'];
                     window.lastIssueTypeName = iconData.name;
-                    console.log(`Using proxy avatar URL for ${iconData.name}: ${window.lastIssueTypeIcon}`);
                     
                     // Immediately display the icon in the create modal
                     displayIconInCreateModal(window.lastIssueTypeIcon, iconData.name);
                 } else {
-                    console.warn(`No proxy avatar URLs available for issue type ${issueId}`);
                 }
             } catch (iconError) {
-                console.warn('Failed to fetch issue type icon:', iconError);
             }
         }
         
     } catch (error) {
-        console.error('Error fetching issue color:', error);
     }
 }
 
@@ -410,7 +400,6 @@ function displayIconInCreateModal(iconUrl, iconName) {
     
     // Handle icon load errors
     iconImg.onerror = function() {
-        console.warn(`Failed to load icon: ${iconUrl}`);
         iconDisplay.style.display = 'none';
     };
     
@@ -479,7 +468,6 @@ async function searchIssues(searchTerm) {
         const response = await fetch(`/issues/user?start=${startDate}&end=${endDate}&query=${encodeURIComponent(searchTerm)}&project=${project}&_t=${cacheBuster}`);
         
         if (!response.ok) {
-            console.error(`Issues API error: ${response.status}`);
             hideLoading();
             return [];
         }
@@ -488,14 +476,12 @@ async function searchIssues(searchTerm) {
         
         // Check for API error responses
         if (data.errorMessages || data.errors) {
-            console.warn('Issues API returned errors:', data.errorMessages || data.errors);
             hideLoading();
             return [];
         }
         
         // Check if data is an array (expected format)
         if (!Array.isArray(data)) {
-            console.warn('Issues endpoint returned unexpected format:', data);
             hideLoading();
             return [];
         }
@@ -513,7 +499,6 @@ async function searchIssues(searchTerm) {
                         localIconUrl = iconData.localIconUrl;
                     }
                 } catch (iconError) {
-                    console.warn(`Failed to get cached icon for ${issue.key}:`, iconError);
                 }
             }
             
@@ -531,12 +516,10 @@ async function searchIssues(searchTerm) {
             };
         }));
         
-        console.log(`Found ${options.length} issues for "${searchTerm}" with ${options.filter(o => o.customProperties.localIconUrl).length} cached icons`);
         hideLoading();
         return options;
         
     } catch (error) {
-        console.error('Error searching issues:', error);
         hideLoading();
         return [];
     }
@@ -548,7 +531,6 @@ async function searchIssues(searchTerm) {
 function setupFormSubmissionHandlers() {
     // Remove the automatic form submission handlers that convert dates
     // These are now handled in the worklog.js handleSubmit function
-    console.log('Form submission handlers initialized');
 }
 
 /**
@@ -559,7 +541,6 @@ export function toggleNotesPanel() {
     if (window.toggleNotesPanel) {
         window.toggleNotesPanel();
     } else {
-        console.warn('Notes panel toggle function not available');
     }
 }
 
@@ -617,16 +598,13 @@ function convertDateTimeInputsToISO(form) {
 function getIssueKeyFromSelection(issueId, modalType) {
     const choicesInstance = modalType === 'create' ? window.choicesCreate : window.choicesTimer;
     if (!choicesInstance) {
-        console.warn('No choices instance found for modal type:', modalType);
         return null;
     }
     
-    console.log('Looking for issueId:', issueId, 'in modalType:', modalType);
     
     try {
         // Method 1: Check current state choices
         if (choicesInstance._currentState && choicesInstance._currentState.choices) {
-            console.log('Available choices:', choicesInstance._currentState.choices);
             
             // Look for the choice by value (don't require selected=true since it might not be set yet)
             const choice = choicesInstance._currentState.choices.find(choice => 
@@ -634,21 +612,17 @@ function getIssueKeyFromSelection(issueId, modalType) {
             );
             
             if (choice) {
-                console.log('Found choice:', choice);
                 
                 // First try direct properties
                 if (choice.issueKey) {
-                    console.log('Found issueKey directly:', choice.issueKey);
                     return choice.issueKey;
                 }
                 if (choice.key) {
-                    console.log('Found key directly:', choice.key);
                     return choice.key;
                 }
                 
                 // Then try customProperties if they exist
                 if (choice.customProperties) {
-                    console.log('CustomProperties:', choice.customProperties);
                     if (choice.customProperties.issueKey) {
                         return choice.customProperties.issueKey;
                     }
@@ -659,10 +633,8 @@ function getIssueKeyFromSelection(issueId, modalType) {
                 
                 // Fallback: extract from label
                 if (choice.label) {
-                    console.log('Extracting from label:', choice.label);
                     const match = choice.label.match(/^([A-Z]+-\d+)/);
                     if (match) {
-                        console.log('Extracted from label:', match[1]);
                         return match[1];
                     }
                 }
@@ -672,7 +644,6 @@ function getIssueKeyFromSelection(issueId, modalType) {
         // Method 2: Try getValue() method
         if (typeof choicesInstance.getValue === 'function') {
             const selectedValue = choicesInstance.getValue(true);
-            console.log('getValue(true) result:', selectedValue);
             
             if (selectedValue) {
                 // Handle case where getValue returns an object
@@ -700,7 +671,6 @@ function getIssueKeyFromSelection(issueId, modalType) {
                 choice.value === issueId
             );
             if (storeChoice) {
-                console.log('Found in store:', storeChoice);
                 if (storeChoice.customProperties && storeChoice.customProperties.issueKey) {
                     return storeChoice.customProperties.issueKey;
                 }
@@ -712,10 +682,8 @@ function getIssueKeyFromSelection(issueId, modalType) {
         }
         
     } catch (error) {
-        console.warn('Error accessing Choices.js instance:', error);
     }
     
-    console.warn('Could not find issue key for issueId:', issueId);
     return null;
 }
 
