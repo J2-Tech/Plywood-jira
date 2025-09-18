@@ -60,6 +60,28 @@ function setupNotesPanel() {
         });
     }
     
+    // Toggle notes content button
+    const toggleNotesBtn = document.getElementById('toggleNotes');
+    const notesContent = document.getElementById('notesContent');
+    const notesHeader = document.querySelector('.notes-panel-header .notes-header-top');
+    
+    if (toggleNotesBtn && notesContent) {
+        toggleNotesBtn.addEventListener('click', (event) => {
+            event.stopPropagation();
+            toggleNotesContent();
+        });
+    }
+    
+    // Make the entire notes header clickable (like objectives)
+    if (notesHeader && notesContent) {
+        notesHeader.addEventListener('click', (event) => {
+            // Don't trigger if clicking the toggle button (it has its own handler)
+            if (event.target.id !== 'toggleNotes') {
+                toggleNotesContent();
+            }
+        });
+    }
+    
     // Initialize keyboard shortcut (Ctrl+N or Cmd+N) to toggle notes panel
     document.addEventListener('keydown', (event) => {
         if ((event.ctrlKey || event.metaKey) && event.key === 'n') {
@@ -81,6 +103,11 @@ export function toggleNotesPanel(forceState) {
     if (willOpen) {
         panel.classList.add('open');
         body.classList.add('notes-panel-open');
+        
+        // Ensure toggle functionality is set up when panel opens
+        setTimeout(() => {
+            setupNotesToggle();
+        }, 100);
         
         // Initialize Tiptap editor if not already done
         if (!window.tiptapEditor) {
@@ -315,8 +342,79 @@ export function openSprintNotes(sprintId) {
     }
 }
 
+/**
+ * Setup notes toggle functionality (can be called multiple times safely)
+ */
+function setupNotesToggle() {
+    const toggleBtn = document.getElementById('toggleNotes');
+    const notesContent = document.getElementById('notesContent');
+    const notesHeader = document.querySelector('.notes-panel-header .notes-header-top');
+    
+    console.log('setupNotesToggle called', { toggleBtn, notesContent, notesHeader });
+    
+    if (!toggleBtn || !notesContent) {
+        console.log('Missing elements for toggle setup:', { toggleBtn: !!toggleBtn, notesContent: !!notesContent });
+        return;
+    }
+    
+    // Remove existing event listeners to avoid duplicates
+    const newToggleBtn = toggleBtn.cloneNode(true);
+    toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+    
+    const newNotesHeader = notesHeader ? notesHeader.cloneNode(true) : null;
+    if (newNotesHeader && notesHeader) {
+        notesHeader.parentNode.replaceChild(newNotesHeader, notesHeader);
+    }
+    
+    // Add event listeners to the new elements
+    newToggleBtn.addEventListener('click', (event) => {
+        event.stopPropagation();
+        toggleNotesContent();
+    });
+    
+    if (newNotesHeader) {
+        newNotesHeader.addEventListener('click', (event) => {
+            if (event.target.id !== 'toggleNotes') {
+                toggleNotesContent();
+            }
+        });
+    }
+}
+
+/**
+ * Toggle the visibility of the notes content (collapsible)
+ */
+function toggleNotesContent() {
+    const toggleBtn = document.getElementById('toggleNotes');
+    const notesContent = document.getElementById('notesContent');
+    
+    console.log('toggleNotesContent called', { toggleBtn, notesContent });
+    
+    if (!toggleBtn || !notesContent) {
+        console.log('Missing elements:', { toggleBtn: !!toggleBtn, notesContent: !!notesContent });
+        return;
+    }
+    
+    const isExpanded = notesContent.classList.contains('expanded');
+    console.log('Current state:', { isExpanded, classes: notesContent.className });
+    
+    if (isExpanded) {
+        notesContent.classList.remove('expanded');
+        notesContent.classList.add('collapsed');
+        toggleBtn.textContent = '▼';
+        console.log('Collapsed notes content');
+    } else {
+        notesContent.classList.remove('collapsed');
+        notesContent.classList.add('expanded');
+        toggleBtn.textContent = '▲';
+        console.log('Expanded notes content');
+    }
+}
+
 // Export functions to window
 window.toggleNotesPanel = toggleNotesPanel;
 window.openGlobalNotes = openGlobalNotes;
 window.openSprintNotes = openSprintNotes;
 window.saveNotes = saveNotes;
+window.toggleNotesContent = toggleNotesContent;
+window.setupNotesToggle = setupNotesToggle;

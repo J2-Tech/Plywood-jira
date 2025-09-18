@@ -444,7 +444,35 @@ function updateIssueDisplayWithCachedIcon(element, issueTypeId, issueTypeName, l
 }
 
 /**
- * Enhanced search function that includes icon caching
+ * Get objectives issues for inclusion in search results
+ */
+async function getObjectivesIssues() {
+    try {
+        // Check if objectives manager exists and has objectives loaded
+        if (window.objectivesManager && window.objectivesManager.objectives) {
+            return window.objectivesManager.objectives.map(objective => ({
+                value: objective.issueKey, // Use issueKey as value for objectives
+                label: `${objective.issueKey} - ${objective.issueSummary || ''}`,
+                customProperties: {
+                    key: objective.issueKey,
+                    issueKey: objective.issueKey,
+                    issueId: objective.issueKey, // For objectives, we use issueKey as issueId
+                    summary: objective.issueSummary || '',
+                    issueType: 'Objective',
+                    isObjective: true,
+                    objectiveId: objective.id
+                }
+            }));
+        }
+        return [];
+    } catch (error) {
+        console.error('Error getting objectives issues:', error);
+        return [];
+    }
+}
+
+/**
+ * Enhanced search function that includes icon caching and objectives
  */
 async function searchIssues(searchTerm) {
     if (!searchTerm || searchTerm.length < 3) {
@@ -455,6 +483,16 @@ async function searchIssues(searchTerm) {
     
     try {
         showLoading();
+        
+        // Get objectives issues first
+        const objectivesIssues = await getObjectivesIssues();
+        
+        // Filter objectives that match the search term
+        const matchingObjectives = objectivesIssues.filter(objective => {
+            const searchLower = searchTerm.toLowerCase();
+            return objective.customProperties.key.toLowerCase().includes(searchLower) ||
+                   objective.customProperties.summary.toLowerCase().includes(searchLower);
+        });
         
         // Use current calendar dates if available, otherwise use a reasonable default range
         const now = new Date();
@@ -469,7 +507,7 @@ async function searchIssues(searchTerm) {
         
         if (!response.ok) {
             hideLoading();
-            return [];
+            return matchingObjectives; // Return objectives even if API fails
         }
         
         const data = await response.json();
@@ -477,17 +515,17 @@ async function searchIssues(searchTerm) {
         // Check for API error responses
         if (data.errorMessages || data.errors) {
             hideLoading();
-            return [];
+            return matchingObjectives; // Return objectives even if API fails
         }
         
         // Check if data is an array (expected format)
         if (!Array.isArray(data)) {
             hideLoading();
-            return [];
+            return matchingObjectives; // Return objectives even if API fails
         }
         
         // Transform the data for Choices.js - enhanced with icon caching
-        const options = await Promise.all(data.map(async (issue) => {
+        const apiOptions = await Promise.all(data.map(async (issue) => {
             let localIconUrl = null;
             
             // Try to get cached icon for the issue type
@@ -511,17 +549,40 @@ async function searchIssues(searchTerm) {
                     issueId: issue.issueId,
                     summary: issue.summary,
                     issueType: issue.issueType,
-                    localIconUrl: localIconUrl
+                    localIconUrl: localIconUrl,
+                    isObjective: false
                 }
             };
         }));
         
+        // Combine objectives and API results, with objectives first
+        const allOptions = [...matchingObjectives, ...apiOptions];
+        
+        // Remove duplicates based on issue key
+        const uniqueOptions = [];
+        const seenKeys = new Set();
+        
+        for (const option of allOptions) {
+            const key = option.customProperties.key;
+            if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                uniqueOptions.push(option);
+            }
+        }
+        
         hideLoading();
-        return options;
+        return uniqueOptions;
         
     } catch (error) {
         hideLoading();
-        return [];
+        // Return objectives even if API fails
+        const objectivesIssues = await getObjectivesIssues();
+        const matchingObjectives = objectivesIssues.filter(objective => {
+            const searchLower = searchTerm.toLowerCase();
+            return objective.customProperties.key.toLowerCase().includes(searchLower) ||
+                   objective.customProperties.summary.toLowerCase().includes(searchLower);
+        });
+        return matchingObjectives;
     }
 }
 

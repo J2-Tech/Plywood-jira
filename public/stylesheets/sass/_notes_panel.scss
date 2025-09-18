@@ -105,6 +105,70 @@
     }
 }
 
+// Notes Header
+.notes-panel-header {
+    .notes-header-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        background: var(--primary-bg);
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+
+        &:hover {
+            background: var(--hover-bg);
+        }
+
+        h3 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .toggle-notes-btn {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 12px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 3px;
+            transition: all 0.2s ease;
+
+            &:hover {
+                background: var(--hover-bg);
+            }
+        }
+    }
+}
+
+// Notes Content
+.notes-content {
+    transition: all 0.3s ease;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+
+    &.collapsed {
+        max-height: 0;
+        opacity: 0;
+        padding: 0;
+        margin: 0;
+    }
+
+    &.expanded {
+        max-height: none; // Remove height restriction
+        opacity: 1;
+        padding: 0;
+        margin: 0;
+        flex: 1;
+        overflow-y: scroll;
+    }
+}
+
 // Tiptap Toolbar
 .tiptap-toolbar {
     display: flex;
@@ -146,6 +210,38 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
+
+        // Formatting button styles to show their own modifiers
+        &[data-action="bold"] {
+            font-weight: bold;
+        }
+
+        &[data-action="italic"] {
+            font-style: italic;
+        }
+
+        &[data-action="underline"] {
+            text-decoration: underline;
+        }
+
+        &[data-action="strike"] {
+            text-decoration: line-through;
+        }
+
+        &[data-action="heading1"] {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        &[data-action="heading2"] {
+            font-weight: bold;
+            font-size: 13px;
+        }
+
+        &[data-action="heading3"] {
+            font-weight: bold;
+            font-size: 12px;
+        }
     }
 
     .toolbar-divider {
@@ -161,7 +257,6 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
     background: var(--secondary-bg); // Match footer background
     position: relative;
 
@@ -454,8 +549,10 @@
 // Tiptap Editor Styles
 .tiptap-editor {
     flex: 1;
-    overflow: auto;
+    overflow-y: visible; // Ensure vertical scrolling
+    overflow-x: hidden;
     background: var(--primary-bg);
+    min-height: 0; // Allow flex item to shrink
 
     .tiptap-content {
         padding: 16px;
@@ -628,6 +725,8 @@ body.notes-resizing {
     font-family: inherit;
     font-size: 14px;
     line-height: 1.5;
+    overflow-y: visible; // Ensure scrolling
+    overflow-x: hidden;
 }
 
 

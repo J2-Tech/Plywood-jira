@@ -51,8 +51,11 @@
             <div class="notes-panel-header">
                 <div class="notes-header-top">
                     <h3>Notes <span id="notesPanelContext"></span></h3>
+                    <button id="toggleNotes" class="toggle-notes-btn" title="Toggle Notes">▼</button>
                 </div>
-                
+            </div>
+            
+            <div id="notesContent" class="notes-content collapsed">
                 <!-- Tiptap Toolbar -->
                 <div id="tiptapToolbar" class="tiptap-toolbar">
                     <button type="button" data-action="bold" title="Bold">B</button>
@@ -71,17 +74,18 @@
                     <button type="button" data-action="codeBlock" title="Code Block">&lt;/&gt;</button>
                     <span class="toolbar-divider"></span>
                     <button type="button" data-action="link" title="Insert Link">🔗</button>
+                    <button type="button" data-action="removeLink" title="Remove Link">🔗❌</button>
                     <button type="button" data-action="issueReference" title="Insert Issue Reference">🎫</button>
                     <span class="toolbar-divider"></span>
                     <button type="button" data-action="undo" title="Undo">↶</button>
                     <button type="button" data-action="redo" title="Redo">↷</button>
                 </div>
-            </div>
-            
-            <div class="notes-panel-content">
-                <div id="notesLoading" class="loading-indicator">Loading notes...</div>
-                <div id="saveIndicator" class="save-indicator hidden">Saving...</div>
-                <div id="tiptapEditor" class="tiptap-editor"></div>
+                
+                <div class="notes-panel-content">
+                    <div id="notesLoading" class="loading-indicator">Loading notes...</div>
+                    <div id="saveIndicator" class="save-indicator hidden">Saving...</div>
+                    <div id="tiptapEditor" class="tiptap-editor"></div>
+                </div>
             </div>
         </div>
         

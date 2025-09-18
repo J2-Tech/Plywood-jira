@@ -121,6 +121,9 @@ class TiptapNotesManager {
             case 'link':
                 this.insertLink();
                 break;
+            case 'removeLink':
+                this.removeLink();
+                break;
             case 'issueReference':
                 this.insertIssueReference();
                 break;
@@ -203,6 +206,37 @@ class TiptapNotesManager {
                 this.editor.chain().focus().setLink({ href: url }).run();
             }
         }
+    }
+
+    removeLink() {
+        if (!this.editor) return;
+
+        // Check if cursor is on a link
+        const { from, to } = this.editor.state.selection;
+        
+        // If text is selected, check if it's a link
+        if (from !== to) {
+            const selectedText = this.editor.state.doc.textBetween(from, to);
+            // Check if the selected text is part of a link
+            const linkMark = this.editor.state.doc.rangeHasMark(from, to, this.editor.schema.marks.link);
+            if (linkMark) {
+                this.editor.chain().focus().unsetLink().run();
+                return;
+            }
+        }
+        
+        // If no text is selected, check if cursor is on a link
+        const linkMark = this.editor.state.doc.nodeAt(from)?.marks?.find(mark => mark.type.name === 'link');
+        if (linkMark) {
+            // Find the start and end of the link
+            const linkStart = from;
+            const linkEnd = from + this.editor.state.doc.nodeAt(from)?.nodeSize || from + 1;
+            this.editor.chain().focus().setTextSelection({ from: linkStart, to: linkEnd }).unsetLink().run();
+            return;
+        }
+        
+        // If no link is found, show a message
+        alert('No link found at cursor position. Please select text that contains a link or place your cursor on a link.');
     }
 
     async insertIssueReference() {
