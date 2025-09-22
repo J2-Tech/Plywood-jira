@@ -142,12 +142,14 @@ async function loadCalendarData() {
     } catch (error) {
         console.error('Error loading calendar data:', error);
         
+        /*
         // Show user-friendly error message
         if (isAuthError(error) || (error.message && error.message.includes('Authentication required'))) {
             showAuthError();
         } else {
             showErrorMessage('Error fetching worklogs, please refresh the page');
-        }
+        }*/
+       showAuthError();
     } finally {
         hideLoading();
         isLoadingData = false;
