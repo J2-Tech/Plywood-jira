@@ -2,6 +2,7 @@
  * A standalone helper module for determining issue colors
  */
 const colorUtils = require('./colorUtils');
+const { log } = require('../utils/logger');
 
 /**
  * Determine the color of an issue

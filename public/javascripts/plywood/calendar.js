@@ -243,6 +243,9 @@ export function initializeCalendar() {
                         });
                 } else {
                     alert("There was an error while fetching events. Please refresh the page and try again.");
+                    setTimeout(() => {
+                        window.location.href = "/auth/login";
+                    }, 2000);
                 }
                 hideLoading();
             },
