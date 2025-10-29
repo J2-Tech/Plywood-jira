@@ -92,17 +92,46 @@ function setupNotesPanel() {
 }
 
 /**
+ * Update notes panel mode (overlay vs resize)
+ * @param {boolean} isOverlayMode - Whether to use overlay mode
+ */
+export function updateNotesPanelMode(isOverlayMode) {
+    const body = document.body;
+    
+    if (isOverlayMode) {
+        body.classList.add('notes-overlay-mode');
+    } else {
+        body.classList.remove('notes-overlay-mode');
+    }
+}
+
+/**
  * Toggle the visibility of the notes panel
  */
 export function toggleNotesPanel(forceState) {
     const panel = document.getElementById('notesSidePanel');
     const body = document.body;
+    const mainContent = document.querySelector('.main-content');
     
     const willOpen = forceState !== undefined ? forceState : !panel.classList.contains('open');
     
     if (willOpen) {
         panel.classList.add('open');
         body.classList.add('notes-panel-open');
+        if (mainContent) {
+            mainContent.classList.add('notes-open');
+        }
+        
+        // Set initial CSS variable from panel width or saved value
+        const panelWidth = panel.style.width || window.getComputedStyle(panel).width;
+        document.documentElement.style.setProperty('--notes-panel-width', panelWidth);
+        
+        // Trigger calendar resize when opening notes panel (if not in overlay mode)
+        if (!body.classList.contains('notes-overlay-mode') && window.calendar) {
+            setTimeout(() => {
+                window.calendar.updateSize();
+            }, 500);
+        }
         
         // Ensure toggle functionality is set up when panel opens
         setTimeout(() => {
@@ -127,6 +156,9 @@ export function toggleNotesPanel(forceState) {
     } else {
         panel.classList.remove('open');
         body.classList.remove('notes-panel-open');
+        if (mainContent) {
+            mainContent.classList.remove('notes-open');
+        }
         
         // Save any pending changes when closing
         if (window.tiptapEditor) {
@@ -134,6 +166,13 @@ export function toggleNotesPanel(forceState) {
             if (content && content !== '<p></p>') {
                 saveNotes(content);
             }
+        }
+        
+        // Trigger calendar resize when closing notes panel (if not in overlay mode)
+        if (!body.classList.contains('notes-overlay-mode') && window.calendar) {
+            setTimeout(() => {
+                window.calendar.updateSize();
+            }, 500);
         }
     }
 }
@@ -418,3 +457,4 @@ window.openSprintNotes = openSprintNotes;
 window.saveNotes = saveNotes;
 window.toggleNotesContent = toggleNotesContent;
 window.setupNotesToggle = setupNotesToggle;
+window.updateNotesPanelMode = updateNotesPanelMode;

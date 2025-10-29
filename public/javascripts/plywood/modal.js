@@ -23,6 +23,17 @@ export function hideModal(modalClass) {
     if (modal) {
         modal.style.display = 'none';
     }
+    
+    // Check if any modal with issue selection is still open
+    const createModal = document.querySelector('.modal-create');
+    const updateModal = document.querySelector('.modal-update');
+    
+    const isCreateOpen = createModal && createModal.style.display === 'block';
+    const isUpdateOpen = updateModal && updateModal.style.display === 'block';
+    
+    if (!isCreateOpen && !isUpdateOpen) {
+        document.body.classList.remove('modal-with-issue-selection-open');
+    }
 }
 
 /**
@@ -30,6 +41,9 @@ export function hideModal(modalClass) {
  * @param {Object} event - The event object.
  */
 export function showUpdateModal(event) {
+    // Mark that a modal with issue selection is open
+    document.body.classList.add('modal-with-issue-selection-open');
+    
     const modal = document.querySelector('.modal-update');
     const form = modal.querySelector('form');
     
@@ -139,6 +153,9 @@ export function showUpdateModal(event) {
  * @param {Date} end - The end date/time.
  */
 export function showCreateModal(start, end) {
+    // Mark that a modal with issue selection is open
+    document.body.classList.add('modal-with-issue-selection-open');
+    
     const modal = document.querySelector('.modal-create');
     const form = modal.querySelector('form');
     

@@ -2,6 +2,7 @@
 #calendar {
     height: calc(100vh - 80px) !important;
     padding: $spacing-sm;
+    overflow-x: hidden;
   }
   
   // Calendar events

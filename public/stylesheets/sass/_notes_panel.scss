@@ -43,9 +43,15 @@
 .main-content {
     transition: margin-right 0.3s ease;
     
+    // By default (resize mode): adjust calendar to make room for notes panel
     &.notes-open {
         margin-right: var(--notes-panel-width, 400px);
     }
+}
+
+// Overlay mode: notes panel overlays on top without resizing calendar
+body.notes-overlay-mode .main-content.notes-open {
+    margin-right: 0 !important;
 }
 
 // Notes panel top header with close button

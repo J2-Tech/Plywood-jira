@@ -67,6 +67,7 @@ a {
 #calendar {
     height: calc(100vh - 60px) !important;
     padding: $spacing-sm;
+    overflow-x: hidden;
 }
 
 // Light/Dark themes

@@ -69,6 +69,9 @@ function initializeNotesResizing() {
         // Update panel width
         notesPanel.style.width = constrainedWidth + 'px';
         
+        // Update CSS variable for the calendar margin
+        document.documentElement.style.setProperty('--notes-panel-width', constrainedWidth + 'px');
+        
         e.preventDefault();
     });
     
@@ -87,6 +90,16 @@ function initializeNotesResizing() {
             // Save width to localStorage
             const currentWidth = parseInt(window.getComputedStyle(notesPanel).width, 10);
             localStorage.setItem('notes-panel-width', currentWidth);
+            
+            // Update CSS variable for the calendar margin
+            document.documentElement.style.setProperty('--notes-panel-width', currentWidth + 'px');
+            
+            // Trigger calendar resize to fit new dimensions with delay
+            if (window.calendar) {
+                setTimeout(() => {
+                    window.calendar.updateSize();
+                }, 500);
+            }
         }
         
         // Remove resize line

@@ -10,6 +10,7 @@ export function saveConfig() {
         themeSelection: document.getElementById('themeSelection').value,
         roundingInterval: parseInt(document.getElementById('rounding-interval').value, 10),
         saveTimerOnIssueSwitch: document.getElementById('save-timer-on-issue-switch').checked,
+        notesPanelOverlayMode: document.getElementById('notes-panel-overlay-mode').checked,
         issueColors: {}
     };
 
@@ -39,6 +40,12 @@ export function saveConfig() {
             window.showIssueTypeIcons = config.showIssueTypeIcons;
             window.roundingInterval = config.roundingInterval;
             window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
+            window.notesPanelOverlayMode = config.notesPanelOverlayMode;
+            
+            // Update notes panel mode
+            if (window.updateNotesPanelMode) {
+                window.updateNotesPanelMode(config.notesPanelOverlayMode);
+            }
             
             console.log('showIssueTypeIcons setting saved:', config.showIssueTypeIcons);
             
@@ -90,12 +97,14 @@ export function loadConfig() {
             const roundingIntervalInput = document.getElementById('rounding-interval');
             const timerRoundingIntervalInput = document.getElementById('timer-rounding-interval');
             const saveTimerOnIssueSwitchInput = document.getElementById('save-timer-on-issue-switch');
+            const notesPanelOverlayModeInput = document.getElementById('notes-panel-overlay-mode');
 
             if (showIssueTypeIconsInput) showIssueTypeIconsInput.checked = config.showIssueTypeIcons;
             if (themeSelectionInput) themeSelectionInput.value = config.themeSelection;
             if (roundingIntervalInput) roundingIntervalInput.value = config.roundingInterval || 15;
             if (timerRoundingIntervalInput) timerRoundingIntervalInput.value = config.roundingInterval || 15;
             if (saveTimerOnIssueSwitchInput) saveTimerOnIssueSwitchInput.checked = config.saveTimerOnIssueSwitch;
+            if (notesPanelOverlayModeInput) notesPanelOverlayModeInput.checked = config.notesPanelOverlayMode;
 
             // Clear and populate issue colors
             const issueTypeColors = document.getElementById('issueTypeColors');
@@ -110,6 +119,12 @@ export function loadConfig() {
             window.saveTimerOnIssueSwitch = config.saveTimerOnIssueSwitch;
             window.roundingInterval = config.roundingInterval || 15;
             window.showIssueTypeIcons = config.showIssueTypeIcons;
+            window.notesPanelOverlayMode = config.notesPanelOverlayMode || false;
+            
+            // Update notes panel mode
+            if (window.updateNotesPanelMode) {
+                window.updateNotesPanelMode(config.notesPanelOverlayMode || false);
+            }
             
             console.log('showIssueTypeIcons setting loaded:', config.showIssueTypeIcons);
             

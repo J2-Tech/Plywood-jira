@@ -3,7 +3,7 @@
     display: none;
     position: fixed;
     background: #fff;
-    z-index: 100;
+    z-index: 1010; // Higher than notes panel (1000)
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -15,7 +15,7 @@
     padding-bottom: 35px;
     opacity: 0;
     visibility: hidden;
-    transition: opacity $transition-normal, visibility $transition-normal;
+    transition: opacity $transition-normal, visibility $transition-normal, left $transition-normal, right $transition-normal;
     display: block !important; // Keep in DOM for animations
     pointer-events: none;
 
@@ -28,6 +28,14 @@
         opacity: 1;
         visibility: visible;
         pointer-events: all;
+    }
+    
+    // Adjust position when notes panel is open (not in overlay mode)
+    // Exclude timer modal as it has its own positioning logic
+    body:not(.notes-overlay-mode).notes-panel-open &:not(.modal-timer) {
+        // Slide modals left to avoid notes panel
+        left: calc(50% - var(--notes-panel-width, 400px) / 2);
+        transform: translate(-50%, -50%);
     }
 }
 
@@ -129,7 +137,7 @@
     min-width: 350px;
     opacity: 0;
     visibility: hidden;
-    transition: opacity $transition-normal, visibility $transition-normal;
+    transition: opacity $transition-normal, visibility $transition-normal, right $transition-normal;
     padding-bottom: 0;
 
     &[style*="display: block"] {
@@ -138,6 +146,10 @@
         pointer-events: all;
     }
 
+    // Adjust position when notes panel is open (not in overlay mode)
+    body:not(.notes-overlay-mode).notes-panel-open & {
+        right: calc(80px + var(--notes-panel-width, 400px));
+    }
 }
 
 // Color picker modal
@@ -147,6 +159,7 @@
     background: #fff;
     padding: $spacing-sm;
     flex-grow: 1;
+    z-index: 1020; // Higher than other modals
 
     @include dark-theme {
         background: $dark-secondary;

@@ -138,6 +138,26 @@ const issueReferenceStyles = `
     outline: 2px solid var(--primary-color, #1976d2);
     outline-offset: 1px;
 }
+
+/* Visual indication when modal with issue selection is open */
+body.modal-with-issue-selection-open .issue-reference {
+    animation: pulse-highlight 1.5s ease-in-out infinite;
+    cursor: pointer;
+}
+
+body.modal-with-issue-selection-open .issue-reference:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(25, 118, 210, 0.4);
+}
+
+@keyframes pulse-highlight {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(25, 118, 210, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 0 4px rgba(25, 118, 210, 0.1);
+    }
+}
 `;
 
 // Inject styles into the document
@@ -154,15 +174,67 @@ if (typeof document !== 'undefined') {
             const issueKey = issueRef.getAttribute('data-issue-key');
             
             if (issueKey) {
-                // Get Jira URL from meta tag (same pattern as worklog links)
-                const jiraUrlMeta = document.querySelector('meta[name="jira-url"]');
-                if (jiraUrlMeta) {
-                    const jiraUrl = jiraUrlMeta.getAttribute('content');
-                    const issueUrl = `https://${jiraUrl}/browse/${issueKey}`;
-                    window.open(issueUrl, '_blank');
+                const issueId = issueRef.getAttribute('data-issue-id');
+                
+                // If a modal with issue selection is open, copy issue to dropdown
+                if (document.body.classList.contains('modal-with-issue-selection-open')) {
+                    // Try to find which dropdown is open and populate it
+                    const createModal = document.querySelector('.modal-create');
+                    const timerModal = document.getElementById('timerModal');
+                    
+                    let targetChoices = null;
+                    let targetSelectId = null;
+                    
+                    if (createModal && createModal.style.display === 'block') {
+                        targetChoices = window.choicesCreate;
+                        targetSelectId = 'issue-create';
+                    } else if (timerModal && timerModal.style.display === 'block') {
+                        targetChoices = window.choicesTimer;
+                        targetSelectId = 'issue-timer';
+                    }
+                    
+                    if (targetChoices && issueId) {
+                        // First check if the issue is already in the choices
+                        const existingChoices = targetChoices._currentState?.choices || targetChoices._store?.choices || [];
+                        const foundChoice = existingChoices.find(c => c.value === issueId);
+                        
+                        if (foundChoice) {
+                            // Issue is already loaded, select it
+                            targetChoices.setChoiceByValue(issueId);
+                            console.log(`Copied issue ${issueKey} to ${targetSelectId}`);
+                        } else {
+                            // Issue is not loaded, need to add it first
+                            const issueKeyFromRef = issueRef.getAttribute('data-issue-key');
+                            const issueSummary = issueRef.getAttribute('data-issue-summary') || '';
+                            
+                            // Add the issue to choices
+                            targetChoices.setChoices([{
+                                value: issueId,
+                                label: `${issueKeyFromRef} - ${issueSummary}`,
+                                customProperties: {
+                                    key: issueKeyFromRef,
+                                    issueKey: issueKeyFromRef,
+                                    issueId: issueId,
+                                    summary: issueSummary
+                                }
+                            }], 'value', 'label', false);
+                            
+                            // Then select it
+                            targetChoices.setChoiceByValue(issueId);
+                            console.log(`Added and selected issue ${issueKeyFromRef} in ${targetSelectId}`);
+                        }
+                    }
                 } else {
-                    // Fallback if meta tag not found
-                    console.warn('Jira URL meta tag not found');
+                    // Normal behavior: open in Jira
+                    const jiraUrlMeta = document.querySelector('meta[name="jira-url"]');
+                    if (jiraUrlMeta) {
+                        const jiraUrl = jiraUrlMeta.getAttribute('content');
+                        const issueUrl = `https://${jiraUrl}/browse/${issueKey}`;
+                        window.open(issueUrl, '_blank');
+                    } else {
+                        // Fallback if meta tag not found
+                        console.warn('Jira URL meta tag not found');
+                    }
                 }
             }
         }

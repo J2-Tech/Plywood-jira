@@ -208,6 +208,7 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
         
         for (const issue of result.issues) {
             if (!issue.fields || !issue.fields.worklog || !issue.fields.worklog.worklogs) {
+                log.debug(`Issue ${issue.key}: Skipping - no worklog data`);
                 continue;
             }
 
@@ -223,7 +224,12 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
             });
 
             // Only process issues with matching worklogs
-            if (filteredWorklogs.length === 0) continue;
+            if (filteredWorklogs.length === 0) {
+                log.debug(`Issue ${issue.key}: No matching worklogs after user filter`);
+                continue;
+            }
+            
+            log.info(`Processing issue ${issue.key} with ${filteredWorklogs.length} worklogs`);
 
             // Get issue color from settings or use default
             const issueData = {
@@ -310,10 +316,12 @@ exports.getUsersWorkLogsAsEvent = async function(req, start, end) {
 
                     events.push(event);
                 } catch (worklogError) {
-                    log.error(`Error processing worklog ${worklog.id}:`, worklogError);
+                    log.error(`Error processing worklog ${worklog.id} for ${issue.key}:`, worklogError.message);
                     // Continue with other worklogs
                 }
             }
+            
+            log.debug(`Total events created for ${issue.key}: ${events.filter(e => e.extendedProps.issueKey === issue.key).length}`);
         }
 
         // Cache the result

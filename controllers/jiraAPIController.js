@@ -408,6 +408,47 @@ exports.searchIssuesWithWorkLogs = async function(req, start, end) {
     return withRetry(searchIssuesWithWorkLogsInternal, req, start, end);
 };
 
+async function fetchAllWorklogs(req, issueId, issueKey) {
+    const url = getCallURL(req);
+    const allWorklogs = [];
+    let startAt = 0;
+    const maxResults = 5000; // Get maximum per page
+    
+    while (true) {
+        try {
+            const response = await fetch(`${url}/rest/api/3/issue/${issueId}/worklog?startAt=${startAt}&maxResults=${maxResults}&expand=renderedFields`, {
+                method: 'GET',
+                headers: getDefaultHeaders(req),
+                agent: httpsAgent
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            
+            if (!data.worklogs || !Array.isArray(data.worklogs)) {
+                break;
+            }
+            
+            allWorklogs.push(...data.worklogs);
+            
+            // Check if we got all worklogs
+            if (data.startAt + data.maxResults >= data.total) {
+                break;
+            }
+            
+            startAt += data.maxResults;
+        } catch (error) {
+            log.error(`Error fetching worklogs for ${issueKey}:`, error.message);
+            break;
+        }
+    }
+    
+    return allWorklogs;
+}
+
 async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const url = getCallURL(req);
     
@@ -439,6 +480,9 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
         expand: 'renderedFields,worklog',
         fields: ['summary', 'issuetype', 'status', 'project', 'key', 'id', 'parent', 'customfield_10017', 'worklog']
     };
+    
+    log.info(`Searching for worklogs with JQL: ${jql}`);
+    log.info(`Requesting maxResults: ${requestBody.maxResults}`);
     
     const response = await fetch(url + '/rest/api/3/search/jql', {
         method: 'POST',
@@ -474,9 +518,11 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
     const issuesData = await response.json();
     
     if (!issuesData.issues || !Array.isArray(issuesData.issues)) {
+        log.warn('No issues returned from Jira or invalid response format');
         return { issues: [] };
     }
     
+    log.info(`Jira returned ${issuesData.issues.length} issues, total available: ${issuesData.total || 'unknown'}`);
     
     // Debug: Log all found issues
     
@@ -486,7 +532,11 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
     for (const issue of issuesData.issues) {
         try {
             // Check if worklogs are already included in the response
-            if (issue.fields.worklog && issue.fields.worklog.worklogs && Array.isArray(issue.fields.worklog.worklogs)) {
+            if (!issue.fields.worklog) {
+                log.warn(`Issue ${issue.key}: No worklog field in response, worklogs may not have been expanded`);
+            } else if (!issue.fields.worklog.worklogs || !Array.isArray(issue.fields.worklog.worklogs)) {
+                log.warn(`Issue ${issue.key}: Worklog field exists but worklogs array is missing or invalid`);
+            } else if (issue.fields.worklog && issue.fields.worklog.worklogs && Array.isArray(issue.fields.worklog.worklogs)) {
                 // Filter worklogs by user to ensure we only get the current user's worklogs
                 const filteredWorklogs = issue.fields.worklog.worklogs.filter(worklog => {
                     // Check if worklog is by the current user
@@ -499,22 +549,74 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
                     return true;
                 });
                 
-                log.debug(`Issue ${issue.key}: Found ${issue.fields.worklog.worklogs.length} total worklogs, ${filteredWorklogs.length} filtered for user`);
+                const totalWorklogs = issue.fields.worklog.total || 0;
+                const returnedWorklogs = issue.fields.worklog.worklogs.length;
                 
-                if (filteredWorklogs.length > 0) {
-                    // Update the issue with filtered worklogs
-                    const issueWithWorklogs = {
-                        ...issue,
-                        fields: {
-                            ...issue.fields,
-                            worklog: {
-                                worklogs: filteredWorklogs
-                            }
-                        }
-                    };
+                log.debug(`Issue ${issue.key}: Found ${returnedWorklogs} worklogs from Jira, ${totalWorklogs} total available, ${filteredWorklogs.length} filtered for user`);
+                
+                // If Jira returned fewer worklogs than the total, we need to fetch all pages
+                if (totalWorklogs > returnedWorklogs && issue.fields.worklog.maxResults) {
+                    log.info(`Issue ${issue.key}: Pagination detected (${totalWorklogs} total worklogs, ${returnedWorklogs} returned), fetching all worklogs...`);
                     
-                    issuesWithWorklogs.push(issueWithWorklogs);
-                    log.debug(`Issue ${issue.key}: ${filteredWorklogs.length} worklogs in date range`);
+                    // Fetch all worklogs with pagination
+                    try {
+                        const allWorklogs = await fetchAllWorklogs(req, issue.id, issue.key);
+                        log.info(`Issue ${issue.key}: Fetched ${allWorklogs.length} total worklogs with pagination`);
+                        
+                        // Filter worklogs by user
+                        const allFilteredWorklogs = allWorklogs.filter(worklog => {
+                            if (process.env.JIRA_BASIC_AUTH_USERNAME) {
+                                return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
+                            } else if (req.user && req.user.email) {
+                                return worklog.author.emailAddress === req.user.email;
+                            }
+                            return true;
+                        });
+                        
+                        log.debug(`Issue ${issue.key}: ${allFilteredWorklogs.length} worklogs after filtering`);
+                        
+                        if (allFilteredWorklogs.length > 0) {
+                            const issueWithWorklogs = {
+                                ...issue,
+                                fields: {
+                                    ...issue.fields,
+                                    worklog: {
+                                        worklogs: allFilteredWorklogs
+                                    }
+                                }
+                            };
+                            issuesWithWorklogs.push(issueWithWorklogs);
+                        }
+                    } catch (error) {
+                        log.error(`Error fetching paginated worklogs for ${issue.key}:`, error.message);
+                        // Fall back to what we have
+                        if (filteredWorklogs.length > 0) {
+                            const issueWithWorklogs = {
+                                ...issue,
+                                fields: {
+                                    ...issue.fields,
+                                    worklog: {
+                                        worklogs: filteredWorklogs
+                                    }
+                                }
+                            };
+                            issuesWithWorklogs.push(issueWithWorklogs);
+                        }
+                    }
+                } else {
+                    // No pagination needed or unknown total
+                    if (filteredWorklogs.length > 0) {
+                        const issueWithWorklogs = {
+                            ...issue,
+                            fields: {
+                                ...issue.fields,
+                                worklog: {
+                                    worklogs: filteredWorklogs
+                                }
+                            }
+                        };
+                        issuesWithWorklogs.push(issueWithWorklogs);
+                    }
                 }
             }
         } catch (error) {
