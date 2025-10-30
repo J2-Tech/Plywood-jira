@@ -404,8 +404,8 @@ exports.getIssueTypes = async function(req) {
     return response.json();
 }
 
-exports.searchIssuesWithWorkLogs = async function(req, start, end) {
-    return withRetry(searchIssuesWithWorkLogsInternal, req, start, end);
+exports.searchIssuesWithWorkLogs = async function(req, start, end, extraJql) {
+    return withRetry(searchIssuesWithWorkLogsInternal, req, start, end, extraJql);
 };
 
 async function fetchAllWorklogs(req, issueId, issueKey) {
@@ -449,7 +449,7 @@ async function fetchAllWorklogs(req, issueId, issueKey) {
     return allWorklogs;
 }
 
-async function searchIssuesWithWorkLogsInternal(req, start, end) {
+async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
     const url = getCallURL(req);
     
     // Use a more efficient approach: search for issues with worklogs in the specific date range
@@ -472,6 +472,11 @@ async function searchIssuesWithWorkLogsInternal(req, start, end) {
     // Get project from query params and apply filter
     const projectKey = req.query.project;
     jql = appendProjectFilter(jql, projectKey);
+
+    // Apply any extra JQL passed by callers (issue filters, children, etc.)
+    if (extraJql && typeof extraJql === 'string' && extraJql.trim().length > 0) {
+        jql = `(${jql}) AND (${extraJql})`;
+    }
     
     // Use the new JQL-based search API with worklog expansion
     const requestBody = {

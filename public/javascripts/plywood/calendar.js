@@ -102,7 +102,12 @@ export function refreshWorklog(issueId, worklogId) {
         })
         .catch(error => {
             hideLoading();
-            // If refresh fails, do a full calendar refresh as fallback
+            // Don't do a full calendar refresh if error indicates a redirect to login
+            if ((error && error.status === 302) || (error && error.response && error.response.status === 302) || (error && error.message && error.message.includes('login'))) {
+                window.location.href = '/auth/login';
+                return;
+            }
+            // Otherwise, do a full calendar refresh as last resort
             window.calendar.refetchEvents();
         });
 }
@@ -196,58 +201,54 @@ export function initializeCalendar() {
                 return event;
             },
             failure: function (error) {
-                
-                // Enhanced authentication error detection
-                const isAuthError = 
-                    (error && error.response && error.response.status === 401) || 
-                    (error && error.response && error.response.headers && error.response.headers.location && error.response.headers.location.includes("login")) ||
-                    (error && error.message && (
-                        error.message.includes("Authentication required") || 
-                        error.message.includes("NetworkError") ||
-                        error.message.includes("unauthorized") ||
-                        error.message.includes("Unauthorized") ||
-                        error.message.includes("401")
-                    )) ||
-                    (error && error.status === 401) ||
-                    (error && error.authFailure);
-                
-                if (isAuthError) {
-                    
-                    // Try to refresh token via a separate request
-                    fetch("/auth/refresh-token")
-                        .then(response => {
-                            if (response.ok) {
-                                // Show success message and retry
-                                if (typeof showNotification === 'function') {
-                                    showNotification('Session refreshed. Reloading calendar...', 'info');
-                                }
-                                setTimeout(() => {
-                                    window.calendar.refetchEvents(); // Retry loading events
-                                }, 1000);
-                            } else {
-                                if (typeof showNotification === 'function') {
-                                    showNotification('Session expired. Redirecting to login...', 'warning');
-                                }
-                                setTimeout(() => {
-                                    window.location.href = "/auth/login";
-                                }, 2000);
-                            }
-                        })
-                        .catch(refreshError => {
-                            if (typeof showNotification === 'function') {
-                                showNotification('Session expired. Please log in again.', 'warning');
-                            }
-                            setTimeout(() => {
-                                window.location.href = "/auth/login";
-                            }, 2000);
-                        });
-                } else {
-                    alert("There was an error while fetching events. Please refresh the page and try again.");
-                    setTimeout(() => {
-                        window.location.href = "/auth/login";
-                    }, 2000);
-                }
-                hideLoading();
+				
+				// Enhanced authentication error detection
+				const isAuthError = 
+					(error && error.response && (error.response.status === 401 || error.response.status === 302)) ||
+					(error && error.response && error.response.headers && error.response.headers.location && error.response.headers.location.includes("login")) ||
+					(error && error.message && (
+						error.message.includes("Authentication required") || 
+						error.message.includes("NetworkError") ||
+						error.message.includes("unauthorized") ||
+						error.message.includes("Unauthorized") ||
+						error.message.includes("401")
+					)) ||
+					(error && (error.status === 401 || error.status === 302)) ||
+					(error && error.authFailure);
+				
+				const isAuthRedirect = (error && ((error.status && error.status === 302) || (error.response && error.response.status === 302)));
+				if (isAuthError) {
+					if (isAuthRedirect) {
+						window.location.href = "/auth/login";
+						return; // Do not refetch!
+					}
+					fetch("/auth/refresh-token", {
+						method: "POST",
+						headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+						credentials: 'include'
+					})
+						.then(async (response) => {
+							if (response.ok) {
+								const data = await response.json().catch(() => ({ success: true }));
+								if (data && data.success) {
+									window.calendar.refetchEvents();
+									return;
+								}
+							}
+							window.location.href = "/auth/login";
+						})
+						.catch(() => {
+							window.location.href = "/auth/login";
+						});
+					return; // Prevent falling through
+				}
+				if (isAuthRedirect) {
+					window.location.href = "/auth/login";
+					return;
+				}
+				// Only for non-auth, non-redirect errors, consider refetch (but even better: comment this out to avoid loops)
+				// window.calendar.refetchEvents();
+				hideLoading();
             },
             success: function (events) {
                 hideLoading();

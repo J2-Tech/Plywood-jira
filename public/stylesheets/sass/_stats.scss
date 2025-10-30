@@ -139,8 +139,8 @@
 // Comments section
 .issue-content {
     padding: 0 $spacing-md;
-    max-height: 1000px;
     transition: all $transition-normal;
+    overflow: hidden scroll;
 
     &.hidden {
         padding: 0;
@@ -148,18 +148,75 @@
     }
 }
 
-.comment-item {
-    padding: $spacing-sm;
-    margin: $spacing-sm 0;
-    background: var(--primary-bg);
-    border: 1px solid $border-color;
-    border-radius: 4px;
+.sort-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: $spacing-sm;
+    align-items: center;
+    padding-top: $spacing-sm;
+    padding-bottom: $spacing-sm;
+    color: var(--text-muted);
 
-    @include dark-theme {
-        background: $dark-secondary;
-        border-color: $dark-border;
+    select {
+        padding: 4px 8px;
+        border: 1px solid $border-color;
+        border-radius: 4px;
+
+        @include dark-theme {
+            background: $dark-secondary;
+            border-color: $dark-border;
+            color: $dark-text;
+        }
+    }
+
+    .sort-row { display: flex; align-items: center; gap: $spacing-sm; }
+    .sort-order {
+        padding: 2px 8px;
+        border: 1px solid $border-color;
+        border-radius: 4px;
+        background: var(--secondary-bg);
+        cursor: pointer;
+        align-self: end;
+        @include dark-theme { border-color: $dark-border; }
     }
 }
+
+.comment-item {
+    margin: 12px 0;
+    padding: 8px 14px;
+    border-radius: 6px;
+    position: relative;
+    background: var(--primary-bg);
+    box-shadow: 0 1px 4px rgba(44,49,75,0.03);
+    display: flex;
+    flex-direction: column;
+    transition: background .2s;
+}
+.heatmap-enabled .comment-item[data-heat] {
+  background: hsl(210, var(--sat, 0%), 92%);
+}
+.dark-theme .heatmap-enabled .comment-item[data-heat] {
+  background: hsl(210, var(--sat, 0%), 22%);
+}
+
+.comment-duration {
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+// Control bar visual tweaks
+.stats-header .header-controls-row label {
+    background: var(--secondary-bg);
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.heatmap-bar {
+  height: 6px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+}
+.comment-item.compact { min-height: 28px; }
 
 .comment-author {
     color: var(--text-muted);

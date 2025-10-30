@@ -554,7 +554,14 @@ router.get('/stats/data', authMiddleware, async function(req, res, next) {
         if (!start || !end) {
             return res.status(400).json({ error: 'Start and end dates are required' });
         }
-        const statsData = await jiraController.getWorklogStats(req, start, end, project);
+
+        // Optional filters
+        const issuesParam = (req.query.issues || '').trim();
+        const issues = issuesParam ? issuesParam.split(',').map(k => k.trim()).filter(Boolean) : [];
+        const includeChildren = String(req.query.includeChildren || 'false').toLowerCase() === 'true';
+        const commentsOnly = String(req.query.commentsOnly || 'false').toLowerCase() === 'true';
+
+        const statsData = await jiraController.getWorklogStats(req, start, end, project, { issues, includeChildren, commentsOnly });
         res.json(statsData);
     } catch (error) {
         res.status(500).json({ error: 'Failed to fetch statistics' });

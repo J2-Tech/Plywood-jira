@@ -1,6 +1,7 @@
 {% extends "layout.njk" %}
 
 {% block head %}
+<link rel="stylesheet" href="/stylesheets/choices.min.css">
 <script src="/javascripts/plywood/stats.js" type="module"></script>
 {% endblock %}
 
@@ -12,11 +13,31 @@
 <div class="stats-page">
     <div class="stats-header">
         <button onclick="window.location.href='/'" class="back-button">← Back to Calendar</button>
-        <div class="date-controls">
-            <input type="date" id="startDate" class="date-input">
-            <span>to</span>
-            <input type="date" id="endDate" class="date-input">
-            <button id="refreshStats" class="refresh-button">Refresh</button>
+        <div class="header-controls-row" style="display: flex; flex-wrap: wrap; gap: 1.5em; align-items: center; margin-bottom: 8px;">
+            <div class="date-controls">
+                <input type="date" id="startDate" class="date-input">
+                <span>to</span>
+                <input type="date" id="endDate" class="date-input">
+                <button id="refreshStats" class="refresh-button">Refresh</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1em;">
+                <label for="issueFilter"><b>Issues:</b></label>
+                <select id="issueFilter" multiple style="min-width: 220px;"></select>
+                <div class="filter-controls">
+                    <label style="display: flex; align-items: center; gap:.5em;">
+                        <input type="checkbox" id="showSubtasks" style="vertical-align: middle;">
+                        Show sub-tasks
+                    </label>
+                    <label style="display: flex; align-items: center; gap:.5em;">
+                        <input type="checkbox" id="globalWithComments" style="vertical-align: middle;">
+                        Only show worklogs with comments
+                    </label>
+                    <label style="display: flex; align-items: center; gap:.5em;">
+                        <input type="checkbox" id="globalHeatmap" style="vertical-align: middle;" checked>
+                        Color worklogs based on duration
+                    </label>
+                </div>
+            </div>
         </div>
     </div>
     

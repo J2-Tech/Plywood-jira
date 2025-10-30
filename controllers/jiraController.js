@@ -367,20 +367,33 @@ exports.getWorkLog = function(req, issueId, worklogId) {
     return jiraAPIController.getWorkLog(req, issueId, worklogId);
 };
 
-exports.getWorklogStats = async function(req, start, end, projectFilter) {
+exports.getWorklogStats = async function(req, start, end, projectFilter, options = {}) {
     const startDate = new Date(start);
     const endDate = new Date(end);
     
     const formattedStart = startDate.toISOString().split('T')[0];
     const formattedEnd = endDate.toISOString().split('T')[0];
     
-    // Add project filter if specified
-    let jql = '';
-    if (projectFilter && projectFilter !== 'all') {
-        jql = `project = ${projectFilter} AND `;
+    // Build ONLY extra JQL for issue filters (no dates/project/order here)
+    const { issues = [], includeChildren = false, commentsOnly = false } = options;
+
+    let extraClauses = [];
+    if (Array.isArray(issues) && issues.length > 0) {
+        // Only allow well-formed Jira keys and quote them for JQL (ABC-123)
+        const keys = issues.map(k => k.trim()).filter(Boolean).filter(k => /^[A-Z][A-Z0-9_]+-\d+$/i.test(k));
+        if (keys.length > 0) {
+            const quotedKeys = keys.map(k => '"'+k+'"');
+            const issuesList = quotedKeys.join(',');
+            const base = [`issue in (${issuesList})`];
+            if (includeChildren) {
+                base.push(`parent in (${issuesList})`);
+                base.push(`"Epic Link" in (${issuesList})`);
+            }
+            extraClauses.push(`(${base.join(' OR ')})`);
+        }
     }
-    jql += `worklogDate >= "${formattedStart}" AND worklogDate <= "${formattedEnd}"`;
-    jql += ' ORDER BY updated DESC';
+
+    const jql = extraClauses.join(' AND ');
     
     const result = await jiraAPIController.searchIssuesWithWorkLogs(req, formattedStart, formattedEnd, jql);
     
@@ -397,17 +410,33 @@ exports.getWorklogStats = async function(req, start, end, projectFilter) {
             return true;
         });
 
-        const totalTime = userWorklogs.reduce((acc, worklog) => 
+        // Optionally keep only worklogs with comments
+        const filteredWorklogs = commentsOnly
+            ? userWorklogs.filter(w => {
+                const c = w.comment;
+                if (!c) return false;
+                if (typeof c === 'string') return c.trim().length > 0;
+                try {
+                    // Minimal check for ADF presence of any text nodes
+                    const asText = JSON.stringify(c);
+                    return /\btext\b/i.test(asText);
+                } catch (_) {
+                    return false;
+                }
+            })
+            : userWorklogs;
+
+        const totalTime = filteredWorklogs.reduce((acc, worklog) => 
             acc + worklog.timeSpentSeconds, 0);
             
-        const comments = userWorklogs
-            .filter(worklog => worklog.comment)
+        const comments = filteredWorklogs
             .map(worklog => ({
                 author: worklog.author.displayName,
-                comment: worklog.comment,
+                comment: worklog.comment || '',
                 created: worklog.created,
                 timeSpent: worklog.timeSpentSeconds
-            }));
+            }))
+            .sort((a, b) => b.timeSpent - a.timeSpent);
 
         return {
             key: issue.key,

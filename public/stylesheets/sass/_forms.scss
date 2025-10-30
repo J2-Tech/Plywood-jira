@@ -126,6 +126,7 @@ select {
         width: calc(100% - 17px)!important;
         background: #fff;
         border-color: $border-color;
+        align-content: center !important;
 
         @include dark-theme {
             background: $dark-secondary;
@@ -157,7 +158,7 @@ select {
     }
 
     &__input {
-        background: #fff !important;
+        background: transparent !important;
         color: $text-color;
 
         @include dark-theme {
@@ -179,6 +180,19 @@ select {
             color: grey;
         }
     }
+}
+
+.choices__list {
+    background: transparent !important;
+}
+
+// Choices.js dropdown background (light/dark theme support)
+.choices__list.choices__list--dropdown {
+  background: #ffffff !important;
+
+  @include dark-theme {
+    background: $dark-secondary !important;
+  }
 }
 
 // Project selector
