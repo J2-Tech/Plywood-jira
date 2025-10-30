@@ -21,7 +21,7 @@ const authMiddleware = process.env.JIRA_AUTH_TYPE == "OAUTH" ?
   require('../middlewares/authenticationMiddleware') : null;
 
 /* GET home page. */
-router.get(['/', '/index'], function(req, res, next) {
+router.get(['/', '/index'], authMiddleware, function(req, res, next) {
   res.render('index', { title: 'Jira Time', jiraUrl: process.env.JIRA_URL});
 });
 
