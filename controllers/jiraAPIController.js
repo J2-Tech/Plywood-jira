@@ -451,22 +451,28 @@ async function fetchAllWorklogs(req, issueId, issueKey) {
 async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
     const url = getCallURL(req);
     
-    // Use a more efficient approach: search for issues with worklogs in the specific date range
-    // This reduces the number of API calls significantly
-    let jql = `worklogDate >= "${start}" AND worklogDate <= "${end}"`;
-    
-    // Add user filter if we can identify the current user
+    // Determine current user email for filtering
+    let userEmail = null;
     if (process.env.JIRA_BASIC_AUTH_USERNAME) {
-        jql += ` AND worklogAuthor = "${process.env.JIRA_BASIC_AUTH_USERNAME}"`;
+        userEmail = process.env.JIRA_BASIC_AUTH_USERNAME;
     } else if (req.user && req.user.email) {
-        jql += ` AND worklogAuthor = "${req.user.email}"`;
-    } else {
-        // Fallback to currentUser() function
-        jql += ` AND worklogAuthor = currentUser()`;
+        userEmail = req.user.email;
     }
     
-    log.debug(`JQL Query: ${jql}`);
-    log.debug(`Date range: ${start} to ${end}`);
+    if (!userEmail) {
+        log.warn('No user email found for worklog filtering, using currentUser()');
+    }
+    
+    let jql;
+    if (userEmail) {
+        const escapedEmail = userEmail.replace(/"/g, '\\"');
+        jql = `(worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = "${escapedEmail}")`;
+    } else {
+        jql = `(worklogDate >= "${start}" AND worklogDate <= "${end}" AND worklogAuthor = currentUser())`;
+    }
+    
+    log.info(`JQL Query for worklogs: ${jql}`);
+    log.info(`Date range: ${start} to ${end}, User: ${userEmail || 'currentUser()'}`);
     
     // Get project from query params and apply filter
     const projectKey = req.query.project;
@@ -477,14 +483,13 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
         jql = `(${jql}) AND (${extraJql})`;
     }
     
-    // Paginate through all issues to remove any effective cap
     const perPage = parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 100;
     let startAt = 0;
     let total = null;
     const allIssues = [];
-
+    
     log.info(`Searching for worklogs with JQL: ${jql}`);
-    log.info(`Paginating with per-page maxResults: ${perPage}`);
+    log.info(`Paginating with per-page maxResults: ${perPage}, filtering for user: ${userEmail || 'currentUser()'}`);
 
     while (total === null || startAt < total) {
         const params = new URLSearchParams();
@@ -492,36 +497,36 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
         params.set('maxResults', String(perPage));
         params.set('fields', ['summary','issuetype','status','project','key','id','parent','customfield_10017','worklog'].join(','));
         const requestBody = { jql };
-
+    
         const response = await fetch(url + '/rest/api/3/search/jql?' + params.toString(), {
-            method: 'POST',
-            headers: {
-                ...getDefaultHeaders(req),
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody),
-            agent: httpsAgent
-        });
-
-        if (!response.ok) {
-            if (response.status === 401) {
-                const authError = new Error('Unauthorized');
-                authError.authFailure = true;
-                authError.status = 401;
-                throw authError;
-            }
-
-            let errorDetails = '';
-            try {
-                const errorResponse = await response.text();
-                errorDetails = ` - Response: ${errorResponse}`;
-            } catch (e) {
-                errorDetails = ' - Could not read error response';
-            }
-
-            throw new Error(`HTTP ${response.status}: ${response.statusText}${errorDetails}`);
+        method: 'POST',
+        headers: {
+            ...getDefaultHeaders(req),
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        agent: httpsAgent
+    });
+    
+    if (!response.ok) {
+        if (response.status === 401) {
+            const authError = new Error('Unauthorized');
+            authError.authFailure = true;
+            authError.status = 401;
+            throw authError;
         }
-
+        
+        let errorDetails = '';
+        try {
+            const errorResponse = await response.text();
+            errorDetails = ` - Response: ${errorResponse}`;
+        } catch (e) {
+            errorDetails = ' - Could not read error response';
+        }
+        
+        throw new Error(`HTTP ${response.status}: ${response.statusText}${errorDetails}`);
+    }
+    
         const issuesData = await response.json();
 
         if (!issuesData.issues || !Array.isArray(issuesData.issues)) {
@@ -529,10 +534,18 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
             break;
         }
 
+        // Log what Jira returned
+        log.info(`Jira returned ${issuesData.issues.length} issues for page starting at ${startAt}, total: ${issuesData.total || 'unknown'}`);
+        
         total = typeof issuesData.total === 'number' ? issuesData.total : allIssues.length + issuesData.issues.length;
         allIssues.push(...issuesData.issues);
         log.info(`Accumulated ${allIssues.length}/${total || 'unknown'} issues (startAt=${startAt})`);
-
+        
+        // If we're getting way too many issues, log a warning
+        if (issuesData.total && issuesData.total > 1000) {
+            log.warn(`JQL query returned ${issuesData.total} issues - this may indicate the worklogAuthor filter is not working as expected. JQL was: ${jql}`);
+        }
+    
         // Advance to next page
         startAt += issuesData.maxResults || perPage;
         if ((issuesData.startAt + (issuesData.maxResults || issuesData.issues.length)) >= (issuesData.total || startAt)) {
@@ -546,7 +559,14 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
     }
 
     const issuesWithWorklogs = [];
-
+    
+    // Filter issues early to only process those with worklogs from current user
+    const userEmailForFilter = userEmail || (req.user && req.user.email) || process.env.JIRA_BASIC_AUTH_USERNAME;
+    
+    // Track how many issues we're filtering out
+    let skippedCount = 0;
+    const maxSkippedBeforeWarning = 100;
+    
     for (const raw of allIssues) {
         let issue = (raw && typeof raw === 'object') ? raw : null;
         if (!issue || !issue.fields) {
@@ -565,6 +585,27 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
             continue;
         }
         const issueKeySafe = issue.key || issue.id || 'unknown';
+        
+        // Early check: if issue has worklogs, verify at least one is from current user
+        if (issue.fields && issue.fields.worklog && issue.fields.worklog.worklogs && Array.isArray(issue.fields.worklog.worklogs)) {
+            const hasUserWorklog = issue.fields.worklog.worklogs.some(w => {
+                const email = w && w.author && w.author.emailAddress;
+                if (!email || !userEmailForFilter) return false;
+                return email === userEmailForFilter;
+            });
+            if (!hasUserWorklog && userEmailForFilter) {
+                skippedCount++;
+                if (skippedCount <= 5 || skippedCount % 50 === 0) {
+                    log.debug(`Skipping issue ${issueKeySafe}: worklogs present but none from current user ${userEmailForFilter} (skipped ${skippedCount} so far)`);
+                }
+                continue;
+            }
+        }
+        
+        // If we're skipping too many issues, log a warning - JQL filter may not be working
+        if (skippedCount >= maxSkippedBeforeWarning && skippedCount % 100 === 0) {
+            log.warn(`Filtered out ${skippedCount} issues without current user worklogs - JQL worklogAuthor filter may not be working correctly. User: ${userEmailForFilter}`);
+        }
         try {
             // Check if worklogs are already included in the response
             if (!issue.fields.worklog) {
@@ -686,7 +727,14 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
         }
     }
     
-    log.info(`Successfully processed ${issuesWithWorklogs.length} issues with relevant worklogs`);
+    // Final summary
+    const totalFetched = allIssues.length;
+    const totalProcessed = issuesWithWorklogs.length;
+    log.info(`Worklog search complete: Fetched ${totalFetched} issues from Jira, processed ${totalProcessed} with current user worklogs${skippedCount > 0 ? `, skipped ${skippedCount} without user worklogs` : ''}`);
+    
+    if (skippedCount > totalProcessed && totalFetched > 100) {
+        log.warn(`Warning: JQL filter may not be working correctly. ${skippedCount} issues were filtered out client-side. Consider verifying the worklogAuthor filter in JQL.`);
+    }
     
     return { issues: issuesWithWorklogs };
 };
@@ -713,7 +761,7 @@ exports.getSprintIssues = async function(req, sprintId) {
     params.set('maxResults', String(parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 100));
     params.set('fields', ['summary','issuetype','status','key','id'].join(','));
     const requestBody = { jql };
-
+    
     const response = await fetch(url + '/rest/api/3/search/jql?' + params.toString(), {
         method: 'POST',
         headers: {
