@@ -182,35 +182,89 @@ exports.getAvailableSites= function(req) {
     }).then(res => res.json());
 }
 
-function searchIssuesInternal(req, jql) {
+async function searchIssuesInternal(req, jql) {
     const headers = getDefaultHeaders(req);
     const url = getCallURL(req);
     
     // If it's a query (not a specific issue key), use contains search
-    if (!jql.startsWith('key = ')) {
+    const originalJql = jql;
+    const isExactKeyMatch = jql.startsWith('key = ');
+    
+    if (!isExactKeyMatch) {
         jql = `summary ~ "${jql}*" OR description ~ "${jql}*"`;
     }
     
-    // Apply project filter
-    jql = appendProjectFilter(jql, req.query.project);
+    // Apply project filter - but skip for exact key matches since keys are globally unique
+    if (!isExactKeyMatch && req.query.project && req.query.project !== 'all') {
+        jql = appendProjectFilter(jql, req.query.project);
+    }
     
-    const fields = ['summary', 'issuetype', 'parent', 'customfield_10017'];
+    // Request all necessary fields explicitly
+    // Using explicit field list ensures we get the fields we need
+    // Key fields: summary, issuetype, status, parent, customfield_10017 (epic), project
+    const fields = ['summary', 'issuetype', 'status', 'project', 'parent', 'customfield_10017'];
     
     // Use the new JQL-based search API (POST method)
+    // Try both query params and body to ensure fields are requested
     const params = new URLSearchParams();
     params.set('maxResults', String(parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 50));
-    if (fields && fields.length) params.set('fields', fields.join(','));
+    params.set('fields', fields.join(','));
     
-    const requestBody = { jql };
-    return fetch(url + '/rest/api/3/search/jql?' + params.toString(), {
-        method: 'POST',
-        headers: {
-            ...headers,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody),
-        agent: httpsAgent
-    }).then(res => res.json());
+    // Also include fields in request body (some endpoints might need it there)
+    const requestBody = { 
+        jql,
+        fields: fields,
+        maxResults: parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 50
+    };
+    const apiUrl = url + '/rest/api/3/search/jql?' + params.toString();
+    
+    try {
+        const res = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                ...headers,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody),
+            agent: httpsAgent
+        });
+        
+        if (!res.ok) {
+            try {
+                const errorData = await res.json();
+                const errorMsg = `Jira API error: ${res.status} ${res.statusText} - ${JSON.stringify(errorData)}`;
+                log.error(`searchIssuesInternal failed for JQL "${jql}": ${errorMsg}`);
+                throw new Error(errorMsg);
+            } catch (parseError) {
+                // If we can't parse the error response, still log the HTTP status
+                const errorMsg = `Jira API error: ${res.status} ${res.statusText} (could not parse error body)`;
+                log.error(`searchIssuesInternal failed for JQL "${jql}": ${errorMsg}`, parseError);
+                throw new Error(errorMsg);
+            }
+        }
+        
+        const data = await res.json();
+        
+        // Check for error messages in response
+        if (data.errorMessages || data.errors) {
+            log.warn(`Jira API returned errors for JQL "${jql}":`, data.errorMessages || data.errors);
+            return { issues: [] }; // Return empty result instead of throwing
+        }
+        
+        // Check for issues with missing fields and log details if any found
+        if (data && data.issues && Array.isArray(data.issues)) {
+            const issuesWithoutFields = data.issues.filter(issue => !issue || !issue.fields);
+            if (issuesWithoutFields.length > 0) {
+                log.warn(`Found ${issuesWithoutFields.length} issue(s) without fields in response. Sample issue structure:`, JSON.stringify(issuesWithoutFields[0], null, 2));
+            }
+        }
+        
+        return data;
+    } catch (error) {
+        log.error(`searchIssuesInternal error for JQL "${jql}":`, error.message || error);
+        if (error.stack) log.debug('Error stack:', error.stack);
+        throw error; // Re-throw to be caught by the caller
+    }
 }
 
 exports.searchIssues = function(req, jql) {
@@ -230,13 +284,16 @@ function suggestIssuesInternal(req, query) {
     // Apply project filter
     searchJql = appendProjectFilter(searchJql, req.query.project);
     
-    return fetch(url + '/rest/api/3/issue/picker?query=' + encodeURIComponent(query) + '&currentJQL=' + encodeURIComponent(searchJql), {
+    const apiUrl = url + '/rest/api/3/issue/picker?query=' + encodeURIComponent(query) + '&currentJQL=' + encodeURIComponent(searchJql);
+    
+    return fetch(apiUrl, {
         method: 'GET',
         headers: getDefaultHeaders(req),
         agent: httpsAgent
     }).then(res => {
         if (!res.ok) {
-            log.error(`Issue picker API error: ${res.status} ${res.statusText}`);
+            const errorMsg = `Issue picker API error: ${res.status} ${res.statusText}`;
+            log.error(`suggestIssuesInternal failed for query "${query}": ${errorMsg}`);
             // Return empty result instead of throwing
             return { sections: [] };
         }
@@ -244,19 +301,51 @@ function suggestIssuesInternal(req, query) {
     }).then(data => {
         // Check for API errors and return empty result
         if (data.errorMessages || data.errors) {
-            log.warn('Issue picker returned errors:', data.errorMessages || data.errors);
+            log.warn(`Issue picker returned errors for query "${query}":`, data.errorMessages || data.errors);
             return { sections: [] };
         }
         
         // Ensure sections exist
         if (!data.sections) {
-            log.warn('Issue picker returned unexpected format, creating empty sections');
+            log.warn(`Issue picker returned unexpected format for query "${query}", creating empty sections`);
             return { sections: [] };
+        }
+        
+        let totalBeforeFilter = 0;
+        let totalAfterFilter = 0;
+        const filteredIssues = [];
+        
+        // Filter out issues without fields from each section
+        if (Array.isArray(data.sections)) {
+            data.sections = data.sections.map(section => {
+                if (section.issues && Array.isArray(section.issues)) {
+                    const beforeCount = section.issues.length;
+                    totalBeforeFilter += beforeCount;
+                    section.issues = section.issues.filter(issue => {
+                        if (!issue || !issue.fields) {
+                            if (filteredIssues.length === 0) {
+                                filteredIssues.push(issue); // Keep sample for logging
+                            }
+                            return false;
+                        }
+                        return true;
+                    });
+                    const afterCount = section.issues.length;
+                    totalAfterFilter += afterCount;
+                }
+                return section;
+            });
+        }
+        
+        // Only log if issues were filtered out
+        if (totalBeforeFilter !== totalAfterFilter) {
+            log.warn(`suggestIssuesInternal filtered out ${totalBeforeFilter - totalAfterFilter} issue(s) without fields for query "${query}". Sample filtered issue:`, JSON.stringify(filteredIssues[0], null, 2));
         }
         
         return data;
     }).catch(error => {
-        log.error('Issue picker error:', error);
+        log.error(`suggestIssuesInternal error for query "${query}":`, error.message || error);
+        if (error.stack) log.debug('Error stack:', error.stack);
         // Return empty result instead of throwing
         return { sections: [] };
     });

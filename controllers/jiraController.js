@@ -46,33 +46,132 @@ function appendProjectFilter(jql, projectKey) {
 }
 
 // Exporting missing functions that are being called from routes/index.js
+// Note: start and end parameters are ignored - we search all issues regardless of date
+// This allows users to log time on any issue, including old ones
 exports.suggestIssues = function(req, start, end, query) {
     var query = req.query.query;
+    
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+        log.warn('suggestIssues called with empty or invalid query');
+        return Promise.resolve([]);
+    }
+    
     var promises = [];
 
-    // Try exact key match first
-    var keyJQL = 'key = ' + query;
-    promises.push(jiraAPIController.searchIssues(req, keyJQL));
+    // Try exact key match first - handle case sensitivity
+    // Jira keys are typically uppercase, but users might search in lowercase
+    // Try multiple variations: original, uppercase, and case-insensitive
+    const queryUpper = query.toUpperCase();
+    const isPotentialKey = /^[A-Z0-9]+-[0-9]+$/i.test(query.trim());
+    
+    if (isPotentialKey) {
+        // If it looks like an issue key, try multiple case variations
+        const keyVariations = [];
+        if (query !== queryUpper) {
+            keyVariations.push(queryUpper); // Try uppercase version
+        }
+        keyVariations.push(query); // Try original
+        if (query !== query.toLowerCase()) {
+            keyVariations.push(query.toLowerCase()); // Try lowercase version
+        }
+        
+        // Try each variation and combine results
+        const keyPromises = keyVariations.map(keyVar => {
+            const keyJQL = 'key = "' + keyVar + '"';
+            return jiraAPIController.searchIssues(req, keyJQL)
+                .then(result => {
+                    return result;
+                })
+                .catch(error => {
+                    log.warn(`Key match search failed for "${keyVar}":`, error.message || error);
+                    if (error.stack) log.debug('Error stack:', error.stack);
+                    return { issues: [] };
+                });
+        });
+        
+        promises.push(
+            Promise.all(keyPromises).then(results => {
+                // Combine all results and deduplicate by issue key
+                const allIssues = [];
+                const seenKeys = new Set();
+                
+                results.forEach((result) => {
+                    if (result && result.issues && Array.isArray(result.issues)) {
+                        result.issues.forEach(issue => {
+                            const issueKey = issue && issue.key ? issue.key : null;
+                            if (issueKey && !seenKeys.has(issueKey)) {
+                                seenKeys.add(issueKey);
+                                allIssues.push(issue);
+                            }
+                        });
+                    }
+                });
+                
+                const totalFound = allIssues.length;
+                if (totalFound === 0) {
+                    log.warn(`No issues found with key match for "${query}" (tried: ${keyVariations.join(', ')})`);
+                }
+                
+                return { issues: allIssues };
+            }).catch(error => {
+                log.error(`Error combining key match results for "${query}":`, error);
+                return { issues: [] };
+            })
+        );
+    } else {
+        // If it doesn't look like a key, try the original query as-is
+        const keyJQL = 'key = "' + query + '"';
+        promises.push(
+            jiraAPIController.searchIssues(req, keyJQL)
+                .then(result => {
+                    return result;
+                })
+                .catch(error => {
+                    log.warn(`Exact key match search failed for "${query}":`, error.message || error);
+                    if (error.stack) log.debug('Error stack:', error.stack);
+                    return { issues: [] }; // Return empty result instead of failing
+                })
+        );
+    }
 
     // Then try text search
-    promises.push(jiraAPIController.suggestIssues(req, query));
+    promises.push(
+        jiraAPIController.suggestIssues(req, query)
+            .then(result => {
+                return result;
+            })
+            .catch(error => {
+                log.warn(`Text search failed for "${query}":`, error.message || error);
+                if (error.stack) log.debug('Error stack:', error.stack);
+                return { sections: [] }; // Return empty result instead of failing
+            })
+    );
 
     return Promise.all(promises).then(results => {
         var issues = [];
 
         // Add exact matches first
         if (results[0] && results[0].issues) {
-            issues = issues.concat(results[0].issues.map(mapIssuesFunction));
+            const mapped = results[0].issues.map(mapIssuesFunction).filter(issue => issue !== null);
+            const filteredCount = results[0].issues.length - mapped.length;
+            if (filteredCount > 0) {
+                log.warn(`Filtered out ${filteredCount} invalid issue(s) from exact key match. Sample filtered issue:`, results[0].issues.find(issue => !issue || !issue.key || !issue.id));
+            }
+            issues = issues.concat(mapped);
         }
 
         // Then add suggestions
         if (results[1] && results[1].sections) {
             results[1].sections.forEach(section => {
                 if (section.issues) {
-                    const mappedIssues = section.issues.map(mapIssuesFunction);
+                    const mappedIssues = section.issues.map(mapIssuesFunction).filter(issue => issue !== null);
+                    const filteredCount = section.issues.length - mappedIssues.length;
+                    if (filteredCount > 0) {
+                        log.warn(`Filtered out ${filteredCount} invalid issue(s) from section "${section.label || 'unknown'}". Sample filtered issue:`, section.issues.find(issue => !issue || !issue.key || !issue.id));
+                    }
                     // Filter out duplicates
                     mappedIssues.forEach(issue => {
-                        if (!issues.some(existing => existing.key === issue.key)) {
+                        if (!issues.some(existing => existing && existing.key === issue.key)) {
                             issues.push(issue);
                         }
                     });
@@ -80,19 +179,36 @@ exports.suggestIssues = function(req, start, end, query) {
             });
         }
 
+        if (issues.length === 0) {
+            log.warn(`No issues found for query "${query}" - both search methods may have failed or returned no results`);
+        }
+
         return issues;
+    }).catch(error => {
+        log.error(`Unexpected error in suggestIssues for query "${query}":`, error);
+        if (error.stack) log.error('Error stack:', error.stack);
+        return []; // Return empty array instead of throwing
     });
 };
 
 // Helper function for mapping issues
+// Handles missing fields gracefully to avoid filtering out valid issues
 const mapIssuesFunction = issue => {
+    if (!issue) {
+        log.warn('mapIssuesFunction: issue is undefined or null');
+        return null;
+    }
+    
+    // Ensure fields object exists (even if empty) to avoid errors
+    const fields = issue.fields || {};
+    
     return {
-        key: issue.key,
-        summary: issue.fields.summary,
+        key: issue.key || 'UNKNOWN',
+        summary: fields.summary || '(no summary)',
         issueId: issue.id,
-        subtaskKey: issue.fields && issue.fields.parent ? issue.fields.parent.key : null,
-        issueType: issue.fields.issuetype ? issue.fields.issuetype.name : 'unknown',
-        issueTypeIcon: issue.fields.issuetype && issue.fields.issuetype.iconUrl ? issue.fields.issuetype.iconUrl : null
+        subtaskKey: fields.parent && fields.parent.key ? fields.parent.key : null,
+        issueType: fields.issuetype && fields.issuetype.name ? fields.issuetype.name : 'unknown',
+        issueTypeIcon: fields.issuetype && fields.issuetype.iconUrl ? fields.issuetype.iconUrl : null
     };
 };
 
@@ -403,13 +519,18 @@ exports.getWorklogStats = async function(req, start, end, projectFilter, options
     endOfDay.setHours(23, 59, 59, 999);
 
     const stats = result.issues.map(issue => {
+        // Handle missing fields gracefully
+        const fields = issue.fields || {};
+        const worklogData = fields.worklog || {};
+        const worklogs = worklogData.worklogs || [];
+        
         // Filter to only include worklogs from the current user
-        const userWorklogs = issue.fields.worklog.worklogs.filter(worklog => {
+        const userWorklogs = worklogs.filter(worklog => {
             if (process.env.JIRA_BASIC_AUTH_USERNAME) {
-                return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
+                return worklog.author && worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
             }
             if (process.env.JIRA_AUTH_TYPE === "OAUTH") {
-                return worklog.author.emailAddress === req.user.email;
+                return worklog.author && worklog.author.emailAddress === req.user.email;
             }
             return true;
         });
@@ -455,22 +576,22 @@ exports.getWorklogStats = async function(req, start, end, projectFilter, options
         // Try to identify parent relationships: parent key (sub-tasks) or epic link
         let parentKey = null;
         try {
-            if (issue.fields && issue.fields.parent && issue.fields.parent.key) {
-                parentKey = issue.fields.parent.key;
-            } else if (issue.fields && issue.fields.customfield_10017) {
+            if (fields.parent && fields.parent.key) {
+                parentKey = fields.parent.key;
+            } else if (fields.customfield_10017) {
                 // Epic Link can be an object with key or a string key depending on site/config
-                const epicField = issue.fields.customfield_10017;
+                const epicField = fields.customfield_10017;
                 if (typeof epicField === 'string') parentKey = epicField;
                 else if (epicField && typeof epicField === 'object' && epicField.key) parentKey = epicField.key;
             }
         } catch (_) {}
 
         return {
-            key: issue.key,
-            summary: issue.fields.summary,
+            key: issue.key || 'UNKNOWN',
+            summary: fields.summary || '(no summary)',
             totalTimeSpent: totalTime,
-            status: issue.fields.status.name,
-            type: issue.fields.issuetype.name,
+            status: fields.status && fields.status.name ? fields.status.name : 'Unknown',
+            type: fields.issuetype && fields.issuetype.name ? fields.issuetype.name : 'unknown',
             comments: comments,
             parentKey: parentKey
         };

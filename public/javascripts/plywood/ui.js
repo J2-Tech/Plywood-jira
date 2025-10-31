@@ -246,11 +246,26 @@ export function initializeDropdown() {
         window.choicesCreate = choicesCreate;
 
         const fetchCreateOptions = searchDebounce((searchTerm) => {
+            if (!searchTerm || searchTerm.length < 3) {
+                console.debug(`Search term too short (${searchTerm?.length || 0} chars), skipping`);
+                return;
+            }
+            console.debug(`Fetching options for search term: "${searchTerm}"`);
             searchIssues(searchTerm)
                 .then(options => {
-                    choicesCreate.setChoices(options, 'value', 'label', true);
+                    console.debug(`Received ${options.length} option(s) for search term "${searchTerm}", updating Choices.js`);
+                    if (options && options.length > 0) {
+                        choicesCreate.setChoices(options, 'value', 'label', true);
+                        console.debug('Choices.js updated successfully');
+                    } else {
+                        console.warn(`No options returned for search term "${searchTerm}"`);
+                        // Clear choices if no results
+                        choicesCreate.setChoices([], 'value', 'label', true);
+                    }
                 })
                 .catch(error => {
+                    console.error(`Error fetching options for search term "${searchTerm}":`, error);
+                    choicesCreate.setChoices([], 'value', 'label', true);
                 });
         }, 300);
 
@@ -506,6 +521,7 @@ async function searchIssues(searchTerm) {
         const response = await fetch(`/issues/user?start=${startDate}&end=${endDate}&query=${encodeURIComponent(searchTerm)}&project=${project}&_t=${cacheBuster}`);
         
         if (!response.ok) {
+            console.warn(`Issue search API returned ${response.status} ${response.statusText} for query "${searchTerm}"`);
             hideLoading();
             return matchingObjectives; // Return objectives even if API fails
         }
@@ -514,49 +530,87 @@ async function searchIssues(searchTerm) {
         
         // Check for API error responses
         if (data.errorMessages || data.errors) {
+            console.warn('Issue search API returned errors:', data.errorMessages || data.errors);
             hideLoading();
             return matchingObjectives; // Return objectives even if API fails
         }
         
         // Check if data is an array (expected format)
         if (!Array.isArray(data)) {
+            console.warn(`Issue search API returned non-array data for query "${searchTerm}":`, typeof data, data);
             hideLoading();
             return matchingObjectives; // Return objectives even if API fails
         }
         
-        // Transform the data for Choices.js - enhanced with icon caching
-        const apiOptions = await Promise.all(data.map(async (issue) => {
-            let localIconUrl = null;
-            
-            // Try to get cached icon for the issue type
-            if (issue.issueTypeIcon && window.showIssueTypeIcons) {
-                try {
-                    const iconResponse = await fetch(`/issues/${issue.issueId}/icon`);
-                    const iconData = await iconResponse.json();
-                    if (iconData.localIconUrl) {
-                        localIconUrl = iconData.localIconUrl;
-                    }
-                } catch (iconError) {
-                }
+        console.debug(`Issue search found ${data.length} issue(s) for query "${searchTerm}"`);
+        
+        // Filter out any null/undefined issues
+        const validIssues = data.filter(issue => {
+            if (!issue) {
+                console.warn('Found null/undefined issue in search results');
+                return false;
             }
-            
-            return {
-                value: issue.issueId,
-                label: `${issue.key} - ${issue.summary}`,
-                customProperties: {
-                    key: issue.key,
-                    issueKey: issue.key,
-                    issueId: issue.issueId,
-                    summary: issue.summary,
-                    issueType: issue.issueType,
-                    localIconUrl: localIconUrl,
-                    isObjective: false
+            if (!issue.key) {
+                console.warn('Found issue without key in search results:', issue);
+                return false;
+            }
+            if (!issue.issueId) {
+                console.warn('Found issue without issueId in search results:', issue);
+                return false;
+            }
+            return true;
+        });
+        
+        if (validIssues.length !== data.length) {
+            console.warn(`Filtered out ${data.length - validIssues.length} invalid issue(s) from search results`);
+        }
+        
+        // Transform the data for Choices.js - enhanced with icon caching
+        const apiOptions = await Promise.all(validIssues.map(async (issue) => {
+            try {
+                let localIconUrl = null;
+                
+                // Try to get cached icon for the issue type
+                if (issue.issueTypeIcon && window.showIssueTypeIcons) {
+                    try {
+                        const iconResponse = await fetch(`/issues/${issue.issueId}/icon`);
+                        if (iconResponse.ok) {
+                            const iconData = await iconResponse.json();
+                            if (iconData.localIconUrl) {
+                                localIconUrl = iconData.localIconUrl;
+                            }
+                        }
+                    } catch (iconError) {
+                        // Silently fail for icon fetching
+                    }
                 }
-            };
+                
+                return {
+                    value: issue.issueId,
+                    label: `${issue.key} - ${issue.summary || '(no summary)'}`,
+                    customProperties: {
+                        key: issue.key,
+                        issueKey: issue.key,
+                        issueId: issue.issueId,
+                        summary: issue.summary || '',
+                        issueType: issue.issueType || 'unknown',
+                        localIconUrl: localIconUrl,
+                        isObjective: false
+                    }
+                };
+            } catch (error) {
+                console.error('Error processing issue in search results:', issue, error);
+                return null;
+            }
         }));
         
+        // Filter out any null results from processing errors
+        const validOptions = apiOptions.filter(option => option !== null);
+        
+        console.debug(`Processed ${validOptions.length} valid option(s) from ${validIssues.length} issue(s) for query "${searchTerm}"`);
+        
         // Combine objectives and API results, with objectives first
-        const allOptions = [...matchingObjectives, ...apiOptions];
+        const allOptions = [...matchingObjectives, ...validOptions];
         
         // Remove duplicates based on issue key
         const uniqueOptions = [];
@@ -569,6 +623,8 @@ async function searchIssues(searchTerm) {
                 uniqueOptions.push(option);
             }
         }
+        
+        console.debug(`Issue search for "${searchTerm}" returning ${uniqueOptions.length} unique option(s) (${matchingObjectives.length} objectives, ${validOptions.length} API results)`);
         
         hideLoading();
         return uniqueOptions;
