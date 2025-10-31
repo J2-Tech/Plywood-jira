@@ -398,6 +398,10 @@ exports.getWorklogStats = async function(req, start, end, projectFilter, options
     const result = await jiraAPIController.searchIssuesWithWorkLogs(req, formattedStart, formattedEnd, jql);
     
     // Group worklogs by issue
+    // Prepare end-of-day for inclusive range filtering
+    const endOfDay = new Date(endDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
     const stats = result.issues.map(issue => {
         // Filter to only include worklogs from the current user
         const userWorklogs = issue.fields.worklog.worklogs.filter(worklog => {
@@ -408,6 +412,16 @@ exports.getWorklogStats = async function(req, start, end, projectFilter, options
                 return worklog.author.emailAddress === req.user.email;
             }
             return true;
+        });
+
+        // Restrict to requested date range using worklog.started timestamp
+        const rangedWorklogs = userWorklogs.filter(w => {
+            try {
+                const started = new Date(w.started || w.created);
+                return started >= startDate && started <= endOfDay;
+            } catch (_) {
+                return false;
+            }
         });
 
         // Optionally keep only worklogs with comments
@@ -424,7 +438,7 @@ exports.getWorklogStats = async function(req, start, end, projectFilter, options
                     return false;
                 }
             })
-            : userWorklogs;
+            : rangedWorklogs;
 
         const totalTime = filteredWorklogs.reduce((acc, worklog) => 
             acc + worklog.timeSpentSeconds, 0);
@@ -438,13 +452,27 @@ exports.getWorklogStats = async function(req, start, end, projectFilter, options
             }))
             .sort((a, b) => b.timeSpent - a.timeSpent);
 
+        // Try to identify parent relationships: parent key (sub-tasks) or epic link
+        let parentKey = null;
+        try {
+            if (issue.fields && issue.fields.parent && issue.fields.parent.key) {
+                parentKey = issue.fields.parent.key;
+            } else if (issue.fields && issue.fields.customfield_10017) {
+                // Epic Link can be an object with key or a string key depending on site/config
+                const epicField = issue.fields.customfield_10017;
+                if (typeof epicField === 'string') parentKey = epicField;
+                else if (epicField && typeof epicField === 'object' && epicField.key) parentKey = epicField.key;
+            }
+        } catch (_) {}
+
         return {
             key: issue.key,
             summary: issue.fields.summary,
             totalTimeSpent: totalTime,
             status: issue.fields.status.name,
             type: issue.fields.issuetype.name,
-            comments: comments
+            comments: comments,
+            parentKey: parentKey
         };
     })
     // Filter out issues with no time spent by current user

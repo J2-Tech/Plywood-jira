@@ -43,12 +43,22 @@ function renderTimeSpentList(data, expandedKeys = null) {
     // const pageSize = 20;
     // let currentPage = 0;
 
-    // Calculate max time first
+    const groupByParent = document.getElementById('groupByParent')?.checked;
+    // Calculate max time first, based on the relevant set
     const maxTime = Math.max(...data.map(issue => issue.totalTimeSpent));
-
-    // Just render all items (no page split)
     container.innerHTML = '';
+
     const prevExpanded = expandedKeys || new Set(Array.from(document.querySelectorAll('.issue-content:not(.hidden)')).map(e => e.parentElement?.dataset.issueKey));
+
+    if (groupByParent) {
+        // Build a tree from flat issues using parentKey
+        const { roots } = buildIssueHierarchy(data);
+        // Render hierarchical list
+        renderIssueTreeLevels(container, roots, 0, prevExpanded);
+        return;
+    }
+
+    // Flat list rendering
     data.forEach(issue => {
         const hours = Math.floor(issue.totalTimeSpent / 3600);
         const minutes = Math.floor((issue.totalTimeSpent % 3600) / 60);
@@ -170,7 +180,264 @@ function renderTimeSpentList(data, expandedKeys = null) {
     });
 }
 
-function createCommentElement(comment, showIssueInfo = true, intensity = 0) {
+function buildIssueHierarchy(flatIssues) {
+    const byKey = new Map();
+    flatIssues.forEach(i => {
+        byKey.set(i.key, { ...i, children: [], _agg: null });
+    });
+    const roots = [];
+    byKey.forEach(node => {
+        const parentKey = node.parentKey;
+        if (parentKey && byKey.has(parentKey) && parentKey !== node.key) {
+            byKey.get(parentKey).children.push(node);
+        } else {
+            roots.push(node);
+        }
+    });
+
+    // Compute aggregated totals (self + descendants)
+    const computeAgg = (n) => {
+        const childSum = (n.children || []).reduce((acc, c) => acc + computeAgg(c), 0);
+        n._agg = (n.totalTimeSpent || 0) + childSum;
+        return n._agg;
+    };
+    roots.forEach(r => computeAgg(r));
+    return { roots, byKey };
+}
+
+function renderNodeContent(container, node, level, prevExpanded) {
+    // Render just the content part (children + worklogs) for a single node
+    const commentsOnly = document.getElementById('globalWithComments')?.checked;
+    const children = Array.isArray(node.children) ? node.children : [];
+    const nodeComments = (Array.isArray(node.comments) ? node.comments : []).filter(c => !commentsOnly || (getCommentText(c.comment || '').length > 0));
+    const items = [];
+    children.forEach(c => items.push({ kind: 'node', value: c._agg || 0, node: c }));
+    nodeComments.forEach(w => items.push({ kind: 'worklog', value: w.timeSpent || 0, worklog: w }));
+    const levelSum = items.reduce((acc, it) => acc + (it.value || 0), 0) || 1;
+    
+    const childNodes = items.filter(i => i.kind === 'node').sort((a, b) => (b.value - a.value));
+    const worklogs = items.filter(i => i.kind === 'worklog');
+    
+    // Only show sorting controls if there are worklogs
+    if (worklogs.length > 0) {
+        const sortWrap = document.createElement('div');
+        sortWrap.className = 'sort-controls';
+        sortWrap.innerHTML = `
+            <div class="sort-row">
+                <label>Sort logs by
+                    <select class="issue-sort">
+                        <option value="time" selected>Time logged</option>
+                        <option value="date">Date</option>
+                    </select>
+                </label>
+                <button type="button" class="sort-order" title="Toggle sort order">↓</button>
+            </div>
+        `;
+        container.appendChild(sortWrap);
+    }
+    
+    const worklogsContainer = document.createElement('div');
+    
+    // Render child nodes first (issues always on top)
+    childNodes.forEach(item => {
+        const childContainer = document.createElement('div');
+        childContainer.className = 'issue-stats-container';
+        childContainer.style.marginLeft = `${Math.min(level * 16, 80)}px`;
+        
+        const childHeader = document.createElement('div');
+        childHeader.className = 'issue-header';
+        const childPct = (item.value / levelSum) * 100;
+        const ch = Math.floor((item.value || 0) / 3600);
+        const cm = Math.floor(((item.value || 0) % 3600) / 60);
+        const childHasChildren = (item.node.children && item.node.children.length > 0) || (Array.isArray(item.node.comments) && item.node.comments.length > 0);
+        childHeader.innerHTML = `
+            <div class="issue-header-content">
+                <span class="expand-button">${childHasChildren ? '▶' : '•'}</span>
+                <h3>${item.node.key} - ${item.node.summary}</h3>
+                <div class="time-info">${ch}h ${cm}m</div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${childPct}%"></div>
+            </div>
+        `;
+        const childContent = document.createElement('div');
+        childContent.className = 'issue-content hidden';
+        
+        // Recursively render child's content
+        renderNodeContent(childContent, item.node, level + 1, prevExpanded);
+        
+        childContainer.appendChild(childHeader);
+        childContainer.appendChild(childContent);
+        container.appendChild(childContainer);
+        
+        childHeader.addEventListener('click', () => {
+            const btn = childHeader.querySelector('.expand-button');
+            const willExpand = childContent.classList.contains('hidden');
+            if (childHasChildren) btn.textContent = willExpand ? '▼' : '▶';
+            childContent.classList.toggle('hidden');
+        });
+        if (prevExpanded && prevExpanded.has(item.node.key)) {
+            childContent.classList.remove('hidden');
+            const btn = childHeader.querySelector('.expand-button');
+            if (childHasChildren) btn.textContent = '▼';
+        }
+    });
+    
+    // Append worklogs container after child issues
+    container.appendChild(worklogsContainer);
+    
+    // Worklog sorting (only if there are worklogs)
+    if (worklogs.length > 0) {
+        let sortBy = 'time';
+        let descending = true;
+        const renderWorklogs = () => {
+            worklogsContainer.innerHTML = '';
+            const sortedWl = [...worklogs].sort((a, b) => {
+                if (sortBy === 'date') {
+                    return (descending ? 1 : -1) * ((new Date(b.worklog.created)) - (new Date(a.worklog.created)));
+                }
+                return (descending ? 1 : -1) * ((b.value || 0) - (a.value || 0));
+            });
+            sortedWl.forEach(item => {
+                const barPct = (item.value / levelSum) * 100;
+                const wlEl = createCommentElement(item.worklog, false, 0, barPct);
+                wlEl.dataset.duration = String(item.value || 0);
+                worklogsContainer.appendChild(wlEl);
+            });
+        };
+        const sortWrap = container.querySelector('.sort-controls');
+        if (sortWrap) {
+            const sortSelect = sortWrap.querySelector('.issue-sort');
+            sortSelect.addEventListener('change', () => { sortBy = sortSelect.value; renderWorklogs(); });
+            const orderBtn = sortWrap.querySelector('.sort-order');
+            orderBtn.addEventListener('click', () => { descending = !descending; orderBtn.textContent = descending ? '↓' : '↑'; renderWorklogs(); });
+        }
+        renderWorklogs();
+    }
+}
+
+function renderIssueTreeLevels(container, nodes, level, prevExpanded) {
+    if (!nodes || nodes.length === 0) return;
+    // Sort nodes by aggregated time desc (same ordering policy)
+    const sorted = [...nodes].sort((a, b) => (b._agg || 0) - (a._agg || 0));
+
+    sorted.forEach(node => {
+        const div = document.createElement('div');
+        div.className = 'issue-stats-container';
+        if (level > 0) div.style.marginLeft = `${Math.min(level * 16, 80)}px`;
+
+        const header = document.createElement('div');
+        header.className = 'issue-header';
+
+        // Gather children and this node's worklogs
+        const children = Array.isArray(node.children) ? node.children : [];
+        const commentsOnly = document.getElementById('globalWithComments')?.checked;
+        const nodeComments = (Array.isArray(node.comments) ? node.comments : []).filter(c => !commentsOnly || (getCommentText(c.comment || '').length > 0));
+        const items = [];
+        children.forEach(c => items.push({ kind: 'node', value: c._agg || 0, node: c }));
+        nodeComments.forEach(w => items.push({ kind: 'worklog', value: w.timeSpent || 0, worklog: w }));
+        const levelSum = items.reduce((acc, it) => acc + (it.value || 0), 0) || 1;
+
+        // Node header width shows this node's aggregated vs its siblings at parent level; fallback to its own children/worklogs max if needed
+        // We keep current node bar relative to sum within its siblings not available here; use its own _agg proportion among its siblings already computed at parent call
+        // For initial render of header we fall back to proportion inside its own set for consistency
+        const headerPct = Math.min(100, ((node._agg || 0) / levelSum) * 100);
+        const hours = Math.floor((node._agg || 0) / 3600);
+        const minutes = Math.floor(((node._agg || 0) % 3600) / 60);
+        const hasChildren = children.length > 0 || nodeComments.length > 0;
+        header.innerHTML = `
+            <div class="issue-header-content">
+                <span class="expand-button">${hasChildren ? '▶' : '•'}</span>
+                <h3>${node.key} - ${node.summary}</h3>
+                <div class="time-info">${hours}h ${minutes}m</div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${headerPct}%"></div>
+            </div>
+        `;
+
+        const content = document.createElement('div');
+        content.className = 'issue-content hidden';
+
+        // Use helper function to render node content (children + worklogs) consistently
+        renderNodeContent(content, node, level + 1, prevExpanded);
+
+        div.appendChild(header);
+        div.appendChild(content);
+        container.appendChild(div);
+
+        // expand/collapse
+        header.addEventListener('click', () => {
+            const button = header.querySelector('.expand-button');
+            const willExpand = content.classList.contains('hidden');
+            if (hasChildren) button.textContent = willExpand ? '▼' : '▶';
+            content.classList.toggle('hidden');
+        });
+        if (prevExpanded && prevExpanded.has(node.key)) {
+            content.classList.remove('hidden');
+            const btn = header.querySelector('.expand-button');
+            if (hasChildren) btn.textContent = '▼';
+        }
+    });
+}
+
+function appendIssueComments(content, issue) {
+    // Defensive
+    const commentsList = Array.isArray(issue.comments) ? issue.comments : [];
+    const commentsOnly = document.getElementById('globalWithComments')?.checked;
+    const sortWrap = document.createElement('div');
+    sortWrap.className = 'sort-controls';
+    sortWrap.innerHTML = `
+        <div class="sort-row">
+            <label>Sort logs by
+                <select class="issue-sort">
+                    <option value="time" selected>Time logged</option>
+                    <option value="date">Date</option>
+                </select>
+            </label>
+            <button type="button" class="sort-order" title="Toggle sort order">↓</button>
+        </div>
+    `;
+    content.appendChild(sortWrap);
+
+    const validComments = commentsList
+        .filter(c => c && typeof c === 'object')
+        .filter(c => !commentsOnly || (getCommentText(c.comment || '').length > 0));
+
+    const maxDur = validComments.reduce((m, c) => Math.max(m, c.timeSpent || 0), 0) || 1;
+    const minDur = validComments.reduce((m, c) => Math.min(m, c.timeSpent || 0), maxDur);
+
+    let sortBy = 'time';
+    let descending = true;
+    const renderComments = () => {
+        [...content.querySelectorAll('.comment-item')].forEach(el => el.remove());
+        const sorted = [...validComments].sort((a, b) => {
+            if (sortBy === 'date') return (descending ? 1 : -1) * (new Date(b.created) - new Date(a.created));
+            return (descending ? 1 : -1) * ((b.timeSpent || 0) - (a.timeSpent || 0));
+        });
+        sorted.forEach(comment => {
+            const frac = maxDur === minDur ? 0 : ((comment.timeSpent || 0) - minDur) / (maxDur - minDur);
+            const barPct = maxDur > 0 ? ((comment.timeSpent || 0) / maxDur) * 100 : 0;
+            const el = createCommentElement(comment, false, frac, barPct);
+            el.dataset.duration = String(comment.timeSpent || 0);
+            content.appendChild(el);
+        });
+    };
+    const sortSelect = sortWrap.querySelector('.issue-sort');
+    sortSelect.addEventListener('change', () => { sortBy = sortSelect.value; renderComments(); });
+    const orderBtn = sortWrap.querySelector('.sort-order');
+    orderBtn.addEventListener('click', () => { descending = !descending; orderBtn.textContent = descending ? '↓' : '↑'; renderComments(); });
+    renderComments();
+
+    if (validComments.length === 0) {
+        const noComments = document.createElement('div');
+        noComments.className = 'no-comments';
+        noComments.textContent = 'No worklog comments';
+        content.appendChild(noComments);
+    }
+}
+
+function createCommentElement(comment, showIssueInfo = true, intensity = 0, barWidthPct = null) {
     const author = comment.author || '';
     const rawComment = (comment && Object.prototype.hasOwnProperty.call(comment, 'comment')) ? comment.comment : '';
     const created = comment.created ? new Date(comment.created).toLocaleString() : '';
@@ -196,6 +463,18 @@ function createCommentElement(comment, showIssueInfo = true, intensity = 0) {
     // Build using existing CSS classes for consistent spacing/separation
     const container = document.createElement('div');
     container.className = 'comment-item' + (hasText ? '' : ' compact');
+
+    // Add a bar similar to issue bars if provided
+    if (typeof barWidthPct === 'number') {
+        const bar = document.createElement('div');
+        bar.className = 'progress-bar';
+        const fill = document.createElement('div');
+        fill.className = 'progress-fill';
+        fill.style.width = `${Math.max(0, Math.min(100, barWidthPct))}%`;
+        bar.appendChild(fill);
+        container.appendChild(bar);
+    }
+
     // Heatmap by saturation (0..1) using medium blue hue
     const heatEnabled = document.getElementById('globalHeatmap')?.checked;
     if (heatEnabled) {
@@ -220,12 +499,6 @@ function createCommentElement(comment, showIssueInfo = true, intensity = 0) {
         textEl.textContent = readableText;
         container.appendChild(textEl);
     }
-
-    // Right-aligned time (redundant with header, but keeps previous layout option). Keep minimal; can omit if noisy
-    // const timeEl = document.createElement('div');
-    // timeEl.className = 'comment-time';
-    // timeEl.textContent = created;
-    // container.appendChild(timeEl);
 
     return container;
 }
@@ -265,7 +538,11 @@ async function loadStats(options = {}) {
         if (issuesParam) qs.set('includeChildren', String(!!showChildren));
         if (commentsOnly) qs.set('commentsOnly', 'true');
         const response = await fetch(`/stats/data?${qs.toString()}`);
-        const data = await response.json();
+        let data = await response.json();
+        if (!Array.isArray(data)) {
+            console.warn('Stats response is not an array, received:', data);
+            data = [];
+        }
         lastData = data;
         // Populate issue filter options with available issues (preserve selections)
         populateIssueFilter(data, issuesSelect, selectedIssues);
@@ -283,6 +560,7 @@ async function loadStats(options = {}) {
 
 function populateIssueFilter(data, selectEl, preserveKeys = []) {
     if (!selectEl) return;
+    if (!Array.isArray(data)) return;
     if (window.issueChoices && window.issueChoices.setChoices) {
         const existingValues = new Set(window.issueChoices._store.choices.map(c => c.value));
         const newChoices = [];
@@ -638,6 +916,7 @@ async function renderAnalysisChart(data) {
         }
     };
 
+    const groupByParent = document.getElementById('groupByParent')?.checked;
     switch (currentChartType) {
         case 'issueTypes': {
             const timeByType = data.reduce((acc, issue) => {
@@ -657,14 +936,21 @@ async function renderAnalysisChart(data) {
         }
 
         case 'issues': {
-            const timeByIssue = data.reduce((acc, issue) => {
-                const key = `${issue.key} - ${issue.summary}`;
-                acc[key] = {
-                    time: issue.totalTimeSpent,
-                    type: issue.type
-                };
-                return acc;
-            }, {});
+            let timeByIssue;
+            if (groupByParent) {
+                const { roots } = buildIssueHierarchy(data);
+                timeByIssue = roots.reduce((acc, node) => {
+                    const key = `${node.key} - ${node.summary}`;
+                    acc[key] = { time: node._agg || 0, type: node.type };
+                    return acc;
+                }, {});
+            } else {
+                timeByIssue = data.reduce((acc, issue) => {
+                    const key = `${issue.key} - ${issue.summary}`;
+                    acc[key] = { time: issue.totalTimeSpent, type: issue.type };
+                    return acc;
+                }, {});
+            }
             const colors = await generateColors(Object.keys(timeByIssue).length, timeByIssue, 'issues');
             chartData = {
                 labels: Object.keys(timeByIssue),
@@ -779,6 +1065,18 @@ async function initializeStats() {
             updateHeatmapRendering();
         });
         syncHeatClass();
+    }
+
+    // Re-render on Group by parent toggle
+    const groupToggle = document.getElementById('groupByParent');
+    if (groupToggle) {
+        groupToggle.addEventListener('change', () => {
+            const expandedKeys = new Set(Array.from(document.querySelectorAll('.issue-content:not(.hidden)')).map(e => e.parentElement?.dataset.issueKey));
+            if (lastData) {
+                renderTimeSpentList(lastData, expandedKeys);
+                renderAnalysisChart(lastData);
+            }
+        });
     }
 
     // Enable/disable Show sub-tasks based on issue filter selection

@@ -197,13 +197,12 @@ function searchIssuesInternal(req, jql) {
     const fields = ['summary', 'issuetype', 'parent', 'customfield_10017'];
     
     // Use the new JQL-based search API (POST method)
-    const requestBody = {
-        jql: jql,
-        maxResults: parseInt(process.env.JIRA_MAX_SEARCH_RESULTS),
-        fields: fields
-    };
+    const params = new URLSearchParams();
+    params.set('maxResults', String(parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 50));
+    if (fields && fields.length) params.set('fields', fields.join(','));
     
-    return fetch(url + '/rest/api/3/search/jql', {
+    const requestBody = { jql };
+    return fetch(url + '/rest/api/3/search/jql?' + params.toString(), {
         method: 'POST',
         headers: {
             ...headers,
@@ -281,7 +280,7 @@ function getIssuesInternal(req, issuesIds) {
     return fetch(url + '/rest/api/3/search/jql', {
         method: 'POST',
         headers: getDefaultHeaders(req),
-        body: JSON.stringify({jql: 'key in (' + issuesIds.join(',') + ')'}),
+        body: JSON.stringify({ jql: 'key in (' + issuesIds.join(',') + ')' }),
         agent:httpsAgent
     }).then(res => res.json());
 }
@@ -478,77 +477,109 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
         jql = `(${jql}) AND (${extraJql})`;
     }
     
-    // Use the new JQL-based search API with worklog expansion
-    const requestBody = {
-        jql: jql,
-        maxResults: parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 100,
-        expand: 'renderedFields,worklog',
-        fields: ['summary', 'issuetype', 'status', 'project', 'key', 'id', 'parent', 'customfield_10017', 'worklog']
-    };
-    
+    // Paginate through all issues to remove any effective cap
+    const perPage = parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 100;
+    let startAt = 0;
+    let total = null;
+    const allIssues = [];
+
     log.info(`Searching for worklogs with JQL: ${jql}`);
-    log.info(`Requesting maxResults: ${requestBody.maxResults}`);
-    
-    const response = await fetch(url + '/rest/api/3/search/jql', {
-        method: 'POST',
-        headers: {
-            ...getDefaultHeaders(req),
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody),
-        agent: httpsAgent
-    });
-    
-    // Check response status before parsing
-    if (!response.ok) {
-        if (response.status === 401) {
-            const authError = new Error('Unauthorized');
-            authError.authFailure = true;
-            authError.status = 401;
-            throw authError;
+    log.info(`Paginating with per-page maxResults: ${perPage}`);
+
+    while (total === null || startAt < total) {
+        const params = new URLSearchParams();
+        params.set('startAt', String(startAt));
+        params.set('maxResults', String(perPage));
+        params.set('fields', ['summary','issuetype','status','project','key','id','parent','customfield_10017','worklog'].join(','));
+        const requestBody = { jql };
+
+        const response = await fetch(url + '/rest/api/3/search/jql?' + params.toString(), {
+            method: 'POST',
+            headers: {
+                ...getDefaultHeaders(req),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody),
+            agent: httpsAgent
+        });
+
+        if (!response.ok) {
+            if (response.status === 401) {
+                const authError = new Error('Unauthorized');
+                authError.authFailure = true;
+                authError.status = 401;
+                throw authError;
+            }
+
+            let errorDetails = '';
+            try {
+                const errorResponse = await response.text();
+                errorDetails = ` - Response: ${errorResponse}`;
+            } catch (e) {
+                errorDetails = ' - Could not read error response';
+            }
+
+            throw new Error(`HTTP ${response.status}: ${response.statusText}${errorDetails}`);
         }
-        
-        // Try to get more details about the error
-        let errorDetails = '';
-        try {
-            const errorResponse = await response.text();
-            errorDetails = ` - Response: ${errorResponse}`;
-        } catch (e) {
-            errorDetails = ' - Could not read error response';
+
+        const issuesData = await response.json();
+
+        if (!issuesData.issues || !Array.isArray(issuesData.issues)) {
+            log.warn('No issues returned from Jira or invalid response format');
+            break;
         }
-        
-        throw new Error(`HTTP ${response.status}: ${response.statusText}${errorDetails}`);
+
+        total = typeof issuesData.total === 'number' ? issuesData.total : allIssues.length + issuesData.issues.length;
+        allIssues.push(...issuesData.issues);
+        log.info(`Accumulated ${allIssues.length}/${total || 'unknown'} issues (startAt=${startAt})`);
+
+        // Advance to next page
+        startAt += issuesData.maxResults || perPage;
+        if ((issuesData.startAt + (issuesData.maxResults || issuesData.issues.length)) >= (issuesData.total || startAt)) {
+            // No more pages
+            break;
+        }
     }
-    
-    const issuesData = await response.json();
-    
-    if (!issuesData.issues || !Array.isArray(issuesData.issues)) {
-        log.warn('No issues returned from Jira or invalid response format');
+
+    if (allIssues.length === 0) {
         return { issues: [] };
     }
-    
-    log.info(`Jira returned ${issuesData.issues.length} issues, total available: ${issuesData.total || 'unknown'}`);
-    
-    // Debug: Log all found issues
-    
-    // Process the issues - the worklogs should already be included in the response
+
     const issuesWithWorklogs = [];
-    
-    for (const issue of issuesData.issues) {
+
+    for (const raw of allIssues) {
+        let issue = (raw && typeof raw === 'object') ? raw : null;
+        if (!issue || !issue.fields) {
+            try {
+                const fallbackIdOrKey = (issue && (issue.id || issue.key)) || (raw && (raw.id || raw.key));
+                if (fallbackIdOrKey) {
+                    const detailed = await exports.getIssue(req, fallbackIdOrKey);
+                    if (detailed && detailed.fields) {
+                        issue = detailed;
+                    }
+                }
+            } catch (e) {}
+        }
+        if (!issue || !issue.fields) {
+            log.warn('Skipping invalid issue entry after fallback fetch:', typeof raw);
+            continue;
+        }
+        const issueKeySafe = issue.key || issue.id || 'unknown';
         try {
             // Check if worklogs are already included in the response
             if (!issue.fields.worklog) {
-                log.warn(`Issue ${issue.key}: No worklog field in response, worklogs may not have been expanded`);
+                log.warn(`Issue ${issueKeySafe}: No worklog field in response, will try fetching all worklogs`);
             } else if (!issue.fields.worklog.worklogs || !Array.isArray(issue.fields.worklog.worklogs)) {
-                log.warn(`Issue ${issue.key}: Worklog field exists but worklogs array is missing or invalid`);
+                log.warn(`Issue ${issueKeySafe}: Worklog field exists but worklogs array is missing or invalid`);
             } else if (issue.fields.worklog && issue.fields.worklog.worklogs && Array.isArray(issue.fields.worklog.worklogs)) {
                 // Filter worklogs by user to ensure we only get the current user's worklogs
                 const filteredWorklogs = issue.fields.worklog.worklogs.filter(worklog => {
                     // Check if worklog is by the current user
+                    const email = worklog && worklog.author && worklog.author.emailAddress;
                     if (process.env.JIRA_BASIC_AUTH_USERNAME) {
-                        return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
+                        return email === process.env.JIRA_BASIC_AUTH_USERNAME;
                     } else if (req.user && req.user.email) {
-                        return worklog.author.emailAddress === req.user.email;
+                        return email === req.user.email;
                     }
                     
                     return true;
@@ -557,28 +588,29 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
                 const totalWorklogs = issue.fields.worklog.total || 0;
                 const returnedWorklogs = issue.fields.worklog.worklogs.length;
                 
-                log.debug(`Issue ${issue.key}: Found ${returnedWorklogs} worklogs from Jira, ${totalWorklogs} total available, ${filteredWorklogs.length} filtered for user`);
+                log.debug(`Issue ${issueKeySafe}: Found ${returnedWorklogs} worklogs from Jira, ${totalWorklogs} total available, ${filteredWorklogs.length} filtered for user`);
                 
                 // If Jira returned fewer worklogs than the total, we need to fetch all pages
                 if (totalWorklogs > returnedWorklogs && issue.fields.worklog.maxResults) {
-                    log.info(`Issue ${issue.key}: Pagination detected (${totalWorklogs} total worklogs, ${returnedWorklogs} returned), fetching all worklogs...`);
+                    log.info(`Issue ${issueKeySafe}: Pagination detected (${totalWorklogs} total worklogs, ${returnedWorklogs} returned), fetching all worklogs...`);
                     
                     // Fetch all worklogs with pagination
                     try {
-                        const allWorklogs = await fetchAllWorklogs(req, issue.id, issue.key);
-                        log.info(`Issue ${issue.key}: Fetched ${allWorklogs.length} total worklogs with pagination`);
+                        const allWorklogs = await fetchAllWorklogs(req, issue.id, issueKeySafe);
+                        log.info(`Issue ${issueKeySafe}: Fetched ${allWorklogs.length} total worklogs with pagination`);
                         
                         // Filter worklogs by user
                         const allFilteredWorklogs = allWorklogs.filter(worklog => {
+                            const email = worklog && worklog.author && worklog.author.emailAddress;
                             if (process.env.JIRA_BASIC_AUTH_USERNAME) {
-                                return worklog.author.emailAddress === process.env.JIRA_BASIC_AUTH_USERNAME;
+                                return email === process.env.JIRA_BASIC_AUTH_USERNAME;
                             } else if (req.user && req.user.email) {
-                                return worklog.author.emailAddress === req.user.email;
+                                return email === req.user.email;
                             }
                             return true;
                         });
                         
-                        log.debug(`Issue ${issue.key}: ${allFilteredWorklogs.length} worklogs after filtering`);
+                        log.debug(`Issue ${issueKeySafe}: ${allFilteredWorklogs.length} worklogs after filtering`);
                         
                         if (allFilteredWorklogs.length > 0) {
                             const issueWithWorklogs = {
@@ -593,7 +625,7 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
                             issuesWithWorklogs.push(issueWithWorklogs);
                         }
                     } catch (error) {
-                        log.error(`Error fetching paginated worklogs for ${issue.key}:`, error.message);
+                        log.error(`Error fetching paginated worklogs for ${issueKeySafe}:`, error && error.message);
                         // Fall back to what we have
                         if (filteredWorklogs.length > 0) {
                             const issueWithWorklogs = {
@@ -624,8 +656,32 @@ async function searchIssuesWithWorkLogsInternal(req, start, end, extraJql) {
                     }
                 }
             }
+            // If no usable worklogs yet, try fetching all worklogs explicitly
+            if (!issue.fields.worklog || !Array.isArray(issue.fields.worklog.worklogs)) {
+                try {
+                    const allWorklogs = await fetchAllWorklogs(req, issue.id, issueKeySafe);
+                    const filtered = allWorklogs.filter(worklog => {
+                        const email = worklog && worklog.author && worklog.author.emailAddress;
+                        if (process.env.JIRA_BASIC_AUTH_USERNAME) return email === process.env.JIRA_BASIC_AUTH_USERNAME;
+                        if (req.user && req.user.email) return email === req.user.email;
+                        return true;
+                    });
+                    if (filtered.length > 0) {
+                        const issueWithWorklogs = {
+                            ...issue,
+                            fields: {
+                                ...issue.fields,
+                                worklog: { worklogs: filtered }
+                            }
+                        };
+                        issuesWithWorklogs.push(issueWithWorklogs);
+                    }
+                } catch (e) {
+                    log.warn(`Fallback worklog fetch failed for ${issueKeySafe}:`, e && e.message);
+                }
+            }
         } catch (error) {
-            log.error(`Error processing issue ${issue.key}:`, error.message);
+            log.error(`Error processing issue ${issueKeySafe}:`, error && error.message);
             continue;
         }
     }
@@ -653,14 +709,12 @@ exports.getSprintIssues = async function(req, sprintId) {
     const jql = `sprint = ${sprintId}`;
     
     // Use the new JQL-based search API to get sprint issues
-    const requestBody = {
-        jql: jql,
-        maxResults: parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 100,
-        expand: 'renderedFields',
-        fields: ['summary', 'issuetype', 'status', 'key', 'id']
-    };
-    
-    const response = await fetch(url + '/rest/api/3/search/jql', {
+    const params = new URLSearchParams();
+    params.set('maxResults', String(parseInt(process.env.JIRA_MAX_SEARCH_RESULTS) || 100));
+    params.set('fields', ['summary','issuetype','status','key','id'].join(','));
+    const requestBody = { jql };
+
+    const response = await fetch(url + '/rest/api/3/search/jql?' + params.toString(), {
         method: 'POST',
         headers: {
             ...getDefaultHeaders(req),
